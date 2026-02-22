@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRUDx Workbench v2</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
+        .hidden { display: none; }
+        #status-bar { padding: 10px; background: #f0f0f0; border-radius: 4px; margin-bottom: 20px; }
+        .auth-error { color: red; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div id="status-bar">
+        Status: <span id="auth-status">Initialisiere...</span>
+    </div>
+
+    <main id="app-content" class="hidden">
+        <h1>Willkommen in der Workbench</h1>
+        <p>Aktive Seite aus URL: <strong id="display-page">-</strong></p>
+        <div id="data-container">Lade Daten...</div>
+    </main>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, collection, query, limit, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // Deine Konfiguration (aus der Firebase Console)
+        const firebaseConfig = {
+            apiKey: "AIzaSyDaEMhzeKaYJEV2INM-pRtUBNW0ZS2LHwE",
+            authDomain: "crudx-e0599.firebaseapp.com",
+            projectId: "crudx-e0599",
+            storageBucket: "crudx-e0599.appspot.com",
+            messagingSenderId: "367332402422",
+            appId: "1:367332402422:web:7f6f7d0a5e8b"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // --- 1. ZUGANGSKONTROLLE (Der Gatekeeper) ---
+        onAuthStateChanged(auth, async (user) => {
+            const statusEl = document.getElementById('auth-status');
+            
+            if (user) {
+                statusEl.textContent = `Angemeldet als ${user.isAnonymous ? 'Anonymer Nutzer' : user.email}`;
+                document.getElementById('app-content').classList.remove('hidden');
+                
+                // Sobald Auth steht, starten wir die App-Logik
+                runAppLogic();
+            } else {
+                statusEl.textContent = "Nicht angemeldet. Starte Login...";
+                signInAnonymously(auth).catch(err => {
+                    statusEl.innerHTML = `<span class="auth-error">Auth-Fehler: ${err.message}</span>`;
+                });
+            }
+        });
+
+        // --- 2. APP LOGIK (URL-First & Paging-Basis) ---
+        async function runAppLogic() {
+            // URL-Parameter lesen (OHNE sie zu überschreiben)
+            const params = new URLSearchParams(window.location.search);
+            const currentPage = parseInt(params.get('p')) || 1;
+            
+            // UI aktualisieren
+            document.getElementById('display-page').textContent = currentPage;
+
+            try {
+                // Beispiel für sauberes, limitiertes Laden (Google Best Practice)
+                // Wir laden nur 5 Dokumente, um Quota zu sparen
+                const q = query(collection(db, "kv-store"), limit(5));
+                const querySnapshot = await getDocs(q);
+                
+                const container = document.getElementById('data-container');
+                container.innerHTML = `<h3>Top 5 Dokumente:</h3><ul>`;
+                querySnapshot.forEach((doc) => {
+                    container.innerHTML += `<li>${doc.id}</li>`;
+                });
+                container.innerHTML += `</ul>`;
+
+            } catch (error) {
+                console.error("Datenfehler:", error);
+                document.getElementById('data-container').textContent = "Fehler beim Laden der Daten (Quota?).";
+            }
+        }
+    </script>
+</body>
+</html>
