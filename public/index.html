@@ -35,13 +35,29 @@
         <span>🟢</span> <strong>System:</strong> <span id="auth-status">Initialisiere lokale Verbindung...</span>
     </div>
 
-    <main id="app-content" class="hidden">
-        <div style="display: flex; gap: 10px;">
-            <button class="seed-btn" onclick="import('./seed.js').then(m => m.seedData(window.db))">🚀 Daten-Injektor (50 Docs)</button>
-            <button onclick="import('./seed.js').then(m => m.exportData(window.db))" style="background: #007bff; color: white; margin-bottom: 30px;">📥 JSON Export</button>
-            <button onclick="import('./seed.js').then(m => m.clearData(window.db))" style="background: #dc3545; color: white; margin-bottom: 30px;">🗑️ Alles löschen</button>
+<main id="app-content" class="hidden">
+        <div style="display: flex; gap: 12px; margin-bottom: 30px; flex-wrap: wrap;">
+            <button class="seed-btn" style="margin-bottom: 0; flex: 1; min-width: 150px;" 
+                    onclick="import('./seed.js').then(m => m.seedData(window.db))">
+                🚀 Injektor
+            </button>
+            
+            <button style="background: var(--primary); flex: 1; min-width: 120px;" 
+                    onclick="import('./seed.js').then(m => m.exportData(window.db))">
+                📤 Export
+            </button>
+            
+            <button style="background: var(--success); flex: 1; min-width: 120px;" 
+                    onclick="import('./seed.js').then(m => m.importData(window.db))">
+                📥 Import
+            </button>
+            
+            <button style="background: #dc3545; flex: 1; min-width: 120px;" 
+                    onclick="import('./seed.js').then(m => m.clearData(window.db))">
+                🗑️ Löschen
+            </button>
         </div>
-        
+
         <div class="search-box">
             <input type="text" id="search-input" placeholder="Nach ID filtern (z.B. DOC-02)...">
             <button onclick="executeSearch()">🔍 Suchen</button>
