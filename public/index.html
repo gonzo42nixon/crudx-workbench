@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRUDx Workbench v2 - Final Professional</title>
+    <style>
+        :root {
+            --primary: #007bff;
+            --success: #28a745;
+            --warning: #ffc107;
+            --gray: #6c757d;
+            --light: #f4f7f9;
+        }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; padding: 40px; background: var(--light); color: #333; }
+        #status-bar { background: #fff; padding: 15px; border-radius: 10px; margin-bottom: 25px; border: 1px solid #ddd; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 10px; }
+        .hidden { display: none; }
+        .card { background: white; padding: 18px; margin: 12px 0; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-left: 6px solid var(--primary); display: flex; justify-content: space-between; align-items: center; transition: transform 0.1s; }
+        .card:hover { transform: translateX(5px); }
+        button { padding: 12px 24px; cursor: pointer; background: var(--primary); color: white; border: none; border-radius: 6px; font-weight: bold; transition: all 0.2s; }
+        button:hover { opacity: 0.9; }
+        button:disabled { background: var(--gray); cursor: not-allowed; opacity: 0.5; }
+        .seed-btn { background: var(--warning); color: #000; margin-bottom: 30px; }
+        .search-box { margin-bottom: 30px; display: flex; gap: 12px; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        input { padding: 12px; border: 2px solid #eee; border-radius: 6px; width: 350px; font-size: 16px; outline: none; transition: border-color 0.2s; }
+        input:focus { border-color: var(--primary); }
+        .highlight { background: #fff3cd; padding: 2px 6px; border-radius: 4px; font-weight: bold; color: #856404; }
+        .nav-controls { margin-top: 40px; display: flex; gap: 20px; align-items: center; justify-content: center; }
+        .page-badge { background: var(--primary); color: white; padding: 5px 15px; border-radius: 20px; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+
+    <div id="status-bar">
+        <span>🟢</span> <strong>System:</strong> <span id="auth-status">Initialisiere lokale Verbindung...</span>
+    </div>
+
+    <main id="app-content" class="hidden">
+        <div style="display: flex; gap: 10px;">
+            <button class="seed-btn" onclick="import('./seed.js').then(m => m.seedData(window.db))">🚀 Daten-Injektor (50 Docs)</button>
+            <button onclick="import('./seed.js').then(m => m.exportData(window.db))" style="background: #007bff; color: white; margin-bottom: 30px;">📥 JSON Export</button>
+            <button onclick="import('./seed.js').then(m => m.clearData(window.db))" style="background: #dc3545; color: white; margin-bottom: 30px;">🗑️ Alles löschen</button>
+        </div>
+        
+        <div class="search-box">
+            <input type="text" id="search-input" placeholder="Nach ID filtern (z.B. DOC-02)...">
+            <button onclick="executeSearch()">🔍 Suchen</button>
+            <button onclick="clearSearch()" style="background: var(--gray)">Reset</button>
+        </div>
+
+        <h1>Workbench Dashboard</h1>
+        <div style="margin-bottom: 20px;">
+            <span class="page-badge">Seite <span id="display-page">1</span></span>
+            <span style="margin-left: 15px; color: var(--gray);">Filter: <strong id="display-filter">Keiner</strong></span>
+        </div>
+        
+        <div id="data-container">Lade lokale Dokumente aus Emulator...</div>
+
+        <div class="nav-controls">
+            <button id="prev-btn" onclick="changePage(-1)">← Zurück</button>
+            <strong>Seite <span id="current-page-num">1</span></strong>
+            <button id="next-btn" onclick="changePage(1)">Weiter →</button>
+        </div>
+    </main>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signInAnonymously, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, collection, query, limit, getDocs, orderBy, startAt, endAt, connectFirestoreEmulator } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // Firebase Konfiguration mit Dummy-Key gegen "auth/invalid-api-key"
+        const firebaseConfig = { 
+            apiKey: "emulator-dummy-key", 
+            projectId: "crudx-e0599" 
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        
+        // Verbindungen zu den Emulatoren (Stelle sicher, dass das Terminal läuft!)
+        connectAuthEmulator(auth, "http://127.0.0.1:9099");
+        connectFirestoreEmulator(db, '127.0.0.1', 8080);
+        window.db = db;
+
+        const state = { perPage: 5, currentPage: 1, currentQuery: "" };
+
+        // Login & App-Start
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                document.getElementById('auth-status').textContent = "Lokal verbunden (Firestore 8080 & Auth 9099)";
+                document.getElementById('app-content').classList.remove('hidden');
+                runAppLogic();
+            } else {
+                signInAnonymously(auth).catch(err => {
+                    document.getElementById('auth-status').textContent = "Fehler: " + err.message;
+                });
+            }
+        });
+
+        async function runAppLogic() {
+            const params = new URLSearchParams(window.location.search);
+            state.currentPage = parseInt(params.get('p')) || 1;
+            state.currentQuery = params.get('q') || "";
+            
+            document.getElementById('display-page').textContent = state.currentPage;
+            document.getElementById('current-page-num').textContent = state.currentPage;
+            document.getElementById('display-filter').textContent = state.currentQuery || "Keiner";
+            document.getElementById('search-input').value = state.currentQuery;
+            document.getElementById('prev-btn').disabled = state.currentPage <= 1;
+
+            await fetchPage();
+        }
+
+        async function fetchPage() {
+            const container = document.getElementById('data-container');
+            container.innerHTML = "<em>Lade...</em>";
+
+            try {
+                const colRef = collection(db, "kv-store");
+                let q;
+
+                if (state.currentQuery) {
+                    q = query(colRef, orderBy("__name__"), startAt(state.currentQuery), endAt(state.currentQuery + "\uf8ff"), limit(state.perPage));
+                } else {
+                    const startNum = ((state.currentPage - 1) * state.perPage) + 1;
+                    const startId = `DOC-${String(startNum).padStart(3, '0')}`;
+                    q = query(colRef, orderBy("__name__"), startAt(startId), limit(state.perPage));
+                }
+
+                const snap = await getDocs(q);
+                if (snap.empty) {
+                    container.innerHTML = "<div class='card'>Keine Daten gefunden. Bitte Daten-Injektor nutzen.</div>";
+                    return;
+                }
+
+                container.innerHTML = "";
+                snap.forEach(doc => {
+                    const data = doc.data();
+                    const isMatch = state.currentQuery && doc.id.toLowerCase().includes(state.currentQuery.toLowerCase());
+                    const idDisplay = isMatch ? `<span class="highlight">${doc.id}</span>` : doc.id;
+
+                    container.innerHTML += `
+                        <div class="card">
+                            <span>ID: <strong>${idDisplay}</strong></span>
+                            <span style="color: var(--gray); font-weight: 500;">${data.label || 'Test-Eintrag'}</span>
+                        </div>`;
+                });
+            } catch (err) {
+                container.innerHTML = `<div class='card' style='border-color:red; color:red;'>Fehler: ${err.message}</div>`;
+            }
+        }
+
+        window.executeSearch = () => {
+            const val = document.getElementById('search-input').value.trim();
+            updateUrl({ q: val, p: 1 });
+        };
+
+        window.clearSearch = () => updateUrl({ q: "", p: 1 });
+
+        window.changePage = (delta) => updateUrl({ p: state.currentPage + delta });
+
+        function updateUrl(params) {
+            const url = new URL(window.location.href);
+            Object.keys(params).forEach(k => {
+                if(params[k]) url.searchParams.set(k, params[k]);
+                else url.searchParams.delete(k);
+            });
+            window.history.pushState({}, '', url);
+            runAppLogic();
+        }
+
+        window.onpopstate = () => runAppLogic();
+    </script>
+</body>
+</html>
