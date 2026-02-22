@@ -1,63 +1,81 @@
-import { 
-    collection, doc, setDoc, getDocs, writeBatch 
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { collection, doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// 1. SEED (50 Dokumente generieren)
+/**
+ * OCR-Encoder: Transformiert eine numerische ID in eine OCR-optimierte CRUDX-Notation.
+ * Regeln: 
+ * - Fixes Präfix "CRUDX-"
+ * - Ersetzung kritischer Zeichen: 0->C, 1->R, 6->U, 7->D, 9->X
+ * - Gruppierung in 5er Blöcke mit Bindestrich
+ */
+function encodeOCR(id) {
+    const map = { '0': 'C', '1': 'R', '6': 'U', '7': 'D', '9': 'X' };
+    
+    // Sicherstellen, dass wir eine 15-stellige Basis haben (für 3 Blöcke à 5 Zeichen)
+    let raw = id.toString().padStart(15, '0'); 
+    
+    // Zeichenersetzung basierend auf dem OCR-Schlüssel
+    let encoded = raw.split('').map(char => map[char] || char).join('');
+    
+    // Aufteilung in 5er Gruppen
+    let groups = encoded.match(/.{1,5}/g) || [];
+    
+    // Finales Format: CRUDX-XXXXX-XXXXX-XXXXX
+    return `CRUDX-${groups.join('-')}`.toUpperCase();
+}
+
+/**
+ * Injeziert Testdaten mit OCR-konformen IDs in die Firestore.
+ */
 export async function seedData(db) {
-    console.log("🚀 Starte Injektion...");
-    for (let i = 1; i <= 50; i++) {
-        const id = `DOC-${String(i).padStart(3, '0')}`;
-        await setDoc(doc(db, "kv-store", id), {
-            label: `Test Eintrag #${i}`,
-            index: i,
-            created: new Date().toISOString()
-        });
+    try {
+        const batch = writeBatch(db);
+        const colRef = collection(db, "kv-store");
+
+        // Wir generieren 25 Test-Assets
+        for (let i = 1; i <= 25; i++) {
+            // Wir nutzen einen Offset (1.000.000.000), um interessante Zahlenkombinationen zu provozieren
+            const baseId = 1000000000 + i;
+            const ocrId = encodeOCR(baseId); 
+            
+            const docRef = doc(colRef, ocrId);
+
+            batch.set(docRef, {
+                label: `Module Asset #${i}`,
+                value: i % 2 === 0 
+                    ? `This is the core payload for Module ${i}. It now fully supports the new Array architecture.`
+                    : `Alternative payload for Module ${i}. Optimized for OCR processing and high-speed data retrieval.`,
+                size: `${Math.floor(Math.random() * 200) + 10}KB`,
+                owner: "admin@crudx.com",
+                protection: ["P", "R", "W"],
+                reads: Math.floor(Math.random() * 1000),
+                updates: Math.floor(Math.random() * 100),
+                last_read_ts: new Date().toISOString(),
+                last_update_ts: new Date().toISOString(),
+                // User Tags für die blauen Pills
+                user_tags: ["bug", "feature", "pinned", "urgent", "stable"].slice(0, Math.floor(Math.random() * 4) + 1),
+                // Zugriffskontrolllisten für die automatischen Tags
+                white_list_read: ["user_alpha", "user_beta"],
+                white_list_update: ["admin_user"],
+                white_list_delete: ["system_root"],
+                card_settings: i % 5 === 0 ? ["archive"] : []
+            });
+        }
+
+        await batch.commit();
+        console.log("✅ OCR-konforme Testdaten erfolgreich injiziert.");
+        alert("Daten injiziert! Die Seite wird nun neu geladen.");
+        location.reload();
+    } catch (error) {
+        console.error("❌ Fehler beim Injizieren der Daten:", error);
+        alert("Fehler beim Injezieren der Daten. Details in der Konsole.");
     }
-    alert("✅ 50 Dokumente erstellt!");
-    window.location.reload();
 }
 
-// 2. EXPORT (Als JSON herunterladen)
-export async function exportData(db) {
-    const snap = await getDocs(collection(db, "kv-store"));
-    const data = [];
-    snap.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `workbench_backup.json`;
-    a.click();
-}
-
-// 3. IMPORT (JSON-Datei hochladen)
-export async function importData(db) {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-    input.onchange = async (e) => {
-        const file = e.target.files[0];
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            const data = JSON.parse(event.target.result);
-            console.log("📥 Importiere " + data.length + " Dokumente...");
-            for (const item of data) {
-                const { id, ...payload } = item;
-                await setDoc(doc(db, "kv-store", id), payload);
-            }
-            alert("✅ Import erfolgreich!");
-            window.location.reload();
-        };
-        reader.readAsText(file);
-    };
-    input.click();
-}
-
-// 4. CLEAR (Datenbank leeren)
+/**
+ * Löscht alle Dokumente in der Collection (Hilfsfunktion).
+ */
 export async function clearData(db) {
-    if (!confirm("Alles löschen?")) return;
-    const snap = await getDocs(collection(db, "kv-store"));
-    const batch = writeBatch(db);
-    snap.forEach(d => batch.delete(d.ref));
-    await batch.commit();
-    window.location.reload();
+    // Hinweis: In einer echten Firebase-Umgebung sollte dies über die CLI oder 
+    // eine Cloud Function geschehen, da Client-seitiges Löschen ganzer Collections nicht performant ist.
+    alert("Bitte löschen Sie die Daten manuell im Emulator UI oder nutzen Sie die CLI.");
 }
