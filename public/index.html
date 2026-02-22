@@ -15,12 +15,26 @@
         body { font-family: 'Segoe UI', system-ui, sans-serif; padding: 40px; background: var(--light); color: #333; }
         #status-bar { background: #fff; padding: 15px; border-radius: 10px; margin-bottom: 25px; border: 1px solid #ddd; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 10px; }
         .hidden { display: none; }
+        
+        /* Button-Tuning für einheitliche Breite */
+        .admin-toolbar { display: flex; gap: 12px; margin-bottom: 30px; flex-wrap: wrap; }
+        .admin-toolbar button { 
+            flex: 1; 
+            min-width: 140px; 
+            display: inline-flex; 
+            align-items: center; 
+            justify-content: center; 
+            gap: 8px; 
+        }
+
         .card { background: white; padding: 18px; margin: 12px 0; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-left: 6px solid var(--primary); display: flex; justify-content: space-between; align-items: center; transition: transform 0.1s; }
         .card:hover { transform: translateX(5px); }
+        
         button { padding: 12px 24px; cursor: pointer; background: var(--primary); color: white; border: none; border-radius: 6px; font-weight: bold; transition: all 0.2s; }
         button:hover { opacity: 0.9; }
         button:disabled { background: var(--gray); cursor: not-allowed; opacity: 0.5; }
-        .seed-btn { background: var(--warning); color: #000; margin-bottom: 30px; }
+        
+        .seed-btn { background: var(--warning); color: #000; }
         .search-box { margin-bottom: 30px; display: flex; gap: 12px; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         input { padding: 12px; border: 2px solid #eee; border-radius: 6px; width: 350px; font-size: 16px; outline: none; transition: border-color 0.2s; }
         input:focus { border-color: var(--primary); }
@@ -35,29 +49,14 @@
         <span>🟢</span> <strong>System:</strong> <span id="auth-status">Initialisiere lokale Verbindung...</span>
     </div>
 
-<main id="app-content" class="hidden">
-        <div style="display: flex; gap: 12px; margin-bottom: 30px; flex-wrap: wrap;">
-            <button class="seed-btn" style="margin-bottom: 0; flex: 1; min-width: 150px;" 
-                    onclick="import('./seed.js').then(m => m.seedData(window.db))">
-                🚀 Injektor
-            </button>
-            
-            <button style="background: var(--primary); flex: 1; min-width: 120px;" 
-                    onclick="import('./seed.js').then(m => m.exportData(window.db))">
-                📤 Export
-            </button>
-            
-            <button style="background: var(--success); flex: 1; min-width: 120px;" 
-                    onclick="import('./seed.js').then(m => m.importData(window.db))">
-                📥 Import
-            </button>
-            
-            <button style="background: #dc3545; flex: 1; min-width: 120px;" 
-                    onclick="import('./seed.js').then(m => m.clearData(window.db))">
-                🗑️ Löschen
-            </button>
+    <main id="app-content" class="hidden">
+        <div class="admin-toolbar">
+            <button class="seed-btn" onclick="import('./seed.js').then(m => m.seedData(window.db))">🚀 Injektor</button>
+            <button style="background: var(--primary);" onclick="import('./seed.js').then(m => m.exportData(window.db))">📤 Export</button>
+            <button style="background: var(--success);" onclick="import('./seed.js').then(m => m.importData(window.db))">📥 Import</button>
+            <button style="background: #dc3545;" onclick="import('./seed.js').then(m => m.clearData(window.db))">🗑️ Löschen</button>
         </div>
-
+        
         <div class="search-box">
             <input type="text" id="search-input" placeholder="Nach ID filtern (z.B. DOC-02)...">
             <button onclick="executeSearch()">🔍 Suchen</button>
@@ -65,9 +64,14 @@
         </div>
 
         <h1>Workbench Dashboard</h1>
-        <div style="margin-bottom: 20px;">
+        <div style="margin-bottom: 20px; display: flex; align-items: center; gap: 15px;">
             <span class="page-badge">Seite <span id="display-page">1</span></span>
-            <span style="margin-left: 15px; color: var(--gray);">Filter: <strong id="display-filter">Keiner</strong></span>
+            <span style="color: var(--gray); font-size: 0.9em;">
+                📊 <strong id="doc-count-display">...</strong> Dokumente insgesamt
+            </span>
+            <span style="margin-left: auto; color: var(--gray); font-size: 0.9em;">
+                Filter: <strong id="display-filter">Keiner</strong>
+            </span>
         </div>
         
         <div id="data-container">Lade lokale Dokumente aus Emulator...</div>
@@ -82,35 +86,26 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getAuth, onAuthStateChanged, signInAnonymously, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-        import { getFirestore, collection, query, limit, getDocs, orderBy, startAt, endAt, connectFirestoreEmulator } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, query, limit, getDocs, orderBy, startAt, endAt, connectFirestoreEmulator, getCountFromServer } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // Firebase Konfiguration mit Dummy-Key gegen "auth/invalid-api-key"
-        const firebaseConfig = { 
-            apiKey: "emulator-dummy-key", 
-            projectId: "crudx-e0599" 
-        };
-
+        const firebaseConfig = { apiKey: "emulator-dummy-key", projectId: "crudx-e0599" };
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
         
-        // Verbindungen zu den Emulatoren (Stelle sicher, dass das Terminal läuft!)
         connectAuthEmulator(auth, "http://127.0.0.1:9099");
         connectFirestoreEmulator(db, '127.0.0.1', 8080);
         window.db = db;
 
         const state = { perPage: 5, currentPage: 1, currentQuery: "" };
 
-        // Login & App-Start
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 document.getElementById('auth-status').textContent = "Lokal verbunden (Firestore 8080 & Auth 9099)";
                 document.getElementById('app-content').classList.remove('hidden');
                 runAppLogic();
             } else {
-                signInAnonymously(auth).catch(err => {
-                    document.getElementById('auth-status').textContent = "Fehler: " + err.message;
-                });
+                signInAnonymously(auth);
             }
         });
 
@@ -125,7 +120,19 @@
             document.getElementById('search-input').value = state.currentQuery;
             document.getElementById('prev-btn').disabled = state.currentPage <= 1;
 
-            await fetchPage();
+            await updateCount(); // Zähle alle Docs
+            await fetchPage();   // Lade aktuelle Seite
+        }
+
+        // Neue Funktion zum Zählen aller Dokumente
+        async function updateCount() {
+            try {
+                const colRef = collection(db, "kv-store");
+                const snapshot = await getCountFromServer(colRef);
+                document.getElementById('doc-count-display').textContent = snapshot.data().count;
+            } catch (err) {
+                console.error("Zählfehler:", err);
+            }
         }
 
         async function fetchPage() {
@@ -146,7 +153,7 @@
 
                 const snap = await getDocs(q);
                 if (snap.empty) {
-                    container.innerHTML = "<div class='card'>Keine Daten gefunden. Bitte Daten-Injektor nutzen.</div>";
+                    container.innerHTML = "<div class='card'>Keine Daten gefunden.</div>";
                     return;
                 }
 
