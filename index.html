@@ -5,30 +5,63 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CRUDx Workbench v2</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; line-height: 1.6; color: #333; }
         .hidden { display: none; }
-        #status-bar { padding: 10px; background: #f0f0f0; border-radius: 4px; margin-bottom: 20px; }
-        .auth-error { color: red; font-weight: bold; }
+        #status-bar { 
+            padding: 15px; 
+            background: #e9ecef; 
+            border-radius: 8px; 
+            margin-bottom: 30px; 
+            border-left: 5px solid #0d6efd;
+        }
+        #data-container { 
+            background: #fff; 
+            border: 1px solid #dee2e6; 
+            padding: 20px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        ul { list-style: none; padding: 0; }
+        li { 
+            padding: 10px; 
+            border-bottom: 1px solid #eee; 
+            font-family: monospace;
+        }
+        button { 
+            padding: 8px 16px; 
+            cursor: pointer; 
+            background: #0d6efd; 
+            color: white; 
+            border: none; 
+            border-radius: 4px; 
+            margin-right: 5px;
+        }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        .nav-controls { margin-top: 20px; display: flex; align-items: center; gap: 15px; }
     </style>
 </head>
 <body>
 
     <div id="status-bar">
-        Status: <span id="auth-status">Initialisiere...</span>
+        <strong>System-Status:</strong> <span id="auth-status">Initialisiere Firebase...</span>
     </div>
 
     <main id="app-content" class="hidden">
-        <h1>Willkommen in der Workbench</h1>
-        <p>Aktive Seite aus URL: <strong id="display-page">-</strong></p>
-        <div id="data-container">Lade Daten...</div>
+        <h1>CRUDx Workbench</h1>
+        <p>Aktuelle Seite aus URL-Parameter <code>p</code>: <strong id="display-page">-</strong></p>
+        
+        <div id="data-container">
+            Warte auf Daten-Abfrage...
+        </div>
     </main>
 
     <script type="module">
+        // Firebase Module laden
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getAuth, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-        import { getFirestore, collection, query, limit, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, query, limit, getDocs, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // Deine Konfiguration (aus der Firebase Console)
+        // Deine Firebase-Konfiguration
         const firebaseConfig = {
             apiKey: "AIzaSyDaEMhzeKaYJEV2INM-pRtUBNW0ZS2LHwE",
             authDomain: "crudx-e0599.firebaseapp.com",
@@ -38,55 +71,105 @@
             appId: "1:367332402422:web:7f6f7d0a5e8b"
         };
 
+        // Instanzen starten
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // --- 1. ZUGANGSKONTROLLE (Der Gatekeeper) ---
+        // Globaler App-Status
+        const state = {
+            perPage: 5,
+            currentPage: 1
+        };
+
+        // --- 1. DER GATEKEEPER (Zugangskontrolle) ---
         onAuthStateChanged(auth, async (user) => {
             const statusEl = document.getElementById('auth-status');
             
             if (user) {
-                statusEl.textContent = `Angemeldet als ${user.isAnonymous ? 'Anonymer Nutzer' : user.email}`;
+                statusEl.textContent = `Bereit. Angemeldet als ${user.isAnonymous ? 'Anonymus' : user.email}`;
                 document.getElementById('app-content').classList.remove('hidden');
                 
-                // Sobald Auth steht, starten wir die App-Logik
+                // Sobald wir sicher eingeloggt sind, starten wir die Logik
                 runAppLogic();
             } else {
-                statusEl.textContent = "Nicht angemeldet. Starte Login...";
+                statusEl.textContent = "Authentifizierung läuft...";
                 signInAnonymously(auth).catch(err => {
-                    statusEl.innerHTML = `<span class="auth-error">Auth-Fehler: ${err.message}</span>`;
+                    statusEl.textContent = "Fehler: " + err.message;
                 });
             }
         });
 
-        // --- 2. APP LOGIK (URL-First & Paging-Basis) ---
+        // --- 2. DIE LOGIK (URL-First Paging) ---
         async function runAppLogic() {
-            // URL-Parameter lesen (OHNE sie zu überschreiben)
+            // Seite aus der URL auslesen (z.B. ?p=3)
             const params = new URLSearchParams(window.location.search);
-            const currentPage = parseInt(params.get('p')) || 1;
+            state.currentPage = parseInt(params.get('p')) || 1;
             
-            // UI aktualisieren
-            document.getElementById('display-page').textContent = currentPage;
+            // Anzeige aktualisieren
+            document.getElementById('display-page').textContent = state.currentPage;
+
+            // Daten abrufen
+            await fetchPage(state.currentPage);
+        }
+
+        async function fetchPage(page) {
+            const container = document.getElementById('data-container');
+            container.innerHTML = "<em>Rufe Dokumente ab...</em>";
 
             try {
-                // Beispiel für sauberes, limitiertes Laden (Google Best Practice)
-                // Wir laden nur 5 Dokumente, um Quota zu sparen
-                const q = query(collection(db, "kv-store"), limit(5));
-                const querySnapshot = await getDocs(q);
+                // Wir nutzen ein einfaches Query mit Limit, um Quota zu sparen
+                const collectionRef = collection(db, "kv-store");
                 
-                const container = document.getElementById('data-container');
-                container.innerHTML = `<h3>Top 5 Dokumente:</h3><ul>`;
-                querySnapshot.forEach((doc) => {
-                    container.innerHTML += `<li>${doc.id}</li>`;
-                });
-                container.innerHTML += `</ul>`;
+                // HINWEIS: Für echtes Paging über tausende Docs nutzt man startAfter()
+                // Hier implementieren wir die Basis-Struktur
+                const q = query(collectionRef, limit(state.perPage));
+                
+                const snapshot = await getDocs(q);
+                
+                if (snapshot.empty) {
+                    container.innerHTML = "Keine Daten in der Collection 'kv-store' gefunden.";
+                    return;
+                }
 
-            } catch (error) {
-                console.error("Datenfehler:", error);
-                document.getElementById('data-container').textContent = "Fehler beim Laden der Daten (Quota?).";
+                // Liste bauen
+                let html = `<h3>Dokumente (Limit ${state.perPage}):</h3><ul>`;
+                snapshot.forEach(doc => {
+                    html += `<li>ID: <strong>${doc.id}</strong></li>`;
+                });
+                html += `</ul>`;
+                
+                // Navigationselemente
+                html += `
+                    <div class="nav-controls">
+                        <button onclick="changePage(-1)" ${page <= 1 ? 'disabled' : ''}>Zurück</button>
+                        <span>Seite ${page}</span>
+                        <button onclick="changePage(1)">Weiter</button>
+                    </div>
+                `;
+                
+                container.innerHTML = html;
+
+            } catch (err) {
+                console.error(err);
+                container.innerHTML = `<span style="color:red">Fehler beim Laden: ${err.message}</span>`;
             }
         }
+
+        // --- 3. DIE NAVIGATION (URL ändern) ---
+        window.changePage = (delta) => {
+            const newPage = state.currentPage + delta;
+            const url = new URL(window.location.href);
+            
+            // Setzt den URL Parameter 'p'
+            url.searchParams.set('p', newPage);
+            
+            // Aktualisiert die Browser-Leiste OHNE die Seite neu zu laden
+            window.history.pushState({}, '', url);
+            
+            // Startet die Logik neu mit dem neuen Wert
+            runAppLogic();
+        };
     </script>
 </body>
 </html>
