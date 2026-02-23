@@ -139,7 +139,26 @@ header {
 }
 
 .tl-group { position: absolute; top: 12px; left: 12px; display: flex; flex-wrap: wrap; gap: 8px; z-index: 10; max-width: 90%; }
-.br-group { position: absolute; bottom: 12px; right: 12px; display: flex; flex-direction: row; flex-wrap: wrap-reverse; justify-content: flex-end; gap: 8px; z-index: 10; max-width: 90%; }
+
+.br-group {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    display: flex;
+    flex-direction: column-reverse; /* sys unten, user oben */
+    align-items: flex-end;
+    gap: 8px;
+    z-index: 10;
+    max-width: 90%;
+}
+
+.user-pills,
+.sys-pills {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
 
 .pill { 
     display: inline-flex; align-items: center; justify-content: center;

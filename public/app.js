@@ -249,12 +249,31 @@ document.addEventListener("DOMContentLoaded", () => {
                     const l = d[`white_list_${m}`] || [];
                     userTags.push({ k: m, h: `<div class="pill pill-user">${m === 'read' ? '👁️' : (m === 'update' ? '✏️' : '🗑️')} ${l.length}</div>` });
                 });
-                const sysTags = `<div class="pill pill-sys">💾 ${d.size || '0KB'}</div><div class="pill pill-sys">👤 ${d.owner || 'System'}</div><div class="pill pill-sys">R:${d.reads || 0}</div>`;
+
+                // Alphabetische Sortierung der User-Tags
+                userTags.sort((a, b) => a.k.localeCompare(b.k));
+
+                const sysTags = `
+                    <div class="pill pill-sys">💾 ${d.size || '0KB'}</div>
+                    <div class="pill pill-sys">👤 ${d.owner || 'System'}</div>
+                    <div class="pill pill-sys">R:${d.reads || 0}</div>
+                `;
+
+                // *** NEUE STRUKTUR: getrennte Container für rote und blaue Pills ***
+                const sysDiv = `<div class="sys-pills">${sysTags}</div>`;
+                const userDiv = `<div class="user-pills">${userTags.map(p => p.h).join('')}</div>`;
+
                 dataContainer.innerHTML += `
                     <div class="card-kv">
                         <div class="value-layer">${d.value || 'N/A'}</div>
-                        <div class="tl-group"><div class="pill pill-key">${doc.id}</div><div class="pill pill-label">${d.label || ''}</div></div>
-                        <div class="br-group">${userTags.map(p => p.h).join('')}${sysTags}</div>
+                        <div class="tl-group">
+                            <div class="pill pill-key">${doc.id}</div>
+                            <div class="pill pill-label">${d.label || ''}</div>
+                        </div>
+                        <div class="br-group">
+                            ${sysDiv}   <!-- Rote Pills (unten) -->
+                            ${userDiv}  <!-- Blaue Pills (oben) -->
+                        </div>
                     </div>`;
             });
         }
