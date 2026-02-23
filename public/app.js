@@ -1,5 +1,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, collection, query, limit, getDocs, connectFirestoreEmulator, getCountFromServer, orderBy, startAfter } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { 
+    getFirestore, collection, query, limit, getDocs, connectFirestoreEmulator, 
+    getCountFromServer, orderBy, startAfter, deleteDoc, doc 
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 document.addEventListener("DOMContentLoaded", () => {
     try {
@@ -115,7 +118,6 @@ document.addEventListener("DOMContentLoaded", () => {
             syncModalUI();
         });
 
-        // REPARIERTE FAB-FUNKTIONEN
         bind('btn-share', 'click', () => {
             if (navigator.share) {
                 navigator.share({ title: 'CRUDX Data View', url: window.location.href });
@@ -200,7 +202,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // --- 6. TOOLS & DATA ---
         bind('btn-inject', 'click', () => import('./seed.js').then(m => m.seedData(db)));
-        bind('btn-delete', 'click', () => import('./seed.js').then(m => m.clearData(db)));
+
+        // INLINE LÖSCHFUNKTION
+        const nukeDatabase = async () => {
+            if (!confirm("Alle Dokumente in 'kv-store' wirklich löschen?")) return;
+            try {
+                const colRef = collection(db, "kv-store");
+                const snap = await getDocs(colRef);
+                if (snap.empty) return alert("Datenbank ist bereits leer.");
+                await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
+                currentPage = 1;
+                fetchRealData(); 
+            } catch (e) { console.error("Löschfehler:", e); }
+        };
+        bind('btn-delete', 'click', nukeDatabase);
 
         let currentPage = 1, itemsPerPage = 9, pageCursors = []; 
         const dataContainer = document.getElementById('data-container'), gridSelect = document.getElementById('grid-select');
