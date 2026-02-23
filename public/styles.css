@@ -144,10 +144,12 @@ header {
     overflow: hidden;
 }
 
-.value-layer { 
-    width: 100%; display: flex; align-items: center; justify-content: center; 
-    font-size: 1.1em; color: var(--card-text); font-weight: bold; text-align: center; 
-    padding: 60px 20px; flex-grow: 1;
+.value-layer {
+    font-family: 'JetBrains Mono', monospace;
+    white-space: pre-wrap; /* Behält Zeilenumbrüche aus dem Code bei */
+    word-break: break-all;
+    font-size: 0.85em;
+    overflow-y: auto; /* Falls der Code mal länger als die Karte ist */
 }
 
 .tl-group { position: absolute; top: 12px; left: 12px; display: flex; flex-wrap: wrap; gap: 8px; z-index: 10; max-width: 90%; }
