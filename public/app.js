@@ -122,64 +122,72 @@ document.addEventListener("DOMContentLoaded", () => {
         const fmtT = (label, ts) => ts ? `${label}: ${ts.replace('T', ' ').substring(0, 19)}` : label;
 
         // --- 7. RENDER ENGINE ---
-        async function fetchRealData() {
-            const colRef = collection(db, "kv-store");
-            
-            const totalSnap = await getCountFromServer(colRef);
-            if(document.getElementById('total-count')) document.getElementById('total-count').textContent = totalSnap.data().count;
-            if(document.getElementById('current-page')) document.getElementById('current-page').textContent = currentPage;
+async function fetchRealData() {
+    const colRef = collection(db, "kv-store");
+    
+    // Pagination-Stats aktualisieren
+    const totalSnap = await getCountFromServer(colRef);
+    if(document.getElementById('total-count')) document.getElementById('total-count').textContent = totalSnap.data().count;
+    if(document.getElementById('current-page')) document.getElementById('current-page').textContent = currentPage;
 
-            let q = query(colRef, orderBy("__name__"), limit(itemsPerPage));
-            if (currentPage > 1 && pageCursors[currentPage - 2]) {
-                q = query(colRef, orderBy("__name__"), startAfter(pageCursors[currentPage - 2]), limit(itemsPerPage));
-            }
-            
-            const snap = await getDocs(q);
-            if(document.getElementById('result-count')) document.getElementById('result-count').textContent = snap.size;
-            
-            dataContainer.innerHTML = ""; 
-            if (snap.empty) { dataContainer.innerHTML = "<h2>Keine Daten gefunden.</h2>"; return; }
-            pageCursors[currentPage - 1] = snap.docs[snap.docs.length - 1];
+    // Query mit Sortierung und Paginierung
+    let q = query(colRef, orderBy("__name__"), limit(itemsPerPage));
+    if (currentPage > 1 && pageCursors[currentPage - 2]) {
+        q = query(colRef, orderBy("__name__"), startAfter(pageCursors[currentPage - 2]), limit(itemsPerPage));
+    }
+    
+    const snap = await getDocs(q);
+    if(document.getElementById('result-count')) document.getElementById('result-count').textContent = snap.size;
+    
+    dataContainer.innerHTML = ""; 
+    if (snap.empty) { dataContainer.innerHTML = "<h2>Ende der Daten erreicht.</h2>"; return; }
+    
+    pageCursors[currentPage - 1] = snap.docs[snap.docs.length - 1];
 
-            snap.forEach(doc => {
-                const d = doc.data();
-                
-                // USER PILLS (Blau)
-                let userTags = [];
-                if (Array.isArray(d.user_tags)) d.user_tags.forEach(t => userTags.push({ k: t, h: `<div class="pill pill-user">🏷️ ${t}</div>` }));
-                ['read','update','delete'].forEach(m => {
-                    const l = d[`white_list_${m}`] || [];
-                    userTags.push({ k: m, h: `<div class="pill pill-user">${m === 'read' ? '👁️' : (m === 'update' ? '✏️' : '🗑️')} ${l.length}</div>` });
-                });
-                userTags.sort((a, b) => a.k.localeCompare(b.k));
-
-                // SYSTEM PILLS (Rot / 7 Stück)
-                const prot = Array.isArray(d.protection) ? d.protection.join('') : 'P';
-                const sysTagsHtml = `
-                    <div class="pill pill-sys" title="Größe">💾 ${d.size || '0KB'}</div>
-                    <div class="pill pill-sys" title="Besitzer">👤 ${d.owner || 'System'}</div>
-                    <div class="pill pill-sys" title="Reads">R:${d.reads || 0}</div>
-                    <div class="pill pill-sys" title="Updates">U:${d.updates || 0}</div>
-                    <div class="pill pill-sys" title="${fmtT('Erstellt', d.created_at)}">🐣 C:${fmtD(d.created_at)}</div>
-                    <div class="pill pill-sys" title="${fmtT('Letzter Lesezugriff', d.last_read_ts)}">👁️ L-R:${fmtD(d.last_read_ts)}</div>
-                    <div class="pill pill-sys" title="${fmtT('Letzte Änderung', d.last_update_ts)}">📝 L-U:${fmtD(d.last_update_ts)}</div>
-                `;
-
-                // Karte zusammenbauen – Container für Sys und User bleiben getrennt
-                dataContainer.innerHTML += `
-                    <div class="card-kv">
-                        <div class="value-layer">${d.value || 'N/A'}</div>
-                        <div class="tl-group">
-                            <div class="pill pill-key">${doc.id}</div>
-                            <div class="pill pill-label">${d.label || ''}</div>
-                        </div>
-                        <div class="br-group">
-                            <div class="sys-pills">${sysTagsHtml}</div>
-                            <div class="user-pills">${userTags.map(p => p.h).join('')}</div>
-                        </div>
-                    </div>`;
-            });
+    snap.forEach(doc => {
+        const d = doc.data();
+        
+        // --- 1. USER TAGS GENERIEREN (Blau) ---
+        let userTags = [];
+        if (Array.isArray(d.user_tags)) {
+            d.user_tags.forEach(t => userTags.push({ k: t, h: `<div class="pill pill-user">🏷️ ${t}</div>` }));
         }
+        ['read','update','delete'].forEach(m => {
+            const l = d[`white_list_${m}`] || [];
+            const icon = m === 'read' ? '👁️' : (m === 'update' ? '✏️' : '🗑️');
+            userTags.push({ k: m, h: `<div class="pill pill-user">${icon} ${l.length}</div>` });
+        });
+        userTags.sort((a, b) => a.k.localeCompare(b.k));
+        const userTagsHtml = userTags.map(p => p.h).join('');
+
+        // --- 2. SYSTEM TAGS GENERIEREN (Rot / 7 Stück) ---
+        const prot = Array.isArray(d.protection) ? d.protection.join('') : 'P';
+        const sysTagsHtml = `
+            <div class="pill pill-sys" title="Größe">💾 ${d.size || '0KB'}</div>
+            <div class="pill pill-sys" title="Besitzer">👤 ${d.owner || 'System'}</div>
+            <div class="pill pill-sys" title="Reads">R:${d.reads || 0}</div>
+            <div class="pill pill-sys" title="Updates">U:${d.updates || 0}</div>
+            <div class="pill pill-sys" title="${fmtT('Erstellt', d.created_at)}">🐣 C:${fmtD(d.created_at)}</div>
+            <div class="pill pill-sys" title="${fmtT('Lesezugriff', d.last_read_ts)}">👁️ L-R:${fmtD(d.last_read_ts)}</div>
+            <div class="pill pill-sys" title="${fmtT('Letzte Änderung', d.last_update_ts)}">📝 L-U:${fmtD(d.last_update_ts)}</div>
+        `;
+
+        // --- 3. TEMPLATE IN DEN CONTAINER SCHREIBEN ---
+        // TAUSCH: Erst SYS dann USER sorgt bei row-reverse für: SYS rechts, USER links.
+        dataContainer.innerHTML += `
+            <div class="card-kv">
+                <div class="value-layer">${d.value || 'N/A'}</div>
+                <div class="tl-group">
+                    <div class="pill pill-key">${doc.id}</div>
+                    <div class="pill pill-label">${d.label || ''}</div>
+                </div>
+                <div class="br-group">
+                    ${sysTagsHtml}
+                    ${userTagsHtml}
+                </div>
+            </div>`;
+    });
+}
 
         // Initialisierung
         applyTheme(currentActiveTheme); 

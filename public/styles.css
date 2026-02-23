@@ -150,19 +150,13 @@ header {
     bottom: 12px;
     right: 12px;
     display: flex;
-    flex-direction: column-reverse; /* sys unten, user oben */
-    align-items: flex-end;
-    gap: 8px;
+    /* Alle Pills fließen jetzt in einer einzigen Cloud zusammen */
+    flex-wrap: wrap-reverse; 
+    flex-direction: row-reverse; 
+    justify-content: flex-start; 
+    gap: 4px;
+    max-width: 95%;
     z-index: 10;
-    max-width: 90%;
-}
-
-.user-pills,
-.sys-pills {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 8px;
 }
 
 /* --- TOOLTIP & PILL STYLE --- */
