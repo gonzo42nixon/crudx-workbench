@@ -17,6 +17,7 @@ document.addEventListener("DOMContentLoaded", () => {
         };
 
         // --- 2. THEME CONFIG (VOLLSTÄNDIG) ---
+
         let appConfig = {
             "startupTheme": "night",
             "themes": {
@@ -29,7 +30,8 @@ document.addEventListener("DOMContentLoaded", () => {
                     "burger": { "text": "#00ff00" },
                     "key":    { "bg": "#000000", "text": "#00ff00", "border": "#333333", "opacity": 80, "blur": false },
                     "user":   { "bg": "#40c4ff", "text": "#000000", "border": "#333333", "opacity": 80, "blur": false },
-                    "sys":    { "bg": "#ff5252", "text": "#000000", "border": "#333333", "opacity": 80, "blur": false }
+                    "sys":    { "bg": "#ff5252", "text": "#000000", "border": "#333333", "opacity": 80, "blur": false },
+                    "mime":   { "bg": "#f7df1e", "text": "#000000", "border": "#ffffff", "opacity": 15, "blur": false }
                 },
                 "day": {
                     "canvas": { "bg": "#f5f5f5", "text": "#111111", "border": "#cccccc", "padding": 15, "opacity": 90, "blur": true },
@@ -40,7 +42,8 @@ document.addEventListener("DOMContentLoaded", () => {
                     "burger": { "text": "#0077ff" },
                     "key":    { "bg": "#222222", "text": "#ffffff", "border": "#444444", "opacity": 90, "blur": false },
                     "user":   { "bg": "#0088cc", "text": "#ffffff", "border": "#0055aa", "opacity": 90, "blur": false },
-                    "sys":    { "bg": "#cc0000", "text": "#ffffff", "border": "#aa0000", "opacity": 90, "blur": false }
+                    "sys":    { "bg": "#cc0000", "text": "#ffffff", "border": "#aa0000", "opacity": 90, "blur": false },
+                    "mime":   { "bg": "#ffcc00", "text": "#000000", "border": "#888888", "opacity": 20, "blur": false }
                 },
                 "arnold": {
                     "canvas": { "bg": "#000000", "text": "#ff0000", "border": "#ff0000", "padding": 20, "opacity": 95, "blur": false },
@@ -51,7 +54,8 @@ document.addEventListener("DOMContentLoaded", () => {
                     "burger": { "text": "#ff0000" },
                     "key":    { "bg": "#330000", "text": "#ff0000", "border": "#ff0000", "opacity": 100, "blur": false },
                     "user":   { "bg": "#ff0000", "text": "#000000", "border": "#ff0000", "opacity": 100, "blur": false },
-                    "sys":    { "bg": "#ff0000", "text": "#000000", "border": "#ff0000", "opacity": 100, "blur": false }
+                    "sys":    { "bg": "#ff0000", "text": "#000000", "border": "#ff0000", "opacity": 100, "blur": false },
+                    "mime":   { "bg": "#ff0000", "text": "#000000", "border": "#ff0000", "opacity": 30, "blur": false }
                 },
                 "gaga": {
                     "canvas": { "bg": "#ff00ff", "text": "#000000", "border": "#000000", "padding": 10, "opacity": 70, "blur": true },
@@ -62,7 +66,8 @@ document.addEventListener("DOMContentLoaded", () => {
                     "burger": { "text": "#ff00ff" },
                     "key":    { "bg": "#000000", "text": "#ffff00", "border": "#000000", "opacity": 100, "blur": false },
                     "user":   { "bg": "#ffff00", "text": "#000000", "border": "#000000", "opacity": 100, "blur": false },
-                    "sys":    { "bg": "#00ffff", "text": "#000000", "border": "#000000", "opacity": 100, "blur": false }
+                    "sys":    { "bg": "#00ffff", "text": "#000000", "border": "#000000", "opacity": 100, "blur": false },
+                    "mime":   { "bg": "#ffff00", "text": "#ff00ff", "border": "#000000", "opacity": 40, "blur": true }
                 }
             }
         };
@@ -87,7 +92,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const t = appConfig.themes[themeName];
             if(!t) return;
             const root = document.documentElement;
-            const sections = ['canvas', 'card', 'navi', 'editor', 'search', 'key', 'user', 'sys'];
+            const sections = ['canvas', 'card', 'navi', 'editor', 'search', 'key', 'user', 'sys', 'mime'];
             
             sections.forEach(s => {
                 const sec = t[s];
@@ -121,7 +126,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 if(document.getElementById(`in-${prefix}-opacity`)) document.getElementById(`in-${prefix}-opacity`).value = s.opacity;
                 if(document.getElementById(`in-${prefix}-blur`)) document.getElementById(`in-${prefix}-blur`).checked = s.blur;
             };
-            ['canvas', 'card', 'navi', 'editor', 'search', 'key', 'user', 'sys'].forEach(s => sync(s, s));
+            ['canvas', 'card', 'navi', 'editor', 'search', 'key', 'user', 'sys', 'mime'].forEach(s => sync(s, s));
         }
 
         // --- 4. FAB-FUNKTIONEN (THEME, SHARE, FULLSCREEN, PRINT) ---
@@ -244,6 +249,55 @@ document.addEventListener("DOMContentLoaded", () => {
             currentTranslateY = 0;
         });
 
+        // Ermöglicht das Umschalten des Themes direkt im Editor
+        bind('in-edit-theme', 'change', (e) => {
+            currentActiveTheme = e.target.value; // Diese Zeile sorgt dafür, dass der Editor weiß, wer jetzt dran ist
+            applyTheme(e.target.value);
+            syncModalUI();
+        });
+
+        // --- THEME EXPORT LOGIK ---
+        bind('btn-export-theme', 'click', () => {
+            const exportArea = document.getElementById('export-area');
+            const exportModal = document.getElementById('export-modal');
+            
+            // Wir exportieren die gesamte appConfig, damit Startup und ALLE Themes gesichert sind
+            const fullExport = {
+                startupTheme: appConfig.startupTheme,
+                themes: appConfig.themes
+            };
+
+            exportArea.value = JSON.stringify(fullExport, null, 4);
+            exportModal.classList.add('active');
+        });
+
+        // Schließen des Export-Modals
+        bind('btn-close-export', 'click', () => {
+            document.getElementById('export-modal').classList.remove('active');
+        });
+
+        // In die Zwischenablage kopieren
+        bind('btn-copy-buffer', 'click', () => {
+            const content = document.getElementById('export-area').value;
+            navigator.clipboard.writeText(content).then(() => {
+                const btn = document.getElementById('btn-copy-buffer');
+                btn.textContent = "✅ Copied!";
+                setTimeout(() => btn.textContent = "📋 Copy to Clipboard", 2000);
+            });
+        });
+
+        // Als JSON Datei speichern
+        bind('btn-save-json', 'click', () => {
+            const content = document.getElementById('export-area').value;
+            const blob = new Blob([content], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `crudx-theme-${currentActiveTheme}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+        
         // Theme-Link im Drawer
         bind('btn-drawer-theme', 'click', () => { 
             syncModalUI(); 
@@ -255,8 +309,8 @@ document.addEventListener("DOMContentLoaded", () => {
             currentTranslateY = 0;
         });
 
-        // --- 7. LIVE-EDITOR FÜR THEME-FARBEN ---
-        ['canvas', 'card', 'navi', 'editor', 'search', 'key', 'user', 'sys'].forEach(sec => {
+        // --- 7. LIVE-EDITOR (Updated to include MIME) ---
+        ['canvas', 'card', 'navi', 'editor', 'search', 'key', 'user', 'sys', 'mime'].forEach(sec => {
             ['bg', 'text', 'border'].forEach(k => {
                 const el = document.getElementById(`in-${sec}-${k}`);
                 if (el) el.addEventListener('input', (e) => {
@@ -301,7 +355,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const fmtD = (ts) => ts ? ts.split('T')[0] : '--'; 
         const fmtT = (label, ts) => ts ? `${label}: ${ts.replace('T', ' ').substring(0, 19)}` : label;
 
-        // --- 9. RENDER ENGINE ---
+        // --- 8. RENDER ENGINE & MIME DETECTION ---
         async function fetchRealData() {
             const colRef = collection(db, "kv-store");
             const totalSnap = await getCountFromServer(colRef);
@@ -315,45 +369,86 @@ document.addEventListener("DOMContentLoaded", () => {
             
             const snap = await getDocs(q);
             if(document.getElementById('result-count')) document.getElementById('result-count').textContent = snap.size;
+            
+            const dataContainer = document.getElementById('data-container');
             dataContainer.innerHTML = ""; 
+            
             if (snap.empty) return;
             pageCursors[currentPage - 1] = snap.docs[snap.docs.length - 1];
 
+            const fmtD = (ts) => ts ? ts.split('T')[0] : '--'; 
+            const fmtT = (label, ts) => ts ? `${label}: ${ts.replace('T', ' ').substring(0, 19)}` : label;
+
             snap.forEach(doc => {
                 const d = doc.data();
+                
+                // --- MIME ERKENNUNG ---
+                // Wir nennen die Variable hier 'foundMime', um Kollisionen zu vermeiden
+                const foundMime = detectMimetype(d.value);
+                const mimePill = foundMime ? `<div class="pill pill-mime">MIME: ${foundMime.icon} ${foundMime.type}</div>` : '';
+
                 let userTags = [];
-                if (Array.isArray(d.user_tags)) d.user_tags.forEach(t => userTags.push({ k: t, h: `<div class="pill pill-user">🏷️ ${t}</div>` }));
+                if (Array.isArray(d.user_tags)) {
+                    d.user_tags.forEach(t => userTags.push({ k: t, h: `<div class="pill pill-user">🏷️ ${t}</div>` }));
+                }
+                
                 ['read','update','delete'].forEach(m => {
                     const l = d[`white_list_${m}`] || [];
-                    userTags.push({ k: m, h: `<div class="pill pill-user">${m === 'read' ? '👁️' : (m === 'update' ? '✏️' : '🗑️')} ${l.length}</div>` });
+                    if (l.length > 0) {
+                        userTags.push({ k: m, h: `<div class="pill pill-user">${m === 'read' ? '👁️' : (m === 'update' ? '✏️' : '🗑️')} ${l.length}</div>` });
+                    }
                 });
                 userTags.sort((a, b) => a.k.localeCompare(b.k));
                 const userTagsHtml = userTags.map(p => p.h).join('');
 
                 const sysTagsHtml = `
-                    <div class="pill pill-sys" title="Größe">💾 ${d.size || '0KB'}</div>
-                    <div class="pill pill-sys" title="Besitzer">👤 ${d.owner || 'System'}</div>
-                    <div class="pill pill-sys" title="Reads">R:${d.reads || 0}</div>
-                    <div class="pill pill-sys" title="Updates">U:${d.updates || 0}</div>
+                    <div class="pill pill-sys">💾 ${d.size || '0KB'}</div>
+                    <div class="pill pill-sys">👤 ${d.owner || 'System'}</div>
+                    <div class="pill pill-sys">R:${d.reads || 0}</div>
+                    <div class="pill pill-sys">U:${d.updates || 0}</div>
                     <div class="pill pill-sys" title="${fmtT('Erstellt', d.created_at)}">🐣 C:${fmtD(d.created_at)}</div>
-                    <div class="pill pill-sys" title="${fmtT('Letzter Lesezugriff', d.last_read_ts)}">👁️ L-R:${fmtD(d.last_read_ts)}</div>
-                    <div class="pill pill-sys" title="${fmtT('Letzte Änderung', d.last_update_ts)}">📝 L-U:${fmtD(d.last_update_ts)}</div>
+                    <div class="pill pill-sys" title="${fmtT('Letzter Read', d.last_read_ts)}">👁️ L-R:${fmtD(d.last_read_ts)}</div>
+                    <div class="pill pill-sys" title="${fmtT('Letzter Update', d.last_update_ts)}">📝 L-U:${fmtD(d.last_update_ts)}</div>
                 `;
 
                 dataContainer.innerHTML += `
                     <div class="card-kv">
-                        <div class="value-layer">${d.value || 'N/A'}</div>
+                        <div class="value-layer">${d.value || 'NULL'}</div>
                         <div class="tl-group">
                             <div class="pill pill-key">${doc.id}</div>
                             <div class="pill pill-label">${d.label || ''}</div>
                         </div>
                         <div class="br-group">
                             ${sysTagsHtml}
+                            ${mimePill}
                             ${userTagsHtml}
                         </div>
                     </div>`;
             });
         }
+
+function detectMimetype(value) {
+    if (!value) return null;
+    const v = String(value).trim();
+    const vLower = v.toLowerCase();
+
+    // Priorität 1: Inhalts-Signaturen (Magic Bytes / Header)
+    if (v.startsWith('{') || v.startsWith('[')) return { type: 'JSON', icon: '📦', color: '#f7df1e' };
+    if (v.startsWith('<!DOCTYPE html') || v.startsWith('<html') || v.startsWith('<body')) return { type: 'HTML', icon: '🌐', color: '#e34c26' };
+    if (v.startsWith('<?xml')) return { type: 'XML', icon: '🧬', color: '#ff6600' };
+    if (v.startsWith('%PDF-')) return { type: 'PDF', icon: '📕', color: '#ff0000' };
+    if (v.startsWith('data:image/')) return { type: 'IMG', icon: '🖼️', color: '#40c4ff' };
+    if (v.startsWith('import ') || v.startsWith('const ') || v.startsWith('let ') || v.startsWith('function ')) return { type: 'JS', icon: '📜', color: '#f7df1e' };
+    if (v.startsWith('def ') || v.startsWith('@')) return { type: 'PY', icon: '🐍', color: '#3776ab' };
+    if (v.startsWith('---') || v.startsWith('# ')) return { type: 'MD', icon: '📝', color: '#083fa1' };
+    if (v.startsWith('INSERT INTO') || v.startsWith('SELECT ') || v.startsWith('CREATE TABLE')) return { type: 'SQL', icon: '🗄️', color: '#336791' };
+    
+    // Check für CSV (Muster: Headerzeile mit Komma und Newline)
+    if (v.includes(',') && v.includes('\n') && v.split('\n')[0].includes(',')) return { type: 'CSV', icon: '📊', color: '#1d6f42' };
+
+    return null; 
+}
+
 
         applyTheme(currentActiveTheme); 
         applyLayout(gridSelect ? gridSelect.value : '9'); 

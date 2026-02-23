@@ -153,12 +153,31 @@
                     <div class="color-row">Outline <input type="color" id="in-sys-border"></div>
                     <div class="color-row">Opacity (%) <input type="number" id="in-sys-opacity"></div>
                     <div class="color-row">Enable Blur <input type="checkbox" id="in-sys-blur"></div>
+
+                    <h4>🏷️ MIME Detection Pill</h4>
+                    <div class="color-row">Background <input type="color" id="in-mime-bg"></div>
+                    <div class="color-row">Foreground <input type="color" id="in-mime-text"></div>
+                    <div class="color-row">Outline <input type="color" id="in-mime-border"></div>
+                    <div class="color-row">Opacity (%) <input type="number" id="in-mime-opacity"></div>
+                    <div class="color-row">Enable Blur <input type="checkbox" id="in-mime-blur"></div>
                 </div>
             </div>
             
             <div class="modal-actions">
                 <button id="btn-close-modal">Close</button>
                 <button id="btn-export-theme" title="Copy <script> to Clipboard">&lt;/&gt; Export</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="export-modal" class="modal-overlay">
+        <div class="modal-content" style="width: 600px;">
+            <h3>📤 Theme Export</h3>
+            <textarea id="export-area" style="width: 100%; height: 300px; background: #000; color: #00ff00; font-family: monospace; padding: 10px; border: 1px solid #333;"></textarea>
+             <div class="modal-actions">
+                <button id="btn-copy-buffer">📋 Copy to Clipboard</button>
+                <button id="btn-save-json">💾 Save as JSON</button>
+                <button id="btn-close-export">Close</button>
             </div>
         </div>
     </div>

@@ -58,6 +58,13 @@
     --sys-border: #333333;
     --sys-glass: rgba(255,82,82,0.8);
     --sys-blur: none;
+
+    /* Tags: MIME Detection */
+    --mime-bg: #f7df1e;
+    --mime-text: #000000;
+    --mime-border: #ffffff;
+    --mime-glass: rgba(247, 223, 30, 0.15);
+    --mime-blur: none;
 }
 
 /* --- GLOBAL RESET --- */
@@ -184,6 +191,12 @@ header {
     border-color: var(--sys-border) !important; 
     font-size: 0.65em;
 }
+.pill-mime { 
+    background: var(--mime-glass) !important; 
+    color: var(--mime-text) !important; 
+    border-color: var(--mime-border) !important; 
+    backdrop-filter: var(--mime-blur) !important;
+}
 
 /* --- PAGINATION NAVI --- */
 #main-paginator {
@@ -281,3 +294,27 @@ header {
 }
 .modal-actions button:hover { background: rgba(255,255,255,0.1); }
 #btn-export-theme { color: #00ff00; border-color: #00ff00; }
+
+/* --- EXPORT MODAL & AREA --- */
+#export-area {
+    width: 100%;
+    height: 350px;
+    background: #000000 !important;
+    color: #00ff00 !important;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 15px;
+    border: 1px solid var(--editor-border);
+    border-radius: 8px;
+    margin: 15px 0;
+    outline: none;
+    resize: none;
+    line-height: 1.5;
+    box-shadow: inset 0 0 10px rgba(0,255,0,0.1);
+}
+
+/* Scrollbar für die Textarea verschönern */
+#export-area::-webkit-scrollbar { width: 8px; }
+#export-area::-webkit-scrollbar-track { background: #111; }
+#export-area::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+#export-area::-webkit-scrollbar-thumb:hover { background: #444; }
