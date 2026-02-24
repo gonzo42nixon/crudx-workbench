@@ -1,5 +1,5 @@
-/* --- 1. DYNAMIC THEME VARIABLES --- */
-:root { 
+/* ========== THEME VARIABLES (ROOT) ========== */
+:root {
     /* Canvas */
     --canvas-bg: #0a0a0a;
     --canvas-text: #eeeeee;
@@ -27,14 +27,14 @@
     --editor-bg: #111111;
     --editor-text: #eeeeee;
     --editor-border: #333333;
-    --editor-glass: rgba(17, 17, 17, 0.95);
+    --editor-glass: rgba(17,  ​17, 17, 0.95);
     --editor-blur: blur(12px);
 
     /* UI Elements */
     --search-bg: #111111;
     --search-text: #eeeeee;
     --search-border: #333333;
-    --search-glass: rgba(17,17,17,0.8);
+    --search-glass: rgba(17, 17, 17, 0.8);
     --search-blur: blur(10px);
     --burger-text: #00ff00;
 
@@ -42,21 +42,21 @@
     --key-bg: #000000;
     --key-text: #00ff00;
     --key-border: #333333;
-    --key-glass: rgba(0,0,0,0.8);
+    --key-glass: rgba(0, 0, 0, 0.8);
     --key-blur: none;
 
     /* Tags: User */
     --user-bg: #40c4ff;
     --user-text: #000000;
     --user-border: #333333;
-    --user-glass: rgba(64,196,255,0.8);
+    --user-glass: rgba(64, 196, 255, 0.8);
     --user-blur: none;
 
     /* Tags: System */
     --sys-bg: #ff5252;
     --sys-text: #000000;
     --sys-border: #333333;
-    --sys-glass: rgba(255,82,82,0.8);
+    --sys-glass: rgba(255, 82, 82, 0.8);
     --sys-blur: none;
 
     /* Tags: MIME Detection */
@@ -65,142 +65,304 @@
     --mime-border: #ffffff;
     --mime-glass: rgba(247, 223, 30, 0.15);
     --mime-blur: none;
+
+    /* Grid-spezifische Variablen (optional, können im Theme-Editor ergänzt werden) */
+    --grid-gap: 12px;
+    --header-footer-height: 140px; /* falls noch nicht dynamisch */
 }
 
-/* --- GLOBAL RESET --- */
-* { box-sizing: border-box; } 
-
-body { 
-    font-family: 'JetBrains Mono', monospace; 
-    margin: 0; 
-    background: var(--canvas-bg); 
-    color: var(--canvas-text); 
-    height: 100vh; 
-    overflow: hidden; 
-    display: flex; 
-    flex-direction: column; 
-    transition: background 0.3s, color 0.3s; 
+/* ========== GLOBAL RESET ========== */
+* {
+    box-sizing: border-box;
 }
 
-/* --- HEADER & UI ELEMENTS --- */
-header { 
-    display: flex; justify-content: center; align-items: center; 
-    position: relative; z-index: 100; padding: 25px 20px; 
-    background: transparent !important;
-}
+body {
+    font-family: 'JetBrains Mono', monospace;
+    margin: 0;
+    background: var(--canvas-bg);
+    color: var(--canvas-text);
+    height: 100vh;
+    overflow: hidden;
 
-.burger-btn { 
-    position: absolute; left: 20px; font-size: 1.8em; 
-    cursor: pointer; color: var(--burger-text) !important; z-index: 2001;
-}
-
-.search-container { width: 35%; min-width: 300px; }
-.search-container input { 
-    width: 100%; padding: 12px 20px; border-radius: 50px; 
-    border: 1px solid var(--search-border) !important; 
-    background: var(--search-glass) !important; 
-    backdrop-filter: var(--search-blur) !important;
-    color: var(--search-text) !important; 
-    text-align: center; outline: none; box-shadow: 0 5px 15px rgba(0,0,0,0.6); 
-}
-
-.app-actions { position: absolute; right: 20px; display: flex; gap: 18px; align-items: center; }
-.app-actions span { cursor: pointer; opacity: 0.7; font-size: 1.2em; transition: 0.2s; }
-.app-actions span:hover { opacity: 1; transform: translateY(-2px); }
-
-/* --- DRAWER --- */
-.drawer { 
-    position: fixed; top: 0; left: -320px; width: 280px; height: 100%; 
-    background: var(--canvas-glass); backdrop-filter: var(--canvas-blur); 
-    border-right: 1px solid var(--canvas-border); transition: left 0.3s ease; 
-    z-index: 2000; padding: 60px 30px 30px 30px; 
-}
-.drawer.open { left: 0; }
-.drawer h3 { color: var(--user-text); border-bottom: 1px solid var(--canvas-border); padding-bottom: 5px; margin-top: 10px; }
-.drawer-item { padding: 10px 0; cursor: pointer; opacity: 0.8; font-size: 0.9em; }
-.drawer-item:hover { opacity: 1; color: var(--burger-text); }
-.drawer-close { position: absolute; top: 15px; right: 20px; font-size: 1.5em; cursor: pointer; color: #888; }
-
-/* --- WORKSPACE GRID --- */
-#data-container { 
-    display: grid; 
-    gap: var(--app-padding); 
-    padding: var(--app-padding); 
-    flex-grow: 1; 
-    overflow: hidden; 
-}
-
-/* --- CARDS & HARDENED PILLS --- */
-.card-kv { 
-    position: relative; 
-    background: var(--card-glass) !important; 
-    backdrop-filter: var(--card-blur) !important;
-    border-radius: 12px; 
-    border: 1px solid var(--card-border) !important; 
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5); 
+    /* Flexbox-Grundgerüst für automatische Höhenverteilung */
     display: flex;
     flex-direction: column;
-    min-height: 250px;
-    overflow: hidden;
 }
 
+/* ========== HEADER & UI ELEMENTS ========== */
+header {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    z-index: 100;
+    padding: 25px 20px;
+    background: transparent !important;
+
+    /* Nicht schrumpfen, damit die Höhe erhalten bleibt */
+    flex-shrink: 0;
+}
+
+.burger-btn {
+    position: absolute;
+    left: 20px;
+    font-size: 1.8em;
+    cursor: pointer;
+    color: var(--burger-text) !important;
+    z-index: 2001;
+}
+
+.search-container {
+    width: 35%;
+    min-width: 300px;
+}
+.search-container input {
+    width: 100%;
+    padding: 12px 20px;
+    border-radius: 50px;
+    border: 1px solid var(--search-border) !important;
+    background: var(--search-glass) !important;
+    backdrop-filter: var(--search-blur) !important;
+    color: var(--search-text) !important;
+    text-align: center;
+    outline: none;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.6);
+}
+
+.app-actions {
+    position: absolute;
+    right: 20px;
+    display: flex;
+    gap: 18px;
+    align-items: center;
+}
+.app-actions span {
+    cursor: pointer;
+    opacity: 0.7;
+    font-size: 1.2em;
+    transition: 0.2s;
+}
+.app-actions span:hover {
+    opacity: 1;
+    transform: translateY(-2px);
+}
+
+/* ========== DRAWER ========== */
+.drawer {
+    position: fixed;
+    top: 0;
+    left: -320px;
+    width: 280px;
+    height: 100%;
+    background: var(--canvas-glass);
+    backdrop-filter: var(--canvas-blur);
+    border-right: 1px solid var(--canvas-border);
+    transition: left 0.3s ease;
+    z-index: 2000;
+    padding: 60px 30px 30px 30px;
+}
+.drawer.open {
+    left: 0;
+}
+.drawer h3 {
+    color: var(--user-text);
+    border-bottom: 1px solid var(--canvas-border);
+    padding-bottom: 5px;
+    margin-top: 10px;
+}
+.drawer-item {
+    padding: 10px 0;
+    cursor: pointer;
+    opacity: 0.8;
+    font-size: 0.9em;
+}
+.drawer-item:hover {
+    opacity: 1;
+    color: var(--burger-text);
+}
+.drawer-close {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    font-size: 1.5em;
+    cursor: pointer;
+    color: #888;
+}
+
+/* ========== WORKSPACE GRID CONTAINER ========== */
+#data-container {
+    /* Grundlegende Eigenschaften (werden von den spezifischen Klassen überschrieben) */
+    flex-grow: 1;                /* Nimmt den verfügbaren Platz im Body ein */
+    min-height: 0;               /* Erlaubt Schrumpfen unter die Inhaltsgröße */
+    overflow: hidden;            /* Kein Überlauf des Gesamt-Containers */
+    padding: var(--app-padding); /* Fallback, falls keine Klasse gesetzt */
+    gap: var(--grid-gap);        /* Fallback */
+    transition: all 0.2s;
+}
+
+/* ----- 3x3 Grid (hart erzwungen) ----- */
+#data-container.grid-3 {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    grid-template-rows: repeat(3, minmax(0, 1fr)) !important; /* keine Prozentangaben! */
+    gap: var(--grid-gap, 12px) !important;
+    padding: var(--app-padding, 10px) !important;
+    overflow: hidden !important;
+
+    /* Flex-Grow wird von der Basis-Klasse geerbt – hier nochmal zur Sicherheit */
+    flex-grow: 1 !important;
+    min-height: 0 !important;
+}
+
+/* ----- 4x4, 5x5 usw. (optional, falls benötigt) ----- */
+#data-container.grid-4 {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    grid-template-rows: repeat(4, minmax(0, 1fr)) !important;
+    gap: var(--grid-gap, 12px) !important;
+    padding: var(--app-padding, 10px) !important;
+    overflow: hidden !important;
+    flex-grow: 1 !important;
+    min-height: 0 !important;
+}
+#data-container.grid-5 {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    grid-template-rows: repeat(5, minmax(0, 1fr)) !important;
+    gap: var(--grid-gap, 12px) !important;
+    padding: var(--app-padding, 10px) !important;
+    overflow: hidden !important;
+    flex-grow: 1 !important;
+    min-height: 0 !important;
+}
+/* Listenansicht */
+#data-container.list {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: var(--grid-gap, 12px) !important;
+    padding: var(--app-padding, 10px) !important;
+    overflow-y: auto !important; /* Scrollen in der Liste */
+    flex-grow: 1 !important;
+    min-height: 0 !important;
+}
+
+/* ========== KARTEN (CARDS) ========== */
+.card-kv {
+    position: relative;
+    background: var(--card-glass) !important;
+    backdrop-filter: var(--card-blur) !important;
+    border-radius: 12px;
+    border: 1px solid var(--card-border) !important;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    color: var(--card-text);
+
+    /* Wichtig: Karten nehmen 100% der Grid-Zelle ein */
+    height: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+
+    /* Flex-Layout für die innere Struktur */
+    display: flex;
+    flex-direction: column;
+
+    /* Verhindert, dass Inhalte die Karte aufblähen */
+    min-height: 0 !important;
+    min-width: 0 !important;
+    overflow: hidden;           /* Überlauf wird durch innere Scrollbereiche geregelt */
+}
+
+/* ========== KARTEN-INHALTE ========== */
 .value-layer {
     font-family: 'JetBrains Mono', monospace;
-    white-space: pre-wrap; /* Behält Zeilenumbrüche aus dem Code bei */
+    white-space: pre-wrap;
     word-break: break-all;
     font-size: 0.85em;
-    overflow-y: auto; /* Falls der Code mal länger als die Karte ist */
+
+    /* Nimmt den gesamten verfügbaren Platz ein */
+    flex: 1 !important;
+
+    /* Scrollen bei Bedarf */
+    overflow-y: auto !important;
+
+    /* Innenabstand (wird wegen box-sizing nicht zur Höhe addiert) */
+    padding: 8px !important;
 }
 
-.tl-group { position: absolute; top: 12px; left: 12px; display: flex; flex-wrap: wrap; gap: 8px; z-index: 10; max-width: 90%; }
+.tl-group {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    z-index: 10;
+    max-width: 90%;
+    pointer-events: none; /* Klicks gehen durch, können aber bei Bedarf angepasst werden */
+}
+.tl-group .pill {
+    pointer-events: auto; /* Pillen bleiben klickbar */
+}
 
 .br-group {
     position: absolute;
     bottom: 12px;
     right: 12px;
     display: flex;
-    flex-wrap: wrap-reverse; /* Cloud stapelt sich nach oben */
-    flex-direction: row-reverse; /* Cloud füllt sich von rechts nach links */
-    justify-content: flex-start; 
+    flex-wrap: wrap-reverse;
+    flex-direction: row-reverse;
+    justify-content: flex-start;
     gap: 4px;
     max-width: 95%;
     z-index: 10;
+    pointer-events: none;
+}
+.br-group .pill {
+    pointer-events: auto;
 }
 
-/* --- TOOLTIP & PILL STYLE --- */
-.pill { 
-    display: inline-flex; align-items: center; justify-content: center;
-    height: 24px; padding: 0 8px; border-radius: 4px; font-size: 0.7em; 
-    font-weight: bold; box-shadow: 0 4px 8px rgba(0,0,0,0.4); 
-    white-space: nowrap; border-style: solid; border-width: 1px;
+/* ========== PILLS (TAGS) ========== */
+.pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 4px;
+    font-size: 0.7em;
+    font-weight: bold;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+    white-space: nowrap;
+    border-style: solid;
+    border-width: 1px;
+}
+.pill[title] {
+    cursor: help;
 }
 
-.pill[title] { cursor: help; }
-
-.pill-key, .pill-label { 
-    background: var(--key-glass) !important; 
-    color: var(--key-text) !important; 
-    border-color: var(--key-border) !important; 
+/* Pill-Farben über Theme-Variablen */
+.pill-key, .pill-label {
+    background: var(--key-glass) !important;
+    color: var(--key-text) !important;
+    border-color: var(--key-border) !important;
 }
-.pill-user { 
-    background: var(--user-glass) !important; 
-    color: var(--user-text) !important; 
-    border-color: var(--user-border) !important; 
+.pill-user {
+    background: var(--user-glass) !important;
+    color: var(--user-text) !important;
+    border-color: var(--user-border) !important;
 }
-.pill-sys { 
-    background: var(--sys-glass) !important; 
-    color: var(--sys-text) !important; 
-    border-color: var(--sys-border) !important; 
+.pill-sys {
+    background: var(--sys-glass) !important;
+    color: var(--sys-text) !important;
+    border-color: var(--sys-border) !important;
     font-size: 0.65em;
 }
-.pill-mime { 
-    background: var(--mime-glass) !important; 
-    color: var(--mime-text) !important; 
-    border-color: var(--mime-border) !important; 
-    backdrop-filter: var(--mime-blur) !important;
+.pill-mime {
+    /* Die Farben werden direkt per inline-style von detectMimetype gesetzt */
+    border: 1px solid rgba(0,0,0,0.2); /* leichter Rahmen */
+    backdrop-filter: none; /* kein Unschärfe-Effekt, falls nicht gewünscht */
 }
 
-/* --- PAGINATION NAVI --- */
+/* ========== PAGINATION (FOOTER) ========== */
 #main-paginator {
     position: fixed;
     bottom: var(--navi-bottom) !important;
@@ -212,23 +374,31 @@ header {
     border-radius: 50px;
     display: flex;
     align-items: center;
-    padding: 5px 20px 5px 5px; 
+    padding: 5px 20px 5px 5px;
     gap: 12px;
-    z-index: 1999; 
+    z-index: 1999;
     box-shadow: 0 10px 30px rgba(0,0,0,0.8);
     width: max-content;
     color: var(--navi-text) !important;
+
+    /* Im Flexbox-Layout darf der Footer nicht schrumpfen */
+    flex-shrink: 0;
 }
 
-#main-paginator button, #main-paginator select {
-    background: rgba(255, 255, 255, 0.1) !important; 
-    color: var(--navi-text) !important; 
+#main-paginator button,
+#main-paginator select {
+    background: rgba(255, 255, 255, 0.1) !important;
+    color: var(--navi-text) !important;
     border: 1px solid var(--navi-border) !important;
-    cursor: pointer; font-family: inherit; font-size: 0.9em; outline: none;
-    border-radius: 4px; padding: 2px 6px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.9em;
+    outline: none;
+    border-radius: 4px;
+    padding: 2px 6px;
 }
 
-/* --- THEMES EDITOR MODAL (NEUE LOGIK) --- */
+/* ========== THEME MODAL ========== */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -238,17 +408,16 @@ header {
     background: rgba(0,0,0,0.6);
     backdrop-filter: var(--editor-blur);
     z-index: 3000;
-    display: none; /* wird per .active eingeblendet */
+    display: none;
 }
-
 .modal-overlay.active {
     display: block;
-    backdrop-filter: none !important; /* KEIN Blur, wenn Modal geöffnet */
+    backdrop-filter: none !important;
 }
 
 .modal-drag-handle {
     cursor: move;
-    user-select: none; /* verhindert ungewolltes Markieren beim Ziehen */
+    user-select: none;
     margin-top: 0;
     border-bottom: 1px solid var(--editor-border);
     padding-bottom: 10px;
@@ -259,7 +428,6 @@ header {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    /* Ihre bisherigen Styles für modal-content */
     background: var(--editor-glass);
     backdrop-filter: var(--editor-blur);
     color: var(--editor-text);
@@ -271,33 +439,78 @@ header {
     overflow-y: auto;
 }
 
-/* Header als Draggable-Handle */
-.modal-content h3 { 
-    margin: -25px -25px 20px -25px; 
+.modal-content h3 {
+    margin: -25px -25px 20px -25px;
     padding: 15px 25px;
     background: rgba(255,255,255,0.03);
     border-bottom: 1px solid var(--editor-border);
-    color: var(--user-glass); 
-    cursor: move; 
+    color: var(--user-glass);
+    cursor: move;
     border-radius: 12px 12px 0 0;
 }
 
-.modal-content h4 { color: #888; font-size: 0.85em; text-transform: uppercase; margin: 20px 0 10px 0; border-bottom: 1px dotted #444; }
-
-.color-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 0.85em; font-weight: bold; }
-.color-row input[type="color"] { background: transparent; border: none; cursor: pointer; height: 26px; width: 40px; padding: 0; }
-.color-row input[type="number"], .color-row select { width: 60px; background: #222; color: #fff; border: 1px solid #444; border-radius: 4px; padding: 2px; }
-.color-row input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
-
-.modal-actions { display: flex; justify-content: space-between; margin-top: 25px; }
-.modal-actions button { 
-    background: rgba(255,255,255,0.05); color: var(--editor-text); border: 1px solid var(--editor-border); 
-    padding: 8px 15px; border-radius: 6px; cursor: pointer; font-weight: bold;
+.modal-content h4 {
+    color: #888;
+    font-size: 0.85em;
+    text-transform: uppercase;
+    margin: 20px 0 10px 0;
+    border-bottom: 1px dotted #444;
 }
-.modal-actions button:hover { background: rgba(255,255,255,0.1); }
-#btn-export-theme { color: #00ff00; border-color: #00ff00; }
 
-/* --- EXPORT MODAL & AREA --- */
+.color-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    font-size: 0.85em;
+    font-weight: bold;
+}
+.color-row input[type="color"] {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    height: 26px;
+    width: 40px;
+    padding: 0;
+}
+.color-row input[type="number"],
+.color-row select {
+    width: 60px;
+    background: #222;
+    color: #fff;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 2px;
+}
+.color-row input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 25px;
+}
+.modal-actions button {
+    background: rgba(255,255,255,0.05);
+    color: var(--editor-text);
+    border: 1px solid var(--editor-border);
+    padding: 8px 15px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+}
+.modal-actions button:hover {
+    background: rgba(255,255,255,0.1);
+}
+#btn-export-theme {
+    color: #00ff00;
+    border-color: #00ff00;
+}
+
+/* ========== EXPORT MODAL ========== */
 #export-area {
     width: 100%;
     height: 350px;
@@ -315,58 +528,26 @@ header {
     box-shadow: inset 0 0 10px rgba(0,255,0,0.1);
 }
 
-/* Scrollbar für die Textarea verschönern */
-#export-area::-webkit-scrollbar { width: 8px; }
-#export-area::-webkit-scrollbar-track { background: #111; }
-#export-area::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
-#export-area::-webkit-scrollbar-thumb:hover { background: #444; }
-
-
-/* HARD 3x3 LOCK - NO OVERFLOW */
-#data-container.grid-3 {
-    display: grid !important;
-    /* Force 3 columns: ignore content width */
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-    
-    /* Force 3 rows: ignore content height and theme padding */
-    grid-template-rows: repeat(3, 33.333%) !important;
-    
-    /* Override Theme Editor interference */
-    padding: 10px !important; 
-    gap: 12px !important;
-    
-    /* Fix height to viewport minus header/footer */
-    height: calc(100vh - 160px) !important;
-    width: 100vw !important;
-    overflow: hidden !important;
-    box-sizing: border-box !important;
+#export-area::-webkit-scrollbar {
+    width: 8px;
+}
+#export-area::-webkit-scrollbar-track {
+    background: #111;
+}
+#export-area::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 4px;
+}
+#export-area::-webkit-scrollbar-thumb:hover {
+    background: #444;
 }
 
-/* TILE UNIFORMITY */
-#data-container.grid-3 .card-kv {
-    height: 100% !important;
-    width: 100% !important;
-    min-height: 0 !important; /* Prevents stretching from code text */
-    margin: 0 !important;
-    display: flex;
-    flex-direction: column;
-}
-
-/* SCROLLING ONLY INSIDE TILES */
-#data-container.grid-3 .value-layer {
-    flex: 1;
-    overflow-y: auto !important; 
-    font-size: 0.8em;
-    padding: 8px;
-    background: rgba(0,0,0,0.2);
-}
-
-/* Floating User Popup - No background dimming */
+/* ========== USER POPUP ========== */
 .user-popup {
-    display: none; /* Hidden by default */
+    display: none;
     position: fixed;
     width: 280px;
-    background: #1f1f1f; /* Matches your night theme */
+    background: #1f1f1f;
     border: 1px solid #333;
     border-radius: 20px;
     box-shadow: 0 10px 40px rgba(0,0,0,0.6);
@@ -375,17 +556,34 @@ header {
     color: white;
     font-family: sans-serif;
 }
-
-.user-popup.active { display: block; }
-
-.user-popup-header { display: flex; justify-content: flex-end; }
-.close-x { cursor: pointer; font-size: 20px; opacity: 0.5; padding: 5px; }
-.close-x:hover { opacity: 1; }
-
-.user-popup-body { text-align: center; }
-.user-avatar-large { font-size: 50px; margin-bottom: 10px; }
-.user-email-text { font-size: 13px; opacity: 0.7; margin-bottom: 20px; }
-
+.user-popup.active {
+    display: block;
+}
+.user-popup-header {
+    display: flex;
+    justify-content: flex-end;
+}
+.close-x {
+    cursor: pointer;
+    font-size: 20px;
+    opacity: 0.5;
+    padding: 5px;
+}
+.close-x:hover {
+    opacity: 1;
+}
+.user-popup-body {
+    text-align: center;
+}
+.user-avatar-large {
+    font-size: 50px;
+    margin-bottom: 10px;
+}
+.user-email-text {
+    font-size: 13px;
+    opacity: 0.7;
+    margin-bottom: 20px;
+}
 .btn-logout-action {
     background: transparent;
     border: 1px solid #555;
@@ -395,6 +593,21 @@ header {
     cursor: pointer;
     font-size: 14px;
 }
-.btn-logout-action:hover { background: rgba(255,255,255,0.1); }
+.btn-logout-action:hover {
+    background: rgba(255,255,255,0.1);
+}
+.user-popup-footer {
+    margin-top: 15px;
+    font-size: 11px;
+    opacity: 0.4;
+    text-align: center;
+}
 
-.user-popup-footer { margin-top: 15px; font-size: 11px; opacity: 0.4; text-align: center; }
+/* ========== FIRBASE EMULATOR WARNUNG AUSBLENDEN ========== */
+.firebase-emulator-warning,
+#firebase-emulator-warning {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}

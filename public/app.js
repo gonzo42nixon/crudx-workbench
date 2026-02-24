@@ -49,7 +49,7 @@ window.auth = auth; // Damit die Konsole weiß, wer 'auth' ist
             "startupTheme": "night",
             "themes": {
                 "night": {
-                    "canvas": { "bg": "#0a0a0a", "text": "#eeeeee", "border": "#333333", "padding": 15, "opacity": 85, "blur": true },
+                    "canvas": { "bg": "#0a0a0a", "border": "#333333", "padding": 15, "opacity": 85, "blur": true },
                     "card":   { "bg": "#111111", "text": "#eeeeee", "border": "#222222", "opacity": 100, "blur": false },
                     "navi":   { "bg": "#0f0f0f", "text": "#cccccc", "border": "#333333", "opacity": 85, "blur": true, "bottom": 25 },
                     "editor": { "bg": "#111111", "text": "#eeeeee", "border": "#333333", "opacity": 95, "blur": true },
@@ -57,11 +57,10 @@ window.auth = auth; // Damit die Konsole weiß, wer 'auth' ist
                     "burger": { "text": "#00ff00" },
                     "key":    { "bg": "#000000", "text": "#00ff00", "border": "#333333", "opacity": 80, "blur": false },
                     "user":   { "bg": "#40c4ff", "text": "#000000", "border": "#333333", "opacity": 80, "blur": false },
-                    "sys":    { "bg": "#ff5252", "text": "#000000", "border": "#333333", "opacity": 80, "blur": false },
-                    "mime":   { "bg": "#f7df1e", "text": "#000000", "border": "#ffffff", "opacity": 15, "blur": false }
+                    "sys":    { "bg": "#ff5252", "text": "#000000", "border": "#333333", "opacity": 80, "blur": false }
                 },
                 "day": {
-                    "canvas": { "bg": "#f5f5f5", "text": "#111111", "border": "#cccccc", "padding": 15, "opacity": 90, "blur": true },
+                    "canvas": { "bg": "#0a0a0a", "border": "#333333", "padding": 15, "opacity": 85, "blur": true },
                     "card":   { "bg": "#ffffff", "text": "#111111", "border": "#dddddd", "opacity": 100, "blur": false },
                     "navi":   { "bg": "#eeeeee", "text": "#333333", "border": "#bbbbbb", "opacity": 90, "blur": true, "bottom": 25 },
                     "editor": { "bg": "#ffffff", "text": "#111111", "border": "#cccccc", "opacity": 98, "blur": true },
@@ -69,11 +68,10 @@ window.auth = auth; // Damit die Konsole weiß, wer 'auth' ist
                     "burger": { "text": "#0077ff" },
                     "key":    { "bg": "#222222", "text": "#ffffff", "border": "#444444", "opacity": 90, "blur": false },
                     "user":   { "bg": "#0088cc", "text": "#ffffff", "border": "#0055aa", "opacity": 90, "blur": false },
-                    "sys":    { "bg": "#cc0000", "text": "#ffffff", "border": "#aa0000", "opacity": 90, "blur": false },
-                    "mime":   { "bg": "#ffcc00", "text": "#000000", "border": "#888888", "opacity": 20, "blur": false }
+                    "sys":    { "bg": "#cc0000", "text": "#ffffff", "border": "#aa0000", "opacity": 90, "blur": false }
                 },
                 "arnold": {
-                    "canvas": { "bg": "#000000", "text": "#ff0000", "border": "#ff0000", "padding": 20, "opacity": 95, "blur": false },
+                    "canvas": { "bg": "#0a0a0a", "border": "#333333", "padding": 15, "opacity": 85, "blur": true },
                     "card":   { "bg": "#110000", "text": "#ff0000", "border": "#ff0000", "opacity": 100, "blur": false },
                     "navi":   { "bg": "#000000", "text": "#ff0000", "border": "#ff0000", "opacity": 100, "blur": false, "bottom": 10 },
                     "editor": { "bg": "#000000", "text": "#ff0000", "border": "#ff0000", "opacity": 100, "blur": false },
@@ -81,11 +79,10 @@ window.auth = auth; // Damit die Konsole weiß, wer 'auth' ist
                     "burger": { "text": "#ff0000" },
                     "key":    { "bg": "#330000", "text": "#ff0000", "border": "#ff0000", "opacity": 100, "blur": false },
                     "user":   { "bg": "#ff0000", "text": "#000000", "border": "#ff0000", "opacity": 100, "blur": false },
-                    "sys":    { "bg": "#ff0000", "text": "#000000", "border": "#ff0000", "opacity": 100, "blur": false },
-                    "mime":   { "bg": "#ff0000", "text": "#000000", "border": "#ff0000", "opacity": 30, "blur": false }
+                    "sys":    { "bg": "#ff0000", "text": "#000000", "border": "#ff0000", "opacity": 100, "blur": false }
                 },
                 "gaga": {
-                    "canvas": { "bg": "#ff00ff", "text": "#000000", "border": "#000000", "padding": 10, "opacity": 70, "blur": true },
+                    "canvas": { "bg": "#0a0a0a", "border": "#333333", "padding": 15, "opacity": 85, "blur": true },
                     "card":   { "bg": "#ffb3ff", "text": "#000000", "border": "#000000", "opacity": 90, "blur": true },
                     "navi":   { "bg": "#ffff00", "text": "#000000", "border": "#000000", "opacity": 80, "blur": true, "bottom": 40 },
                     "editor": { "bg": "#00ffff", "text": "#000000", "border": "#000000", "opacity": 90, "blur": true },
@@ -93,8 +90,7 @@ window.auth = auth; // Damit die Konsole weiß, wer 'auth' ist
                     "burger": { "text": "#ff00ff" },
                     "key":    { "bg": "#000000", "text": "#ffff00", "border": "#000000", "opacity": 100, "blur": false },
                     "user":   { "bg": "#ffff00", "text": "#000000", "border": "#000000", "opacity": 100, "blur": false },
-                    "sys":    { "bg": "#00ffff", "text": "#000000", "border": "#000000", "opacity": 100, "blur": false },
-                    "mime":   { "bg": "#ffff00", "text": "#ff00ff", "border": "#000000", "opacity": 40, "blur": true }
+                    "sys":    { "bg": "#00ffff", "text": "#000000", "border": "#000000", "opacity": 100, "blur": false }
                 }
             }
         };
@@ -105,6 +101,7 @@ window.auth = auth; // Damit die Konsole weiß, wer 'auth' ist
         }
 
         let currentActiveTheme = appConfig.startupTheme;
+        applyTheme(currentActiveTheme);
 
         // --- 3. THEME ENGINE HELPERS ---
         function hexToRgb(hex) {
@@ -123,47 +120,101 @@ window.auth = auth; // Damit die Konsole weiß, wer 'auth' ist
         .replace(/"/g, '&quot;');
 }
 
-        function applyTheme(themeName) {
-            currentActiveTheme = themeName;
-            const t = appConfig.themes[themeName];
-            if(!t) return;
-            const root = document.documentElement;
-            const sections = ['canvas', 'card', 'navi', 'editor', 'search', 'key', 'user', 'sys', 'mime'];
-            
-            sections.forEach(s => {
-                const sec = t[s];
-                if (!sec) return;
-                root.style.setProperty(`--${s}-bg`, sec.bg);
-                root.style.setProperty(`--${s}-text`, sec.text);
-                root.style.setProperty(`--${s}-border`, sec.border);
-                const rgb = hexToRgb(sec.bg);
-                const alpha = (sec.opacity / 100).toFixed(2);
-                root.style.setProperty(`--${s}-glass`, `rgba(${rgb}, ${alpha})`);
-                root.style.setProperty(`--${s}-blur`, sec.blur ? 'blur(10px)' : 'none');
-            });
-            root.style.setProperty('--app-padding', t.canvas.padding + 'px');
-            root.style.setProperty('--navi-bottom', t.navi.bottom + 'px');
-            root.style.setProperty('--burger-text', t.burger.text);
-            
-            if(document.getElementById('in-edit-theme')) document.getElementById('in-edit-theme').value = themeName;
+function applyTheme(themeName) {
+    currentActiveTheme = themeName;
+    const t = appConfig.themes[themeName];
+    if (!t) return;
+    
+    const root = document.documentElement;
+    
+    // 1. Standard-Sektionen verarbeiten
+    const sections = ['canvas', 'card', 'navi', 'editor', 'search', 'key', 'user', 'sys'];
+    sections.forEach(s => {
+        const sec = t[s];
+        if (!sec) return;
+        
+        if (sec.bg !== undefined) root.style.setProperty(`--${s}-bg`, sec.bg);
+        if (sec.text !== undefined) root.style.setProperty(`--${s}-text`, sec.text);
+        if (sec.border !== undefined) root.style.setProperty(`--${s}-border`, sec.border);
+        
+        if (sec.bg !== undefined && sec.opacity !== undefined) {
+            const rgb = hexToRgb(sec.bg);
+            const alpha = (sec.opacity / 100).toFixed(2);
+            root.style.setProperty(`--${s}-glass`, `rgba(${rgb}, ${alpha})`);
         }
+        
+        root.style.setProperty(`--${s}-blur`, sec.blur ? 'blur(10px)' : 'none');
+    });
 
-        function syncModalUI() {
-            const t = appConfig.themes[currentActiveTheme];
-            if(!t) return;
-            document.getElementById('in-startup').value = appConfig.startupTheme;
-            document.getElementById('in-edit-theme').value = currentActiveTheme;
-            const sync = (sec, prefix) => {
-                const s = t[sec];
-                if(!s) return;
-                if(document.getElementById(`in-${prefix}-bg`)) document.getElementById(`in-${prefix}-bg`).value = s.bg;
-                if(document.getElementById(`in-${prefix}-text`)) document.getElementById(`in-${prefix}-text`).value = s.text;
-                if(document.getElementById(`in-${prefix}-border`)) document.getElementById(`in-${prefix}-border`).value = s.border;
-                if(document.getElementById(`in-${prefix}-opacity`)) document.getElementById(`in-${prefix}-opacity`).value = s.opacity;
-                if(document.getElementById(`in-${prefix}-blur`)) document.getElementById(`in-${prefix}-blur`).checked = s.blur;
-            };
-            ['canvas', 'card', 'navi', 'editor', 'search', 'key', 'user', 'sys', 'mime'].forEach(s => sync(s, s));
-        }
+    // 2. Padding & Abstände
+    const padding = (t.canvas && typeof t.canvas.padding === 'number') ? t.canvas.padding : 15;
+    root.style.setProperty('--app-padding', padding + 'px');
+
+    const naviBottom = (t.navi && typeof t.navi.bottom === 'number') ? t.navi.bottom : 25;
+    root.style.setProperty('--navi-bottom', naviBottom + 'px');
+
+    // 3. BURGER FIX: Farbe synchronisieren
+    // Wir nehmen die Farbe aus der Config, sonst Fallback auf das aktuelle Grün
+    const burgerColor = t.burger?.text || '#00ff00';
+    root.style.setProperty('--burger-text', burgerColor);
+    
+    const burgerBtn = document.getElementById('btn-burger');
+    if (burgerBtn) {
+        burgerBtn.style.color = burgerColor;
+        // Falls SVGs genutzt werden, auch das Fill-Attribut setzen
+        const svg = burgerBtn.querySelector('svg');
+        if (svg) svg.style.fill = burgerColor;
+    }
+
+    // 4. Editor-Dropdown aktualisieren
+    const editThemeSelect = document.getElementById('in-edit-theme');
+    if (editThemeSelect) editThemeSelect.value = themeName;
+}
+
+function syncModalUI() {
+    const t = appConfig.themes[currentActiveTheme];
+    if (!t) return;
+
+    // 1. Dropdowns synchronisieren
+    const startupInput = document.getElementById('in-startup');
+    if (startupInput) startupInput.value = appConfig.startupTheme;
+
+    const editThemeInput = document.getElementById('in-edit-theme');
+    if (editThemeInput) editThemeInput.value = currentActiveTheme;
+
+    // 2. Standard-Sektionen (bg, text, border, etc.)
+    const sync = (sec, prefix) => {
+        const s = t[sec];
+        if (!s) return;
+        const fields = ['bg', 'text', 'border', 'opacity'];
+        fields.forEach(f => {
+            const el = document.getElementById(`in-${prefix}-${f}`);
+            if (el && s[f] !== undefined) el.value = s[f];
+        });
+        const blurEl = document.getElementById(`in-${prefix}-blur`);
+        if (blurEl && s.blur !== undefined) blurEl.checked = s.blur;
+    };
+
+    ['canvas', 'card', 'navi', 'editor', 'search', 'key', 'user', 'sys'].forEach(s => sync(s, s));
+
+    // 3. BURGER FARBFELD FIX
+    // Hier wird sichergestellt, dass das Farbfeld im Editor den Wert aus der Config bekommt
+    const burgerColorInput = document.getElementById('in-burger-text');
+    if (burgerColorInput && t.burger && t.burger.text) {
+        burgerColorInput.value = t.burger.text;
+    }
+
+    // 4. Spezialfelder (Padding & Bottom)
+    const paddingInput = document.getElementById('in-canvas-padding');
+    if (paddingInput && t.canvas && typeof t.canvas.padding === 'number') {
+        paddingInput.value = t.canvas.padding;
+    }
+
+    const naviBottomInput = document.getElementById('in-navi-bottom');
+    if (naviBottomInput && t.navi && typeof t.navi.bottom === 'number') {
+        naviBottomInput.value = t.navi.bottom;
+    }
+}
 
         // --- 4. FAB-FUNKTIONEN (THEME, SHARE, FULLSCREEN, PRINT) ---
         bind('btn-theme', 'click', () => {
@@ -346,7 +397,7 @@ window.auth = auth; // Damit die Konsole weiß, wer 'auth' ist
         });
 
         // --- 7. LIVE-EDITOR (Updated to include MIME) ---
-        ['canvas', 'card', 'navi', 'editor', 'search', 'key', 'user', 'sys', 'mime'].forEach(sec => {
+        ['canvas', 'card', 'navi', 'editor', 'search', 'key', 'user', 'sys'].forEach(sec => {
             ['bg', 'text', 'border'].forEach(k => {
                 const el = document.getElementById(`in-${sec}-${k}`);
                 if (el) el.addEventListener('input', (e) => {
@@ -365,6 +416,30 @@ window.auth = auth; // Damit die Konsole weiß, wer 'auth' ist
                 applyTheme(currentActiveTheme);
             });
         });
+
+const burgerColorInput = document.getElementById('in-burger-text');
+if (burgerColorInput) {
+    burgerColorInput.addEventListener('input', (e) => {
+        // Wir stellen sicher, dass das Objekt 'burger' existiert, bevor wir schreiben
+        if (!appConfig.themes[currentActiveTheme].burger) {
+            appConfig.themes[currentActiveTheme].burger = {};
+        }
+        appConfig.themes[currentActiveTheme].burger.text = e.target.value;
+        applyTheme(currentActiveTheme); // Das löst die sofortige Färbung aus
+    });
+}
+
+        // Padding-Feld für Canvas (separat, da nicht in der sections-Schleife)
+const paddingEl = document.getElementById('in-canvas-padding');
+if (paddingEl) {
+    paddingEl.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        if (!isNaN(val)) {
+            appConfig.themes[currentActiveTheme].canvas.padding = val;
+            applyTheme(currentActiveTheme);
+        }
+    });
+}
 
         // --- 8. DATA ACTIONS ---
         bind('btn-inject', 'click', () => import('./seed.js').then(m => m.seedData(db)));
@@ -410,10 +485,31 @@ bind('btn-delete', 'click', async () => {
         const dataContainer = document.getElementById('data-container');
         const gridSelect = document.getElementById('grid-select');
 
-        function applyLayout(val) {
-            if (val === 'list') { itemsPerPage = 50; dataContainer.style.display = 'flex'; dataContainer.style.flexDirection = 'column'; }
-            else { const s = parseInt(val); itemsPerPage = s * s; dataContainer.style.display = 'grid'; dataContainer.style.gridTemplateColumns = `repeat(${s}, 1fr)`; }
-        }
+function applyLayout(val) {
+    const dataContainer = document.getElementById('data-container');
+    if (!dataContainer) return;
+
+    // 1. Alte Layout-Klassen entfernen
+    dataContainer.classList.remove('grid-3', 'grid-4', 'grid-5', 'list');
+
+    // 2. Alle Inline-Styles löschen (damit nur das CSS wirkt)
+    dataContainer.style = '';
+
+    if (val === 'list') {
+        itemsPerPage = 50;
+        dataContainer.classList.add('list');
+    } else {
+        const s = parseInt(val);
+        itemsPerPage = s * s;
+        dataContainer.classList.add(`grid-${s}`);
+        
+        // Optionale Absicherung: inline gar nichts setzen – alles über CSS
+        // Falls Sie doch Inline-Styles brauchen (z.B. für dynamische Spaltenanzahl),
+        // setzen Sie hier nur das Nötigste, z.B.:
+        // dataContainer.style.gridTemplateColumns = `repeat(${s}, minmax(0, 1fr))`;
+        // Aber besser: Vertrauen Sie dem CSS.
+    }
+}
 
         bind('grid-select', 'change', (e) => { applyLayout(e.target.value); currentPage = 1; fetchRealData(); });
         bind('btn-next', 'click', () => { currentPage++; fetchRealData(); });
