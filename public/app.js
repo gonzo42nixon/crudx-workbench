@@ -1,3 +1,4 @@
+import { setupAuth } from './auth-helper.js';
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { 
     getFirestore, collection, query, limit, getDocs, connectFirestoreEmulator, 
@@ -5,17 +6,42 @@ import {
     writeBatch // <--- DIESE ZEILE MUSS HIER REIN!
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
     try {
         // --- 1. FIREBASE SETUP ---
-        const db = getFirestore(initializeApp({ projectId: "crudx-e0599" }));
-        connectFirestoreEmulator(db, '127.0.0.1', 8080);
-        window.db = db; 
+const app = initializeApp({ 
+    apiKey: "fake-api-key-for-emulator", // HIER: Auth braucht diesen Platzhalter
+    projectId: "crudx-e0599" 
+});
+const db = getFirestore(app); // Dann nutzen wir 'app' für die Datenbank
+const auth = setupAuth(app);  // Und 'app' für den Login
+
+// --- MAGIC LINK CHECKER ---
+        const finalizeLogin = async () => {
+            const { signInWithEmailLink, isSignInWithEmailLink } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js");
+            if (isSignInWithEmailLink(auth, window.location.href)) {
+                let email = window.localStorage.getItem('emailForSignIn') || window.prompt('Please provide your email for confirmation:');
+                try {
+                    await signInWithEmailLink(auth, email, window.location.href);
+                    window.localStorage.removeItem('emailForSignIn');
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                    console.log("✅ Magic Link verified!");
+                } catch (e) { console.error("❌ Link Error:", e); }
+            }
+        };
+        finalizeLogin();
+
+connectFirestoreEmulator(db, '127.0.0.1', 8080);
+
+window.db = db; 
+window.auth = auth; // Damit die Konsole weiß, wer 'auth' ist
 
         const bind = (id, event, fn) => {
             const el = document.getElementById(id);
             if (el) el.addEventListener(event, fn);
         };
+
+        
 
         // --- 2. THEME CONFIG (VOLLSTÄNDIG) ---
 
@@ -689,8 +715,112 @@ function detectMimetype(value) {
 }
 
 
-        applyTheme(currentActiveTheme); 
-        applyLayout(gridSelect ? gridSelect.value : '9'); 
-        fetchRealData();
+// --- 9. AUTH LOGIK & START ---
+(async () => {
+    try {
+        const { onAuthStateChanged, signOut } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js");
+
+onAuthStateChanged(auth, async (user) => {
+    const loginModal = document.getElementById('login-modal');
+    const userProfile = document.getElementById('user-profile');
+    const userEmailSpan = document.getElementById('user-email');
+    const gridSelect = document.getElementById('grid-select');
+    const userModal = document.getElementById('user-modal');
+    const modalEmail = document.getElementById('modal-user-email');
+
+    if (user) {
+        console.log("✅ Access granted for:", user.email);
+        
+        if (loginModal) {
+            loginModal.classList.remove('active');
+            loginModal.style.display = 'none';
+        }
+
+        if (userProfile) {
+            userProfile.style.display = 'flex';
+            userProfile.style.cursor = 'pointer';
+            
+            // FEATURE FIX: Hide all wording/email from the header
+            if (userEmailSpan) userEmailSpan.style.display = 'none'; 
+            
+            // Tooltip only shows info
+            userProfile.title = `CRUDX Account\n${user.email}`;
+
+            userProfile.onclick = (e) => {
+                e.stopPropagation();
+                if (modalEmail) modalEmail.textContent = user.email;
+                
+                // Positioning floating popup directly under the icon
+                const rect = userProfile.getBoundingClientRect();
+                userModal.style.top = `${rect.bottom + 10}px`;
+                userModal.style.left = `${rect.right - 280}px`;
+                userModal.classList.toggle('active');
+            };
+        }
+
+        const btnLogoutConfirm = document.getElementById('btn-logout-confirm');
+        if (btnLogoutConfirm) {
+            btnLogoutConfirm.onclick = async () => {
+                const { signOut } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js");
+                await signOut(auth);
+                window.location.reload();
+            };
+        }
+
+        const btnCloseUser = document.getElementById('btn-close-user');
+        if (btnCloseUser) {
+            btnCloseUser.onclick = (e) => {
+                e.stopPropagation();
+                userModal.classList.remove('active');
+            };
+        }
+
+        // Apply 3x3 Layout from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const viewParam = urlParams.get('view');
+        if (viewParam) {
+            if (gridSelect) gridSelect.value = viewParam;
+            applyLayout(viewParam); 
+        } else {
+            applyLayout(gridSelect ? gridSelect.value : '3');
+        }
+
+        fetchRealData(); 
+
+    } else {
+        console.warn("🔒 Locked. Authentication required.");
+        if (userProfile) userProfile.style.display = 'none';
+        if (loginModal) {
+            loginModal.style.display = 'flex';
+            loginModal.classList.add('active');
+        }
+        
+        const btnLink = document.getElementById('btn-send-link');
+        if (btnLink) {
+            btnLink.onclick = async () => {
+                const emailInput = document.getElementById('login-email');
+                if (!emailInput || !emailInput.value) return alert("Please enter an email address.");
+                const currentView = gridSelect ? gridSelect.value : '3';
+                const currentContinueUrl = `${window.location.origin}${window.location.pathname}?view=${currentView}`;
+                const { loginWithEmail } = await import('./auth-helper.js');
+                await loginWithEmail(auth, emailInput.value, currentContinueUrl);
+                const status = document.getElementById('login-status');
+                if (status) status.textContent = "Check your inbox (Emulator UI)!";
+            };
+        }
+    }
+});
+
+        // Global click to close the popup
+        window.addEventListener('click', () => {
+            const userModal = document.getElementById('user-modal');
+            if (userModal) userModal.classList.remove('active');
+        });
+
+    } catch (err) {
+        console.error("🔥 Auth Init Error:", err);
+    }
+})(); // These are the missing brackets that were causing the crash
+
     } catch (e) { console.error("🔥 FATAL:", e); }
 });

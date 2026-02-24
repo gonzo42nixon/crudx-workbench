@@ -29,6 +29,10 @@
             <span id="btn-share" title="Share">🔗</span>
             <span id="btn-fullscreen" title="Fullscreen">🔲</span>
             <span id="btn-print" title="Print">🖨️</span>
+<div id="user-profile" class="fab" style="display: none; width: 40px; height: 40px; padding: 0; border-radius: 50%; justify-content: center; align-items: center;">
+    <span id="user-icon" style="font-size: 20px;">👤</span>
+    <span id="user-email" style="display: none;"></span>
+</div>
         </div>
     </header>
 
@@ -181,6 +185,31 @@
             </div>
         </div>
     </div>
+
+    <div id="login-modal" class="modal">
+        <div class="modal-content card" style="max-width: 400px; text-align: center;">
+            <h3>Authentication Required</h3>
+            <p>Please enter your email to receive a secure login link.</p>
+            <input type="email" id="login-email" placeholder="yourname@example.com" class="input-field" style="width: 100%; margin: 15px 0;">
+            <button id="btn-send-link" class="btn btn-user">Send Login Link</button>
+            <div id="login-status" style="margin-top: 10px; font-size: 0.8em;"></div>
+        </div>
+    </div>
+
+<div id="user-modal" class="user-popup">
+    <div class="user-popup-header">
+        <span id="btn-close-user" class="close-x" title="Close">✕</span>
+    </div>
+    <div class="user-popup-body">
+        <div class="user-avatar-large">👤</div>
+        <h3 id="modal-user-greeting">Hi, Dieter!</h3>
+        <p id="modal-user-email" class="user-email-text"></p>
+        <button id="btn-logout-confirm" class="btn-logout-action">Sign out from all accounts</button>
+    </div>
+    <div class="user-popup-footer">
+        <a href="#">Privacy Policy</a> • <a href="#">Terms</a>
+    </div>
+</div>
 
     <script id="crudx-settings" type="application/json">
         {}

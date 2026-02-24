@@ -320,3 +320,81 @@ header {
 #export-area::-webkit-scrollbar-track { background: #111; }
 #export-area::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
 #export-area::-webkit-scrollbar-thumb:hover { background: #444; }
+
+
+/* HARD 3x3 LOCK - NO OVERFLOW */
+#data-container.grid-3 {
+    display: grid !important;
+    /* Force 3 columns: ignore content width */
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    
+    /* Force 3 rows: ignore content height and theme padding */
+    grid-template-rows: repeat(3, 33.333%) !important;
+    
+    /* Override Theme Editor interference */
+    padding: 10px !important; 
+    gap: 12px !important;
+    
+    /* Fix height to viewport minus header/footer */
+    height: calc(100vh - 160px) !important;
+    width: 100vw !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+}
+
+/* TILE UNIFORMITY */
+#data-container.grid-3 .card-kv {
+    height: 100% !important;
+    width: 100% !important;
+    min-height: 0 !important; /* Prevents stretching from code text */
+    margin: 0 !important;
+    display: flex;
+    flex-direction: column;
+}
+
+/* SCROLLING ONLY INSIDE TILES */
+#data-container.grid-3 .value-layer {
+    flex: 1;
+    overflow-y: auto !important; 
+    font-size: 0.8em;
+    padding: 8px;
+    background: rgba(0,0,0,0.2);
+}
+
+/* Floating User Popup - No background dimming */
+.user-popup {
+    display: none; /* Hidden by default */
+    position: fixed;
+    width: 280px;
+    background: #1f1f1f; /* Matches your night theme */
+    border: 1px solid #333;
+    border-radius: 20px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+    z-index: 9999;
+    padding: 15px;
+    color: white;
+    font-family: sans-serif;
+}
+
+.user-popup.active { display: block; }
+
+.user-popup-header { display: flex; justify-content: flex-end; }
+.close-x { cursor: pointer; font-size: 20px; opacity: 0.5; padding: 5px; }
+.close-x:hover { opacity: 1; }
+
+.user-popup-body { text-align: center; }
+.user-avatar-large { font-size: 50px; margin-bottom: 10px; }
+.user-email-text { font-size: 13px; opacity: 0.7; margin-bottom: 20px; }
+
+.btn-logout-action {
+    background: transparent;
+    border: 1px solid #555;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 14px;
+}
+.btn-logout-action:hover { background: rgba(255,255,255,0.1); }
+
+.user-popup-footer { margin-top: 15px; font-size: 11px; opacity: 0.4; text-align: center; }
