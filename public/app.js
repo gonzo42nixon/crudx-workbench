@@ -49,7 +49,7 @@ window.auth = auth; // Damit die Konsole weiß, wer 'auth' ist
             "startupTheme": "night",
             "themes": {
                 "night": {
-                    "canvas": { "bg": "#0a0a0a", "border": "#333333", "padding": 15, "opacity": 85, "blur": true },
+                    "canvas": { "bg": "#0a0a0a", "border": "#333333", "paddingTop": 10,"padding": 15, "opacity": 85, "blur": true },
                     "card":   { "bg": "#111111", "text": "#eeeeee", "border": "#222222", "opacity": 100, "blur": false, "padding": 20 },
                     "navi":   { "bg": "#0f0f0f", "text": "#cccccc", "border": "#333333", "opacity": 85, "blur": true, "bottom": 25 },
                     "editor": { "bg": "#111111", "text": "#eeeeee", "border": "#333333", "opacity": 95, "blur": true },
@@ -60,7 +60,7 @@ window.auth = auth; // Damit die Konsole weiß, wer 'auth' ist
                     "sys":    { "bg": "#ff5252", "text": "#000000", "border": "#333333", "opacity": 80, "blur": false }
                 },
                 "day": {
-                    "canvas": { "bg": "#0a0a0a", "border": "#333333", "padding": 15, "opacity": 85, "blur": true },
+                    "canvas": { "bg": "#0a0a0a", "border": "#333333", "paddingTop": 10,"padding": 15, "opacity": 85, "blur": true },
                     "card":   { "bg": "#ffffff", "text": "#111111", "border": "#dddddd", "opacity": 100, "blur": false, "padding": 20 },
                     "navi":   { "bg": "#eeeeee", "text": "#333333", "border": "#bbbbbb", "opacity": 90, "blur": true, "bottom": 25 },
                     "editor": { "bg": "#ffffff", "text": "#111111", "border": "#cccccc", "opacity": 98, "blur": true },
@@ -71,7 +71,7 @@ window.auth = auth; // Damit die Konsole weiß, wer 'auth' ist
                     "sys":    { "bg": "#cc0000", "text": "#ffffff", "border": "#aa0000", "opacity": 90, "blur": false }
                 },
                 "arnold": {
-                    "canvas": { "bg": "#0a0a0a", "border": "#333333", "padding": 15, "opacity": 85, "blur": true },
+                    "canvas": { "bg": "#0a0a0a", "border": "#333333", "paddingTop": 10,"padding": 15, "opacity": 85, "blur": true },
                     "card":   { "bg": "#110000", "text": "#ff0000", "border": "#ff0000", "opacity": 100, "blur": false, "padding": 20 },
                     "navi":   { "bg": "#000000", "text": "#ff0000", "border": "#ff0000", "opacity": 100, "blur": false, "bottom": 10 },
                     "editor": { "bg": "#000000", "text": "#ff0000", "border": "#ff0000", "opacity": 100, "blur": false },
@@ -82,7 +82,7 @@ window.auth = auth; // Damit die Konsole weiß, wer 'auth' ist
                     "sys":    { "bg": "#ff0000", "text": "#000000", "border": "#ff0000", "opacity": 100, "blur": false }
                 },
                 "gaga": {
-                    "canvas": { "bg": "#0a0a0a", "border": "#333333", "padding": 15, "opacity": 85, "blur": true },
+                    "canvas": { "bg": "#0a0a0a", "border": "#333333", "paddingTop": 10, "padding": 15, "opacity": 85, "blur": true },
                     "card":   { "bg": "#ffb3ff", "text": "#000000", "border": "#000000", "opacity": 90, "blur": true, "padding": 20 },
                     "navi":   { "bg": "#ffff00", "text": "#000000", "border": "#000000", "opacity": 80, "blur": true, "bottom": 40 },
                     "editor": { "bg": "#00ffff", "text": "#000000", "border": "#000000", "opacity": 90, "blur": true },
@@ -155,6 +155,9 @@ function applyTheme(themeName) {
     const canvasPadding = (t.canvas && typeof t.canvas.padding === 'number') ? t.canvas.padding : 15;
     root.style.setProperty('--app-padding', canvasPadding + 'px');
 
+    const canvasPaddingTop = (t.canvas && typeof t.canvas.paddingTop === 'number') ? t.canvas.paddingTop : 10;
+    root.style.setProperty('--canvas-padding-top', canvasPaddingTop + 'px');
+
     // Navi-Abstand (Paginator nach unten)
     const naviBottom = (t.navi && typeof t.navi.bottom === 'number') ? t.navi.bottom : 25;
     root.style.setProperty('--navi-bottom', naviBottom + 'px');
@@ -217,6 +220,22 @@ function syncModalUI() {
     const paddingInput = document.getElementById('in-canvas-padding');
     if (paddingInput && t.canvas && typeof t.canvas.padding === 'number') {
         paddingInput.value = t.canvas.padding;
+    }
+
+    const paddingTopEl = document.getElementById('in-canvas-padding-top');
+if (paddingTopEl) {
+    paddingTopEl.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        if (!isNaN(val)) {
+            appConfig.themes[currentActiveTheme].canvas.paddingTop = val;
+            applyTheme(currentActiveTheme);
+        }
+    });
+}
+
+    const paddingTopInput = document.getElementById('in-canvas-padding-top');
+    if (paddingTopInput && t.canvas && typeof t.canvas.paddingTop === 'number') {
+        paddingTopInput.value = t.canvas.paddingTop;
     }
 
     const naviBottomInput = document.getElementById('in-navi-bottom');

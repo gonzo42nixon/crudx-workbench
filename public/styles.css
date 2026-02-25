@@ -7,6 +7,7 @@
     --canvas-glass: rgba(10, 10, 10, 0.85);
     --canvas-blur: blur(10px);
     --app-padding: 15px;
+    --canvas-padding-top: 10px;
     
     /* Card */
     --card-bg: #111111;
@@ -92,30 +93,41 @@ body {
 
 /* ========== HEADER & UI ELEMENTS ========== */
 header {
+    position: absolute !important; 
+    top: 0;
+    left: 0;
+    width: 100%;
+    /* Eine feste Höhe für den Header-Bereich, damit die Suche Platz hat */
+    height: 80px; 
     display: flex;
-    justify-content: center;
+    /* Zentriert die Suche horizontal, lässt Burger links und FABs rechts */
+    justify-content: center; 
     align-items: center;
-    position: relative;
-    z-index: 100;
-    padding: 25px 20px;
+    z-index: 2001;
+    padding: 0 20px;
     background: transparent !important;
+    pointer-events: none; 
+}
 
-    /* Nicht schrumpfen, damit die Höhe erhalten bleibt */
-    flex-shrink: 0;
+/* WICHTIG: Die Buttons müssen klickbar bleiben */
+.burger-btn, .search-container, .app-actions {
+    pointer-events: auto;
 }
 
 .burger-btn {
-    position: absolute;
+    position: absolute !important;
     left: 20px;
-    font-size: 1.8em;
-    cursor: pointer;
-    color: var(--burger-text) !important;
-    z-index: 2001;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: auto;
 }
 
 .search-container {
     width: 35%;
     min-width: 300px;
+    pointer-events: auto;
+    /* Sorgt dafür, dass die Suche in der Mitte bleibt */
+    margin: 0 auto; 
 }
 .search-container input {
     width: 100%;
@@ -131,11 +143,14 @@ header {
 }
 
 .app-actions {
-    position: absolute;
+    position: absolute !important;
     right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
     display: flex;
     gap: 18px;
     align-items: center;
+    pointer-events: auto;
 }
 .app-actions span {
     cursor: pointer;
@@ -192,25 +207,32 @@ header {
 
 /* ========== WORKSPACE GRID CONTAINER ========== */
 #data-container {
-    /* Grundlegende Eigenschaften (werden von den spezifischen Klassen überschrieben) */
-    flex-grow: 1;                /* Nimmt den verfügbaren Platz im Body ein */
-    min-height: 0;               /* Erlaubt Schrumpfen unter die Inhaltsgröße */
-    overflow: hidden;            /* Kein Überlauf des Gesamt-Containers */
-    padding: var(--app-padding); /* Fallback, falls keine Klasse gesetzt */
-    gap: var(--grid-gap);        /* Fallback */
+    flex-grow: 1;
+    min-height: 0;
+    overflow: hidden;
+    /* Nutze die neue Variable für oben, bleibe bei der alten für die Seiten/unten */
+    padding-top: var(--canvas-padding-top, 10px) !important;
+    padding-left: var(--app-padding, 15px);
+    padding-right: var(--app-padding, 15px);
+    padding-bottom: var(--app-padding, 15px);
     transition: all 0.2s;
 }
 
-/* ----- 3x3 Grid (hart erzwungen) ----- */
+/* Beispiel für 3x3 - wende das gleiche Prinzip auf 4x4 und 5x5 an */
 #data-container.grid-3 {
     display: grid !important;
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-    grid-template-rows: repeat(3, minmax(0, 1fr)) !important; /* keine Prozentangaben! */
+    grid-template-rows: repeat(3, minmax(0, 1fr)) !important;
     gap: var(--grid-gap, 12px) !important;
-    padding: var(--app-padding, 10px) !important;
-    overflow: hidden !important;
 
-    /* Flex-Grow wird von der Basis-Klasse geerbt – hier nochmal zur Sicherheit */
+    /* Wir entfernen das pauschale 'padding' und nutzen Einzelwerte: */
+    padding-left: var(--app-padding, 10px) !important;
+    padding-right: var(--app-padding, 10px) !important;
+    padding-bottom: var(--app-padding, 10px) !important;
+    
+    /* Hier greift jetzt dein Schieberegler aus dem Editor: */
+    padding-top: var(--canvas-padding-top, 10px) !important;
+
     flex-grow: 1 !important;
     min-height: 0 !important;
 }
@@ -221,28 +243,51 @@ header {
     grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
     grid-template-rows: repeat(4, minmax(0, 1fr)) !important;
     gap: var(--grid-gap, 12px) !important;
-    padding: var(--app-padding, 10px) !important;
-    overflow: hidden !important;
+    
+    /* SEITEN- UND UNTERER ABSTAND */
+    padding-left: var(--app-padding, 10px) !important;
+    padding-right: var(--app-padding, 10px) !important;
+    padding-bottom: var(--app-padding, 10px) !important;
+
+    /* OBERER ABSTAND (VOM EDITOR GESTEUERT) */
+    padding-top: var(--canvas-padding-top, 10px) !important;
+
     flex-grow: 1 !important;
     min-height: 0 !important;
+    overflow: hidden !important;
 }
 #data-container.grid-5 {
     display: grid !important;
     grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
     grid-template-rows: repeat(5, minmax(0, 1fr)) !important;
     gap: var(--grid-gap, 12px) !important;
-    padding: var(--app-padding, 10px) !important;
-    overflow: hidden !important;
+
+    /* SEITEN- UND UNTERER ABSTAND */
+    padding-left: var(--app-padding, 10px) !important;
+    padding-right: var(--app-padding, 10px) !important;
+    padding-bottom: var(--app-padding, 10px) !important;
+
+    /* OBERER ABSTAND (VOM EDITOR GESTEUERT) */
+    padding-top: var(--canvas-padding-top, 10px) !important;
+
     flex-grow: 1 !important;
     min-height: 0 !important;
+    overflow: hidden !important;
 }
 /* Listenansicht */
 #data-container.list {
     display: flex !important;
     flex-direction: column !important;
     gap: var(--grid-gap, 12px) !important;
-    padding: var(--app-padding, 10px) !important;
-    overflow-y: auto !important; /* Scrollen in der Liste */
+    
+    padding-left: var(--app-padding, 10px) !important;
+    padding-right: var(--app-padding, 10px) !important;
+    padding-bottom: var(--app-padding, 10px) !important;
+    
+    /* Auch hier die Kontrolle für oben aktivieren */
+    padding-top: var(--canvas-padding-top, 10px) !important;
+    
+    overflow-y: auto !important;
     flex-grow: 1 !important;
     min-height: 0 !important;
 }
