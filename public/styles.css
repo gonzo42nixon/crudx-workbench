@@ -205,91 +205,95 @@ header {
     color: #888;
 }
 
-/* ========== WORKSPACE GRID CONTAINER ========== */
+/* ========== WORKSPACE & GRID SYSTEM (FINAL RESTORED) ========== */
 #data-container {
     flex-grow: 1;
     min-height: 0;
     overflow: hidden;
-    /* Nutze die neue Variable für oben, bleibe bei der alten für die Seiten/unten */
-    padding-top: var(--canvas-padding-top, 10px) !important;
-    padding-left: var(--app-padding, 15px);
-    padding-right: var(--app-padding, 15px);
-    padding-bottom: var(--app-padding, 15px);
     transition: all 0.2s;
+    padding-top: var(--canvas-padding-top) !important;
 }
 
-/* Beispiel für 3x3 - wende das gleiche Prinzip auf 4x4 und 5x5 an */
-#data-container.grid-3 {
-    display: grid !important;
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-    grid-template-rows: repeat(3, minmax(0, 1fr)) !important;
-    gap: var(--grid-gap, 12px) !important;
-
-    /* Wir entfernen das pauschale 'padding' und nutzen Einzelwerte: */
+/* Padding für alle Ansichten */
+#data-container.grid-1, #data-container.grid-3, #data-container.grid-5, 
+#data-container.grid-7, #data-container.grid-9, #data-container.list {
     padding-left: var(--app-padding, 10px) !important;
     padding-right: var(--app-padding, 10px) !important;
     padding-bottom: var(--app-padding, 10px) !important;
-    
-    /* Hier greift jetzt dein Schieberegler aus dem Editor: */
-    padding-top: var(--canvas-padding-top, 10px) !important;
-
-    flex-grow: 1 !important;
-    min-height: 0 !important;
 }
 
-/* ----- 4x4, 5x5 usw. (optional, falls benötigt) ----- */
-#data-container.grid-4 {
-    display: grid !important;
-    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-    grid-template-rows: repeat(4, minmax(0, 1fr)) !important;
-    gap: var(--grid-gap, 12px) !important;
-    
-    /* SEITEN- UND UNTERER ABSTAND */
-    padding-left: var(--app-padding, 10px) !important;
-    padding-right: var(--app-padding, 10px) !important;
-    padding-bottom: var(--app-padding, 10px) !important;
+/* GRID DEFINITIONEN */
+#data-container.grid-1 { display: grid !important; grid-template-columns: repeat(1, 1fr); gap: 10px; }
+#data-container.grid-3 { display: grid !important; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: 10px; }
+#data-container.grid-5 { display: grid !important; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(5, 1fr); gap: 8px; }
+#data-container.grid-7 { display: grid !important; grid-template-columns: repeat(7, 1fr); grid-template-rows: repeat(7, 1fr); gap: 6px; }
+#data-container.grid-9 { display: grid !important; grid-template-columns: repeat(9, 1fr); grid-template-rows: repeat(9, 1fr); gap: 4px; }
 
-    /* OBERER ABSTAND (VOM EDITOR GESTEUERT) */
-    padding-top: var(--canvas-padding-top, 10px) !important;
-
-    flex-grow: 1 !important;
-    min-height: 0 !important;
-    overflow: hidden !important;
-}
-#data-container.grid-5 {
-    display: grid !important;
-    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-    grid-template-rows: repeat(5, minmax(0, 1fr)) !important;
-    gap: var(--grid-gap, 12px) !important;
-
-    /* SEITEN- UND UNTERER ABSTAND */
-    padding-left: var(--app-padding, 10px) !important;
-    padding-right: var(--app-padding, 10px) !important;
-    padding-bottom: var(--app-padding, 10px) !important;
-
-    /* OBERER ABSTAND (VOM EDITOR GESTEUERT) */
-    padding-top: var(--canvas-padding-top, 10px) !important;
-
-    flex-grow: 1 !important;
-    min-height: 0 !important;
-    overflow: hidden !important;
-}
-/* Listenansicht */
+/* COMPACT LIST VIEW: STRIKTE REIHENFOLGE [KEY][LABEL] [VALUE] [SYSTEM] */
 #data-container.list {
     display: flex !important;
     flex-direction: column !important;
-    gap: var(--grid-gap, 12px) !important;
-    
-    padding-left: var(--app-padding, 10px) !important;
-    padding-right: var(--app-padding, 10px) !important;
-    padding-bottom: var(--app-padding, 10px) !important;
-    
-    /* Auch hier die Kontrolle für oben aktivieren */
-    padding-top: var(--canvas-padding-top, 10px) !important;
-    
+    gap: 0px !important;
     overflow-y: auto !important;
-    flex-grow: 1 !important;
-    min-height: 0 !important;
+}
+
+#data-container.list .card-kv {
+    display: flex !important;
+    flex-direction: row !important; /* Erzwingt horizontale Zeile */
+    align-items: center !important;
+    height: 22px !important;      
+    min-height: 22px !important;
+    padding: 0 6px !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    border-bottom: 1px solid rgba(255,255,255,0.05) !important;
+    box-shadow: none !important;
+}
+
+/* 1. LINKS: Key & Label */
+#data-container.list .tl-group {
+    position: static !important; /* Raus aus der absoluten Positionierung! */
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 4px !important;
+    margin-right: 10px !important;
+    flex-shrink: 0 !important;
+    order: 1 !important;
+}
+
+/* 2. MITTE: VALUE (RECHTS NEBEN LABEL) */
+#data-container.list .value-layer {
+    position: static !important; /* Raus aus der absoluten Positionierung! */
+    display: block !important;
+    flex: 1 1 auto !important;    /* Füllt den Platz in der Mitte aus */
+    font-size: 0.7em !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    white-space: nowrap !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 22px !important;
+    text-align: left !important;
+    order: 2 !important;          /* Zwingt Value an Position 2 */
+}
+
+/* 3. RECHTS: System Tags */
+#data-container.list .br-group {
+    position: static !important; /* Raus aus der absoluten Positionierung! */
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 4px !important;
+    margin-left: 10px !important;
+    flex-shrink: 0 !important;
+    order: 3 !important;          /* Zwingt System-Tags nach ganz rechts */
+}
+
+/* Minimale Pillen */
+#data-container.list .pill {
+    height: 14px !important;
+    font-size: 0.55em !important;
+    padding: 0 3px !important;
+    line-height: 12px !important;
 }
 
 /* ========== KARTEN (CARDS) ========== */
@@ -435,8 +439,8 @@ header {
 
 #main-paginator button,
 #main-paginator select {
-    background: rgba(255, 255, 255, 0.1) !important;
-    color: var(--navi-text) !important;
+    background: var(--navi-bg) !important; /* Nutzt jetzt die dunkle Farbe aus dem Theme */
+    color: var(--navi-text) !important;     /* Korrekter Kontrast */
     border: 1px solid var(--navi-border) !important;
     cursor: pointer;
     font-family: inherit;
@@ -444,6 +448,15 @@ header {
     outline: none;
     border-radius: 4px;
     padding: 2px 6px;
+    /* Entfernt den hässlichen Standard-Browser-Look */
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+/* Styling für die Optionen (das eigentliche Pop-up-Menü) */
+#main-paginator select option {
+    background: var(--navi-bg);
+    color: var(--navi-text);
 }
 
 /* ========== THEME MODAL ========== */
@@ -595,13 +608,15 @@ header {
     display: none;
     position: fixed;
     width: 280px;
-    background: #1f1f1f;
-    border: 1px solid #333;
+    /* Nutzt jetzt deine Theme-Einstellungen für Glas und Farbe */
+    background: var(--editor-glass) !important;
+    backdrop-filter: var(--editor-blur) !important;
+    border: 1px solid var(--editor-border) !important;
     border-radius: 20px;
     box-shadow: 0 10px 40px rgba(0,0,0,0.6);
     z-index: 9999;
     padding: 15px;
-    color: white;
+    color: var(--editor-text) !important;
     font-family: sans-serif;
 }
 .user-popup.active {

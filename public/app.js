@@ -189,7 +189,7 @@ function syncModalUI() {
     const t = appConfig.themes[currentActiveTheme];
     if (!t) return;
 
-    // 1. Dropdowns synchronisieren
+    // 1. Dropdowns synchronisieren (Startup & Aktuelles Theme)
     const startupInput = document.getElementById('in-startup');
     if (startupInput) startupInput.value = appConfig.startupTheme;
 
@@ -209,45 +209,42 @@ function syncModalUI() {
         if (blurEl && s.blur !== undefined) blurEl.checked = s.blur;
     };
 
+    // Alle Sektionen durchlaufen
     ['canvas', 'card', 'navi', 'editor', 'search', 'key', 'user', 'sys'].forEach(s => sync(s, s));
 
-    // 3. Burger & Spezialfelder
+    // 3. Burger & Spezialfelder (Paddings & Abstände)
+    
+    // Burger-Farbe
     const burgerColorInput = document.getElementById('in-burger-text');
     if (burgerColorInput && t.burger && t.burger.text) {
         burgerColorInput.value = t.burger.text;
     }
 
+    // Canvas Grid Padding (Seitenabstand)
     const paddingInput = document.getElementById('in-canvas-padding');
     if (paddingInput && t.canvas && typeof t.canvas.padding === 'number') {
         paddingInput.value = t.canvas.padding;
     }
 
-    const paddingTopEl = document.getElementById('in-canvas-padding-top');
-if (paddingTopEl) {
-    paddingTopEl.addEventListener('input', (e) => {
-        const val = parseInt(e.target.value, 10);
-        if (!isNaN(val)) {
-            appConfig.themes[currentActiveTheme].canvas.paddingTop = val;
-            applyTheme(currentActiveTheme);
-        }
-    });
-}
-
+    // Canvas Padding Top (Der neue Regler für den Abstand nach oben)
     const paddingTopInput = document.getElementById('in-canvas-padding-top');
     if (paddingTopInput && t.canvas && typeof t.canvas.paddingTop === 'number') {
         paddingTopInput.value = t.canvas.paddingTop;
     }
 
+    // Navigation (Paginator) Abstand von unten
     const naviBottomInput = document.getElementById('in-navi-bottom');
     if (naviBottomInput && t.navi && typeof t.navi.bottom === 'number') {
         naviBottomInput.value = t.navi.bottom;
     }
 
-    // NEU: Card Content Padding im Editor anzeigen
+    // Card Content Padding (Inhalt zum Kartenrand)
     const cardPaddingInput = document.getElementById('in-card-padding');
     if (cardPaddingInput && t.card && typeof t.card.padding === 'number') {
         cardPaddingInput.value = t.card.padding;
     }
+
+    console.log("🔄 Modal UI synchronisiert auf Theme:", currentActiveTheme);
 }
 
         // --- 4. FAB-FUNKTIONEN (THEME, SHARE, FULLSCREEN, PRINT) ---
@@ -475,6 +472,21 @@ if (paddingEl) {
     });
 }
 
+// --- DIESER BLOCK FEHLT DIR IN SEKTION 7 ---
+const paddingTopEl = document.getElementById('in-canvas-padding-top');
+if (paddingTopEl) {
+    paddingTopEl.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        if (!isNaN(val)) {
+            // 1. Speichern für das aktuelle Theme
+            appConfig.themes[currentActiveTheme].canvas.paddingTop = val;
+            // 2. Sofort ans CSS senden (WICHTIG: + 'px'!)
+            document.documentElement.style.setProperty('--canvas-padding-top', val + 'px');
+            console.log("📏 Padding Top live geändert auf:", val + "px");
+        }
+    });
+}
+
 // --- In Sektion 7. LIVE-EDITOR nach dem paddingEl-Block einfügen ---
 
 // Abstand für die Navigation (Paginator) nach unten
@@ -554,10 +566,10 @@ function applyLayout(val) {
     const dataContainer = document.getElementById('data-container');
     if (!dataContainer) return;
 
-    // 1. Alte Layout-Klassen entfernen
-    dataContainer.classList.remove('grid-3', 'grid-4', 'grid-5', 'list');
+    // 1. ALLE möglichen Layout-Klassen entfernen (auch 7 und 9!)
+    dataContainer.classList.remove('grid-3', 'grid-4', 'grid-5', 'grid-7', 'grid-9', 'list');
 
-    // 2. Alle Inline-Styles löschen (damit nur das CSS wirkt)
+    // 2. Alle Inline-Styles löschen
     dataContainer.style = '';
 
     if (val === 'list') {
@@ -566,13 +578,9 @@ function applyLayout(val) {
     } else {
         const s = parseInt(val);
         itemsPerPage = s * s;
-        dataContainer.classList.add(`grid-${s}`);
         
-        // Optionale Absicherung: inline gar nichts setzen – alles über CSS
-        // Falls Sie doch Inline-Styles brauchen (z.B. für dynamische Spaltenanzahl),
-        // setzen Sie hier nur das Nötigste, z.B.:
-        // dataContainer.style.gridTemplateColumns = `repeat(${s}, minmax(0, 1fr))`;
-        // Aber besser: Vertrauen Sie dem CSS.
+        // 3. Die neue Klasse dynamisch hinzufügen (z.B. 'grid-3' oder 'grid-7')
+        dataContainer.classList.add(`grid-${s}`);
     }
 }
 
