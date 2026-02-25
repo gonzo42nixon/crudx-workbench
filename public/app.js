@@ -617,30 +617,30 @@ async function fetchRealData() {
         const totalSnap = await getCountFromServer(colRef);
         const totalCount = totalSnap.data().count;
 
+        // --- 1. GLOBAL UI TOOLTIPS ---
+        const searchInput = document.querySelector('.search-container input');
+        if (searchInput) searchInput.title = "Search";
+
+        const burgerBtn = document.getElementById('btn-burger');
+        if (burgerBtn) burgerBtn.title = "Settings/Tools";
+
+        const gridSelect = document.getElementById('grid-select');
+        if (gridSelect) gridSelect.title = "View";
+
+        const pageDisplay = document.getElementById('current-page');
+        if (pageDisplay) pageDisplay.parentElement.title = "Page";
+
         if(document.getElementById('total-count')) document.getElementById('total-count').textContent = totalCount;
-        if(document.getElementById('current-page')) document.getElementById('current-page').textContent = currentPage;
 
-        let currentLimit = itemsPerPage;
-        if (container.classList.contains('list')) {
-            currentLimit = totalCount; 
-        }
-
+        // --- 2. QUERY LOGIC ---
+        let currentLimit = container.classList.contains('list') ? totalCount : itemsPerPage;
         let q = query(colRef, orderBy("__name__"), limit(currentLimit));
+        
         if (currentPage > 1 && pageCursors[currentPage - 2]) {
             q = query(colRef, orderBy("__name__"), startAfter(pageCursors[currentPage - 2]), limit(currentLimit));
         }
         
         const snap = await getDocs(q);
-        if(document.getElementById('result-count')) document.getElementById('result-count').textContent = snap.size;
-        
-        if (snap.empty) {
-            container.innerHTML = "";
-            return;
-        }
-        
-        pageCursors[currentPage - 1] = snap.docs[snap.docs.length - 1];
-
-        // Hilfsfunktionen für die Zeitstempel (falls nicht global definiert)
         const fD = (ts) => ts ? ts.split('T')[0] : '--'; 
         const fT = (label, ts) => ts ? `${label}: ${ts.replace('T', ' ').substring(0, 19)}` : label;
 
@@ -650,44 +650,45 @@ async function fetchRealData() {
             const d = doc.data();
             const foundMime = detectMimetype(d.value);
             
-            // 1. MIME & TYPE
+            // --- 3. PILL GENERATION (TOOLTIPS OHNE WERT-REDUNDANZ) ---
+
             const mimePill = foundMime ? 
-                `<div class="pill pill-mime" style="background-color: ${foundMime.color} !important; color: #000 !important;">
+                `<div class="pill pill-mime" title="Mime Type" style="background-color: ${foundMime.color} !important; color: #000 !important;">
                     ${foundMime.icon} ${foundMime.type}
                 </div>` : '';
 
-            // 2. PROTECTION & USER TAGS
             let userTags = [];
             if (Array.isArray(d.user_tags)) {
-                d.user_tags.forEach(t => userTags.push(`<div class="pill pill-user">🏷️ ${t}</div>`));
+                d.user_tags.forEach(t => userTags.push(`<div class="pill pill-user" title="Memo: User">🏷️ ${t}</div>`));
             }
-            // Protection (Whitelist Info)
+            
             ['read','update','delete'].forEach(m => {
-                const l = d[`white_list_${m}`] || [];
-                if (l.length > 0) {
-                    userTags.push(`<div class="pill pill-user" title="Protection: ${m}">${m === 'read' ? '👁️' : (m === 'update' ? '✏️' : '🗑️')} ${l.length}</div>`);
+                const list = d[`white_list_${m}`] || [];
+                if (list.length > 0) {
+                    // Hier macht der Tooltip Sinn, da er die versteckten E-Mails zeigt
+                    userTags.push(`<div class="pill pill-user" title="Whitelist ${m.toUpperCase()}: ${list.join(', ')}">${m === 'read' ? '👁️' : (m === 'update' ? '✏️' : '🗑️')} ${list.length}</div>`);
                 }
             });
             const userTagsHtml = userTags.join('');
 
-            // 3. SYSTEM, OWNER & STATS (ALLE PILLS!)
             const sysTagsHtml = `
-                <div class="pill pill-sys">👤 ${d.owner || 'Sys'}</div>
-                <div class="pill pill-sys">💾 ${d.size || '0KB'}</div>
-                <div class="pill pill-sys" title="Reads">R:${d.reads || 0}</div>
-                <div class="pill pill-sys" title="Updates">U:${d.updates || 0}</div>
                 <div class="pill pill-sys" title="${fT('Created', d.created_at)}">🐣 C:${fD(d.created_at)}</div>
                 <div class="pill pill-sys" title="${fT('Last Update', d.last_update_ts)}">📝 U:${fD(d.last_update_ts)}</div>
                 <div class="pill pill-sys" title="${fT('Last Read', d.last_read_ts)}">👁️ R:${fD(d.last_read_ts)}</div>
+                <div class="pill pill-sys" title="Reads">R:${d.reads || 0}</div>
+                <div class="pill pill-sys" title="Updates">U: ${d.updates || 0}</div>
+                <div class="pill pill-sys" title="Size">💾 ${d.size || '0KB'}</div>
+                <div class="pill pill-sys" title="Owner">👤 ${d.owner ? d.owner.split('@')[0] : 'Sys'}</div>
             `;
 
+            // --- 4. FINAL ROW ASSEMBLY ---
             htmlBuffer += `
                 <div class="card-kv">
                     <div class="tl-group">
-                        <div class="pill pill-key">${doc.id}</div>
-                        <div class="pill pill-label">${d.label || ''}</div>
+                        <div class="pill pill-key" title="KEY">${doc.id}</div>
+                        <div class="pill pill-label" title="Label">${d.label || ''}</div>
                     </div>
-                    <div class="value-layer">${escapeHtml(d.value) || 'NULL'}</div>
+                    <div class="value-layer" title="VALUE">${escapeHtml(d.value) || 'NULL'}</div>
                     <div class="br-group">
                         ${sysTagsHtml}
                         ${mimePill}
@@ -697,9 +698,8 @@ async function fetchRealData() {
         });
 
         container.innerHTML = htmlBuffer;
-
     } catch (err) {
-        console.error("🔥 Error in fetchRealData:", err);
+        console.error("🔥 Error in fetchData:", err);
     }
 }
 
