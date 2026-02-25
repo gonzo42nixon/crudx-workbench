@@ -14,6 +14,7 @@
     --card-border: #222222;
     --card-glass: rgba(17, 17, 17, 1);
     --card-blur: none;
+    --card-padding: 20px;
 
     /* Pagination Navi */
     --navi-bg: #0f0f0f;
@@ -268,7 +269,13 @@ header {
     /* Verhindert, dass Inhalte die Karte aufblähen */
     min-height: 0 !important;
     min-width: 0 !important;
-    overflow: hidden;           /* Überlauf wird durch innere Scrollbereiche geregelt */
+    overflow: hidden;
+
+    /* Padding hier auf 0 setzen, damit die Pillen NICHT mitgezogen werden */
+    padding: 0 !important;
+    
+    /* Wichtig für die korrekte Größenberechnung */
+    box-sizing: border-box;
 }
 
 /* ========== KARTEN-INHALTE ========== */
@@ -277,15 +284,11 @@ header {
     white-space: pre-wrap;
     word-break: break-all;
     font-size: 0.85em;
-
-    /* Nimmt den gesamten verfügbaren Platz ein */
     flex: 1 !important;
-
-    /* Scrollen bei Bedarf */
     overflow-y: auto !important;
 
-    /* Innenabstand (wird wegen box-sizing nicht zur Höhe addiert) */
-    padding: 8px !important;
+    /* Hier passiert die Magie: Der Inhalt nutzt das Padding aus dem Editor */
+    padding: var(--card-padding, 20px) !important;
 }
 
 .tl-group {

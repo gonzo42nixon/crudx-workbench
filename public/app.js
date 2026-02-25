@@ -50,7 +50,7 @@ window.auth = auth; // Damit die Konsole weiß, wer 'auth' ist
             "themes": {
                 "night": {
                     "canvas": { "bg": "#0a0a0a", "border": "#333333", "padding": 15, "opacity": 85, "blur": true },
-                    "card":   { "bg": "#111111", "text": "#eeeeee", "border": "#222222", "opacity": 100, "blur": false },
+                    "card":   { "bg": "#111111", "text": "#eeeeee", "border": "#222222", "opacity": 100, "blur": false, "padding": 20 },
                     "navi":   { "bg": "#0f0f0f", "text": "#cccccc", "border": "#333333", "opacity": 85, "blur": true, "bottom": 25 },
                     "editor": { "bg": "#111111", "text": "#eeeeee", "border": "#333333", "opacity": 95, "blur": true },
                     "search": { "bg": "#111111", "text": "#eeeeee", "border": "#333333", "opacity": 80, "blur": true },
@@ -61,7 +61,7 @@ window.auth = auth; // Damit die Konsole weiß, wer 'auth' ist
                 },
                 "day": {
                     "canvas": { "bg": "#0a0a0a", "border": "#333333", "padding": 15, "opacity": 85, "blur": true },
-                    "card":   { "bg": "#ffffff", "text": "#111111", "border": "#dddddd", "opacity": 100, "blur": false },
+                    "card":   { "bg": "#ffffff", "text": "#111111", "border": "#dddddd", "opacity": 100, "blur": false, "padding": 20 },
                     "navi":   { "bg": "#eeeeee", "text": "#333333", "border": "#bbbbbb", "opacity": 90, "blur": true, "bottom": 25 },
                     "editor": { "bg": "#ffffff", "text": "#111111", "border": "#cccccc", "opacity": 98, "blur": true },
                     "search": { "bg": "#ffffff", "text": "#111111", "border": "#cccccc", "opacity": 90, "blur": true },
@@ -72,7 +72,7 @@ window.auth = auth; // Damit die Konsole weiß, wer 'auth' ist
                 },
                 "arnold": {
                     "canvas": { "bg": "#0a0a0a", "border": "#333333", "padding": 15, "opacity": 85, "blur": true },
-                    "card":   { "bg": "#110000", "text": "#ff0000", "border": "#ff0000", "opacity": 100, "blur": false },
+                    "card":   { "bg": "#110000", "text": "#ff0000", "border": "#ff0000", "opacity": 100, "blur": false, "padding": 20 },
                     "navi":   { "bg": "#000000", "text": "#ff0000", "border": "#ff0000", "opacity": 100, "blur": false, "bottom": 10 },
                     "editor": { "bg": "#000000", "text": "#ff0000", "border": "#ff0000", "opacity": 100, "blur": false },
                     "search": { "bg": "#000000", "text": "#ff0000", "border": "#ff0000", "opacity": 100, "blur": false },
@@ -83,7 +83,7 @@ window.auth = auth; // Damit die Konsole weiß, wer 'auth' ist
                 },
                 "gaga": {
                     "canvas": { "bg": "#0a0a0a", "border": "#333333", "padding": 15, "opacity": 85, "blur": true },
-                    "card":   { "bg": "#ffb3ff", "text": "#000000", "border": "#000000", "opacity": 90, "blur": true },
+                    "card":   { "bg": "#ffb3ff", "text": "#000000", "border": "#000000", "opacity": 90, "blur": true, "padding": 20 },
                     "navi":   { "bg": "#ffff00", "text": "#000000", "border": "#000000", "opacity": 80, "blur": true, "bottom": 40 },
                     "editor": { "bg": "#00ffff", "text": "#000000", "border": "#000000", "opacity": 90, "blur": true },
                     "search": { "bg": "#ffffff", "text": "#000000", "border": "#000000", "opacity": 95, "blur": true },
@@ -127,48 +127,59 @@ function applyTheme(themeName) {
     
     const root = document.documentElement;
     
-    // 1. Standard-Sektionen verarbeiten
+    // 1. STANDARD-SEKTIONEN (Farben, Rahmen, Glas-Effekt)
     const sections = ['canvas', 'card', 'navi', 'editor', 'search', 'key', 'user', 'sys'];
     sections.forEach(s => {
         const sec = t[s];
         if (!sec) return;
         
+        // Farben und Rahmen als CSS-Variablen setzen
         if (sec.bg !== undefined) root.style.setProperty(`--${s}-bg`, sec.bg);
         if (sec.text !== undefined) root.style.setProperty(`--${s}-text`, sec.text);
         if (sec.border !== undefined) root.style.setProperty(`--${s}-border`, sec.border);
         
+        // Glas-Hintergrund berechnen (RGBA)
         if (sec.bg !== undefined && sec.opacity !== undefined) {
             const rgb = hexToRgb(sec.bg);
             const alpha = (sec.opacity / 100).toFixed(2);
             root.style.setProperty(`--${s}-glass`, `rgba(${rgb}, ${alpha})`);
         }
         
+        // Blur-Effekt setzen
         root.style.setProperty(`--${s}-blur`, sec.blur ? 'blur(10px)' : 'none');
     });
 
-    // 2. Padding & Abstände
-    const padding = (t.canvas && typeof t.canvas.padding === 'number') ? t.canvas.padding : 15;
-    root.style.setProperty('--app-padding', padding + 'px');
+    // 2. SPEZIAL-EIGENSCHAFTEN (Abstände & Paddings)
+    
+    // Canvas-Padding (Abstand zum Bildschirmrand)
+    const canvasPadding = (t.canvas && typeof t.canvas.padding === 'number') ? t.canvas.padding : 15;
+    root.style.setProperty('--app-padding', canvasPadding + 'px');
 
+    // Navi-Abstand (Paginator nach unten)
     const naviBottom = (t.navi && typeof t.navi.bottom === 'number') ? t.navi.bottom : 25;
     root.style.setProperty('--navi-bottom', naviBottom + 'px');
 
-    // 3. BURGER FIX: Farbe synchronisieren
-    // Wir nehmen die Farbe aus der Config, sonst Fallback auf das aktuelle Grün
+    // NEU: Card-Content Padding (Abstand Inhalt zum Kartenrand)
+    const cardPadding = (t.card && typeof t.card.padding === 'number') ? t.card.padding : 20;
+    root.style.setProperty('--card-padding', cardPadding + 'px');
+
+    // 3. BURGER-BUTTON FIX (Direkte Färbung)
     const burgerColor = t.burger?.text || '#00ff00';
     root.style.setProperty('--burger-text', burgerColor);
     
     const burgerBtn = document.getElementById('btn-burger');
     if (burgerBtn) {
         burgerBtn.style.color = burgerColor;
-        // Falls SVGs genutzt werden, auch das Fill-Attribut setzen
+        // Falls das Icon ein SVG ist
         const svg = burgerBtn.querySelector('svg');
         if (svg) svg.style.fill = burgerColor;
     }
 
-    // 4. Editor-Dropdown aktualisieren
+    // 4. UI-SYNCHRONISATION
     const editThemeSelect = document.getElementById('in-edit-theme');
     if (editThemeSelect) editThemeSelect.value = themeName;
+
+    console.log(`🎨 Theme "${themeName}" mit Card-Padding (${cardPadding}px) angewendet.`);
 }
 
 function syncModalUI() {
@@ -182,7 +193,7 @@ function syncModalUI() {
     const editThemeInput = document.getElementById('in-edit-theme');
     if (editThemeInput) editThemeInput.value = currentActiveTheme;
 
-    // 2. Standard-Sektionen (bg, text, border, etc.)
+    // 2. Standard-Sektionen (Farben, Opacity, Blur)
     const sync = (sec, prefix) => {
         const s = t[sec];
         if (!s) return;
@@ -197,14 +208,12 @@ function syncModalUI() {
 
     ['canvas', 'card', 'navi', 'editor', 'search', 'key', 'user', 'sys'].forEach(s => sync(s, s));
 
-    // 3. BURGER FARBFELD FIX
-    // Hier wird sichergestellt, dass das Farbfeld im Editor den Wert aus der Config bekommt
+    // 3. Burger & Spezialfelder
     const burgerColorInput = document.getElementById('in-burger-text');
     if (burgerColorInput && t.burger && t.burger.text) {
         burgerColorInput.value = t.burger.text;
     }
 
-    // 4. Spezialfelder (Padding & Bottom)
     const paddingInput = document.getElementById('in-canvas-padding');
     if (paddingInput && t.canvas && typeof t.canvas.padding === 'number') {
         paddingInput.value = t.canvas.padding;
@@ -213,6 +222,12 @@ function syncModalUI() {
     const naviBottomInput = document.getElementById('in-navi-bottom');
     if (naviBottomInput && t.navi && typeof t.navi.bottom === 'number') {
         naviBottomInput.value = t.navi.bottom;
+    }
+
+    // NEU: Card Content Padding im Editor anzeigen
+    const cardPaddingInput = document.getElementById('in-card-padding');
+    if (cardPaddingInput && t.card && typeof t.card.padding === 'number') {
+        cardPaddingInput.value = t.card.padding;
     }
 }
 
@@ -436,6 +451,37 @@ if (paddingEl) {
         const val = parseInt(e.target.value, 10);
         if (!isNaN(val)) {
             appConfig.themes[currentActiveTheme].canvas.padding = val;
+            applyTheme(currentActiveTheme);
+        }
+    });
+}
+
+// --- In Sektion 7. LIVE-EDITOR nach dem paddingEl-Block einfügen ---
+
+// Abstand für die Navigation (Paginator) nach unten
+const naviBottomEl = document.getElementById('in-navi-bottom');
+if (naviBottomEl) {
+    naviBottomEl.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        if (!isNaN(val)) {
+            // Wert in der Config speichern
+            appConfig.themes[currentActiveTheme].navi.bottom = val;
+            // Theme sofort neu anwenden
+            applyTheme(currentActiveTheme);
+        }
+    });
+}
+
+// --- In Sektion 7. LIVE-EDITOR ergänzen ---
+
+const cardPaddingEl = document.getElementById('in-card-padding');
+if (cardPaddingEl) {
+    cardPaddingEl.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        if (!isNaN(val)) {
+            // 1. Wert in der Konfiguration speichern
+            appConfig.themes[currentActiveTheme].card.padding = val;
+            // 2. Das UI sofort aktualisieren
             applyTheme(currentActiveTheme);
         }
     });
