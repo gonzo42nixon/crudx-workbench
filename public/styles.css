@@ -205,7 +205,7 @@ header {
     color: #888;
 }
 
-/* ========== WORKSPACE & GRID SYSTEM (FINAL RESTORED) ========== */
+/* ========== WORKSPACE & GRID SYSTEM (CLEAN & SCROLLABLE) ========== */
 #data-container {
     flex-grow: 1;
     min-height: 0;
@@ -229,71 +229,75 @@ header {
 #data-container.grid-7 { display: grid !important; grid-template-columns: repeat(7, 1fr); grid-template-rows: repeat(7, 1fr); gap: 6px; }
 #data-container.grid-9 { display: grid !important; grid-template-columns: repeat(9, 1fr); grid-template-rows: repeat(9, 1fr); gap: 4px; }
 
-/* COMPACT LIST VIEW: STRIKTE REIHENFOLGE [KEY][LABEL] [VALUE] [SYSTEM] */
+/* COMPACT LIST VIEW: INFINITE SCROLL & REIHENFOLGE */
+/* ========== FINAL LIST VIEW REPAIR ========== */
 #data-container.list {
     display: flex !important;
     flex-direction: column !important;
     gap: 0px !important;
     overflow-y: auto !important;
+    /* Füllt den Bereich genau aus */
+    height: calc(100vh - 120px) !important; 
+    padding-bottom: 100px !important;
+}
+
+/* Dunkle Scrollbar für das Nacht-Theme */
+#data-container.list::-webkit-scrollbar {
+    width: 8px;
+}
+#data-container.list::-webkit-scrollbar-track {
+    background: #0a0a0a;
+}
+#data-container.list::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 10px;
+    border: 2px solid #0a0a0a;
 }
 
 #data-container.list .card-kv {
     display: flex !important;
-    flex-direction: row !important; /* Erzwingt horizontale Zeile */
+    flex-direction: row !important;
     align-items: center !important;
-    height: 22px !important;      
-    min-height: 22px !important;
-    padding: 0 6px !important;
+    justify-content: flex-start !important;
+    height: 28px !important; /* Etwas mehr Höhe für die Pills */
+    min-height: 28px !important;
+    padding: 0 10px !important;
     border-radius: 0 !important;
     margin: 0 !important;
+    background: transparent !important;
     border-bottom: 1px solid rgba(255,255,255,0.05) !important;
-    box-shadow: none !important;
 }
 
-/* 1. LINKS: Key & Label */
-#data-container.list .tl-group {
-    position: static !important; /* Raus aus der absoluten Positionierung! */
+/* Pills wieder sichtbar machen */
+#data-container.list .tl-group, 
+#data-container.list .br-group {
+    position: static !important;
     display: flex !important;
-    flex-direction: row !important;
+    visibility: visible !important;
+    opacity: 1 !important;
     gap: 4px !important;
-    margin-right: 10px !important;
     flex-shrink: 0 !important;
-    order: 1 !important;
 }
 
-/* 2. MITTE: VALUE (RECHTS NEBEN LABEL) */
-#data-container.list .value-layer {
-    position: static !important; /* Raus aus der absoluten Positionierung! */
-    display: block !important;
-    flex: 1 1 auto !important;    /* Füllt den Platz in der Mitte aus */
-    font-size: 0.7em !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    white-space: nowrap !important;
+#data-container.list .tl-group { order: 1; margin-right: 12px; }
+#data-container.list .value-layer { 
+    order: 2; 
+    flex: 1; 
+    padding: 0 !important; 
+    font-size: 0.75em !important;
     overflow: hidden;
     text-overflow: ellipsis;
-    line-height: 22px !important;
-    text-align: left !important;
-    order: 2 !important;          /* Zwingt Value an Position 2 */
+    white-space: nowrap;
 }
+#data-container.list .br-group { order: 3; margin-left: 12px; }
 
-/* 3. RECHTS: System Tags */
-#data-container.list .br-group {
-    position: static !important; /* Raus aus der absoluten Positionierung! */
-    display: flex !important;
-    flex-direction: row !important;
-    gap: 4px !important;
-    margin-left: 10px !important;
-    flex-shrink: 0 !important;
-    order: 3 !important;          /* Zwingt System-Tags nach ganz rechts */
-}
-
-/* Minimale Pillen */
+/* Winzige Pills für die Liste */
 #data-container.list .pill {
-    height: 14px !important;
-    font-size: 0.55em !important;
-    padding: 0 3px !important;
-    line-height: 12px !important;
+    height: 16px !important;
+    font-size: 0.6em !important;
+    padding: 0 4px !important;
+    line-height: 14px !important;
+    box-shadow: none !important;
 }
 
 /* ========== KARTEN (CARDS) ========== */

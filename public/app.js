@@ -486,7 +486,6 @@ if (paddingTopEl) {
         }
     });
 }
-
 // --- In Sektion 7. LIVE-EDITOR nach dem paddingEl-Block einfügen ---
 
 // Abstand für die Navigation (Paginator) nach unten
@@ -566,22 +565,39 @@ function applyLayout(val) {
     const dataContainer = document.getElementById('data-container');
     if (!dataContainer) return;
 
-    // 1. ALLE möglichen Layout-Klassen entfernen (auch 7 und 9!)
+    // 1. Alle Layout-Klassen sauber entfernen
     dataContainer.classList.remove('grid-3', 'grid-4', 'grid-5', 'grid-7', 'grid-9', 'list');
 
-    // 2. Alle Inline-Styles löschen
+    // 2. Alle Inline-Styles zurücksetzen
     dataContainer.style = '';
 
+    // 3. Logik für Listview (Infinite Scroll) oder Grid
     if (val === 'list') {
-        itemsPerPage = 50;
+        // Wir setzen das Limit massiv hoch für das Scroll-Erlebnis
+        itemsPerPage = 500; 
         dataContainer.classList.add('list');
+        
+        // Paginator-Leiste ausblenden (stört beim Scrollen)
+        const navi = document.querySelector('.navi-container');
+        if (navi) navi.style.display = 'none';
+        
+        console.log("🚀 List-Mode: Limit auf 500 gesetzt, Scrollen aktiviert.");
     } else {
+        // Grid-Logik: Limit = Spalten * Spalten
         const s = parseInt(val);
         itemsPerPage = s * s;
-        
-        // 3. Die neue Klasse dynamisch hinzufügen (z.B. 'grid-3' oder 'grid-7')
         dataContainer.classList.add(`grid-${s}`);
+        
+        // Paginator wieder einblenden
+        const navi = document.querySelector('.navi-container');
+        if (navi) navi.style.display = 'flex';
+        
+        console.log(`Square-Mode: ${s}x${s} Grid aktiviert.`);
     }
+
+    // 4. Seite zurücksetzen und Daten neu laden
+    currentPage = 1;
+    fetchRealData();
 }
 
         bind('grid-select', 'change', (e) => { applyLayout(e.target.value); currentPage = 1; fetchRealData(); });
@@ -592,88 +608,99 @@ function applyLayout(val) {
         const fmtT = (label, ts) => ts ? `${label}: ${ts.replace('T', ' ').substring(0, 19)}` : label;
 
         // --- 8. RENDER ENGINE & MIME DETECTION ---
-        async function fetchRealData() {
+async function fetchRealData() {
     const colRef = collection(db, "kv-store");
-    const totalSnap = await getCountFromServer(colRef);
-    
-    if(document.getElementById('total-count')) document.getElementById('total-count').textContent = totalSnap.data().count;
-    if(document.getElementById('current-page')) document.getElementById('current-page').textContent = currentPage;
+    const container = document.getElementById('data-container');
+    if (!container) return;
 
-    let q = query(colRef, orderBy("__name__"), limit(itemsPerPage));
-    if (currentPage > 1 && pageCursors[currentPage - 2]) {
-        q = query(colRef, orderBy("__name__"), startAfter(pageCursors[currentPage - 2]), limit(itemsPerPage));
-    }
-    
-    const snap = await getDocs(q);
-    if(document.getElementById('result-count')) document.getElementById('result-count').textContent = snap.size;
-    
-    const dataContainer = document.getElementById('data-container');
-    if (snap.empty) {
-        dataContainer.innerHTML = "";
-        return;
-    }
-    
-    pageCursors[currentPage - 1] = snap.docs[snap.docs.length - 1];
+    try {
+        const totalSnap = await getCountFromServer(colRef);
+        const totalCount = totalSnap.data().count;
 
-    const fmtD = (ts) => ts ? ts.split('T')[0] : '--'; 
-    const fmtT = (label, ts) => ts ? `${label}: ${ts.replace('T', ' ').substring(0, 19)}` : label;
+        if(document.getElementById('total-count')) document.getElementById('total-count').textContent = totalCount;
+        if(document.getElementById('current-page')) document.getElementById('current-page').textContent = currentPage;
 
-    // --- NEU: Wir sammeln das HTML erst in einer Variable ---
-    let htmlBuffer = "";
+        let currentLimit = itemsPerPage;
+        if (container.classList.contains('list')) {
+            currentLimit = totalCount; 
+        }
 
-    snap.forEach(doc => {
-        const d = doc.data();
-        
-        // --- MIME ERKENNUNG (Heuristik aufrufen) ---
-        const foundMime = detectMimetype(d.value);
-        
-        // --- MIME PILL (Mit dynamischer Farbe aus der Heuristik) ---
-        const mimePill = foundMime ? 
-            `<div class="pill pill-mime" style="background-color: ${foundMime.color} !important; color: #000 !important; border: 1px solid rgba(0,0,0,0.2);">
-                ${foundMime.icon} ${foundMime.type}
-            </div>` : '';
-
-        let userTags = [];
-        if (Array.isArray(d.user_tags)) {
-            d.user_tags.forEach(t => userTags.push({ k: t, h: `<div class="pill pill-user">🏷️ ${t}</div>` }));
+        let q = query(colRef, orderBy("__name__"), limit(currentLimit));
+        if (currentPage > 1 && pageCursors[currentPage - 2]) {
+            q = query(colRef, orderBy("__name__"), startAfter(pageCursors[currentPage - 2]), limit(currentLimit));
         }
         
-        ['read','update','delete'].forEach(m => {
-            const l = d[`white_list_${m}`] || [];
-            if (l.length > 0) {
-                userTags.push({ k: m, h: `<div class="pill pill-user">${m === 'read' ? '👁️' : (m === 'update' ? '✏️' : '🗑️')} ${l.length}</div>` });
+        const snap = await getDocs(q);
+        if(document.getElementById('result-count')) document.getElementById('result-count').textContent = snap.size;
+        
+        if (snap.empty) {
+            container.innerHTML = "";
+            return;
+        }
+        
+        pageCursors[currentPage - 1] = snap.docs[snap.docs.length - 1];
+
+        // Hilfsfunktionen für die Zeitstempel (falls nicht global definiert)
+        const fD = (ts) => ts ? ts.split('T')[0] : '--'; 
+        const fT = (label, ts) => ts ? `${label}: ${ts.replace('T', ' ').substring(0, 19)}` : label;
+
+        let htmlBuffer = "";
+        
+        snap.forEach(doc => {
+            const d = doc.data();
+            const foundMime = detectMimetype(d.value);
+            
+            // 1. MIME & TYPE
+            const mimePill = foundMime ? 
+                `<div class="pill pill-mime" style="background-color: ${foundMime.color} !important; color: #000 !important;">
+                    ${foundMime.icon} ${foundMime.type}
+                </div>` : '';
+
+            // 2. PROTECTION & USER TAGS
+            let userTags = [];
+            if (Array.isArray(d.user_tags)) {
+                d.user_tags.forEach(t => userTags.push(`<div class="pill pill-user">🏷️ ${t}</div>`));
             }
+            // Protection (Whitelist Info)
+            ['read','update','delete'].forEach(m => {
+                const l = d[`white_list_${m}`] || [];
+                if (l.length > 0) {
+                    userTags.push(`<div class="pill pill-user" title="Protection: ${m}">${m === 'read' ? '👁️' : (m === 'update' ? '✏️' : '🗑️')} ${l.length}</div>`);
+                }
+            });
+            const userTagsHtml = userTags.join('');
+
+            // 3. SYSTEM, OWNER & STATS (ALLE PILLS!)
+            const sysTagsHtml = `
+                <div class="pill pill-sys">👤 ${d.owner || 'Sys'}</div>
+                <div class="pill pill-sys">💾 ${d.size || '0KB'}</div>
+                <div class="pill pill-sys" title="Reads">R:${d.reads || 0}</div>
+                <div class="pill pill-sys" title="Updates">U:${d.updates || 0}</div>
+                <div class="pill pill-sys" title="${fT('Created', d.created_at)}">🐣 C:${fD(d.created_at)}</div>
+                <div class="pill pill-sys" title="${fT('Last Update', d.last_update_ts)}">📝 U:${fD(d.last_update_ts)}</div>
+                <div class="pill pill-sys" title="${fT('Last Read', d.last_read_ts)}">👁️ R:${fD(d.last_read_ts)}</div>
+            `;
+
+            htmlBuffer += `
+                <div class="card-kv">
+                    <div class="tl-group">
+                        <div class="pill pill-key">${doc.id}</div>
+                        <div class="pill pill-label">${d.label || ''}</div>
+                    </div>
+                    <div class="value-layer">${escapeHtml(d.value) || 'NULL'}</div>
+                    <div class="br-group">
+                        ${sysTagsHtml}
+                        ${mimePill}
+                        ${userTagsHtml}
+                    </div>
+                </div>`;
         });
-        userTags.sort((a, b) => a.k.localeCompare(b.k));
-        const userTagsHtml = userTags.map(p => p.h).join('');
 
-        const sysTagsHtml = `
-            <div class="pill pill-sys">💾 ${d.size || '0KB'}</div>
-            <div class="pill pill-sys">👤 ${d.owner || 'System'}</div>
-            <div class="pill pill-sys">R:${d.reads || 0}</div>
-            <div class="pill pill-sys">U:${d.updates || 0}</div>
-            <div class="pill pill-sys" title="${fmtT('Erstellt', d.created_at)}">🐣 C:${fmtD(d.created_at)}</div>
-            <div class="pill pill-sys" title="${fmtT('Letzter Read', d.last_read_ts)}">👁️ L-R:${fmtD(d.last_read_ts)}</div>
-            <div class="pill pill-sys" title="${fmtT('Letzter Update', d.last_update_ts)}">📝 L-U:${fmtD(d.last_update_ts)}</div>
-        `;
+        container.innerHTML = htmlBuffer;
 
-        htmlBuffer += `
-            <div class="card-kv">
-                <div class="value-layer">${escapeHtml(d.value) || 'NULL'}</div>
-                <div class="tl-group">
-                    <div class="pill pill-key">${doc.id}</div>
-                    <div class="pill pill-label">${d.label || ''}</div>
-                </div>
-                <div class="br-group">
-                    ${sysTagsHtml}
-                    ${mimePill}
-                    ${userTagsHtml}
-                </div>
-            </div>`;
-    });
-
-    // --- JETZT erst das DOM aktualisieren (Einmaliger Schreibzugriff) ---
-    dataContainer.innerHTML = htmlBuffer;
+    } catch (err) {
+        console.error("🔥 Error in fetchRealData:", err);
+    }
 }
 
 /**
