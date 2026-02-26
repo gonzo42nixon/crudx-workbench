@@ -12,7 +12,8 @@ export const themeState = {
                 "editor": { "bg": "#111111", "text": "#eeeeee", "border": "#333333", "opacity": 95, "blur": true },
                 "search": { "bg": "#111111", "text": "#eeeeee", "border": "#333333", "opacity": 80, "blur": true },
                 "burger": { "text": "#00ff00" },
-                "key":    { "bg": "#000000", "text": "#00ff00", "border": "#333333", "opacity": 80, "blur": false },
+                "key":    { "bg": "#aaaaaa", "text": "#00ff00", "border": "#333333", "opacity": 80, "blur": false },
+                "label":  { "bg": "#ffffff", "text": "#00ff00", "border": "#333333", "opacity": 80, "blur": false },
                 "user":   { "bg": "#40c4ff", "text": "#000000", "border": "#333333", "opacity": 80, "blur": false },
                 "sys":    { "bg": "#ff5252", "text": "#000000", "border": "#333333", "opacity": 80, "blur": false }
             },
@@ -23,7 +24,8 @@ export const themeState = {
                 "editor": { "bg": "#ffffff", "text": "#111111", "border": "#cccccc", "opacity": 98, "blur": true },
                 "search": { "bg": "#ffffff", "text": "#111111", "border": "#cccccc", "opacity": 90, "blur": true },
                 "burger": { "text": "#0077ff" },
-                "key":    { "bg": "#222222", "text": "#ffffff", "border": "#444444", "opacity": 90, "blur": false },
+                "key":    { "bg": "#aaaaaa", "text": "#00ff00", "border": "#333333", "opacity": 80, "blur": false },
+                "label":  { "bg": "#ffffff", "text": "#00ff00", "border": "#333333", "opacity": 80, "blur": false },
                 "user":   { "bg": "#0088cc", "text": "#ffffff", "border": "#0055aa", "opacity": 90, "blur": false },
                 "sys":    { "bg": "#cc0000", "text": "#ffffff", "border": "#aa0000", "opacity": 90, "blur": false }
             },
@@ -34,7 +36,8 @@ export const themeState = {
                 "editor": { "bg": "#000000", "text": "#ff0000", "border": "#ff0000", "opacity": 100, "blur": false },
                 "search": { "bg": "#000000", "text": "#ff0000", "border": "#ff0000", "opacity": 100, "blur": false },
                 "burger": { "text": "#ff0000" },
-                "key":    { "bg": "#330000", "text": "#ff0000", "border": "#ff0000", "opacity": 100, "blur": false },
+                "key":    { "bg": "#aaaaaa", "text": "#00ff00", "border": "#333333", "opacity": 80, "blur": false },
+                "label":  { "bg": "#ffffff", "text": "#00ff00", "border": "#333333", "opacity": 80, "blur": false },
                 "user":   { "bg": "#ff0000", "text": "#000000", "border": "#ff0000", "opacity": 100, "blur": false },
                 "sys":    { "bg": "#ff0000", "text": "#000000", "border": "#ff0000", "opacity": 100, "blur": false }
             },
@@ -45,7 +48,8 @@ export const themeState = {
                 "editor": { "bg": "#00ffff", "text": "#000000", "border": "#000000", "opacity": 90, "blur": true },
                 "search": { "bg": "#ffffff", "text": "#000000", "border": "#000000", "opacity": 95, "blur": true },
                 "burger": { "text": "#ff00ff" },
-                "key":    { "bg": "#000000", "text": "#ffff00", "border": "#000000", "opacity": 100, "blur": false },
+                "key":    { "bg": "#aaaaaa", "text": "#00ff00", "border": "#333333", "opacity": 80, "blur": false },
+                "label":  { "bg": "#ffffff", "text": "#00ff00", "border": "#333333", "opacity": 80, "blur": false },
                 "user":   { "bg": "#ffff00", "text": "#000000", "border": "#000000", "opacity": 100, "blur": false },
                 "sys":    { "bg": "#00ffff", "text": "#000000", "border": "#000000", "opacity": 100, "blur": false }
             }
@@ -73,7 +77,7 @@ export function applyTheme(themeName) {
     const root = document.documentElement;
 
     // 1. STANDARD-SEKTIONEN (Farben, Rahmen, Glas-Effekt)
-    const sections = ['canvas', 'card', 'navi', 'editor', 'search', 'key', 'user', 'sys'];
+    const sections = ['canvas', 'card', 'navi', 'editor', 'search', 'key', "label", 'user', 'sys'];
     sections.forEach(s => {
         const sec = t[s];
         if (!sec) return;
@@ -145,7 +149,7 @@ export function syncModalUI() {
         if (blurEl && s.blur !== undefined) blurEl.checked = s.blur;
     };
 
-    ['canvas', 'card', 'navi', 'editor', 'search', 'key', 'user', 'sys'].forEach(s => sync(s, s));
+    ['canvas', 'card', 'navi', 'editor', 'search', 'key', 'label',  'user', 'sys'].forEach(s => sync(s, s));
 
     const burgerColorInput = document.getElementById('in-burger-text');
     if (burgerColorInput && t.burger && t.burger.text) {
@@ -178,7 +182,7 @@ export function syncModalUI() {
 // ---------- Live-Editor Listener initialisieren ----------
 export function initThemeEditor() {
     // Sektionen für Farben, Opacity, Blur
-    ['canvas', 'card', 'navi', 'editor', 'search', 'key', 'user', 'sys'].forEach(sec => {
+    ['canvas', 'card', 'navi', 'editor', 'search', 'key', 'label', 'user', 'sys'].forEach(sec => {
         ['bg', 'text', 'border'].forEach(k => {
             const el = document.getElementById(`in-${sec}-${k}`);
             if (el) {

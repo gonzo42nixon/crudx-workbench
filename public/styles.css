@@ -31,6 +31,7 @@
     --editor-border: #333333;
     --editor-glass: rgba(17,  ​17, 17, 0.95);
     --editor-blur: blur(12px);
+    --search-padding-top: 20px;
 
     /* UI Elements */
     --search-bg: #111111;
@@ -40,13 +41,19 @@
     --search-blur: blur(10px);
     --burger-text: #00ff00;
 
-    /* Tags: Key & Label */
-    --key-bg: #000000;
-    --key-text: #00ff00;
-    --key-border: #333333;
-    --key-glass: rgba(0, 0, 0, 0.8);
-    --key-blur: none;
+/* Tags: Key */
+--key-bg: #000000;
+--key-text: #00ff00;
+--key-border: #333333;
+--key-glass: rgba(0, 0, 0, 0.8);
+--key-blur: none;
 
+/* Tags: Label - NEU HINZUFÜGEN */
+--label-bg: #1a1a1a;
+--label-text: #ffffff;
+--label-border: #444444;
+--label-glass: rgba(26, 26, 26, 0.9);
+--label-blur: none;
     /* Tags: User */
     --user-bg: #40c4ff;
     --user-text: #000000;
@@ -123,23 +130,59 @@ header {
 }
 
 .search-container {
+    position: absolute !important;
+    top: var(--search-padding-top, 20px) !important;
+    left: 50%;
+    transform: translateX(-50%);
     width: 35%;
     min-width: 300px;
-    pointer-events: auto;
-    /* Sorgt dafür, dass die Suche in der Mitte bleibt */
-    margin: 0 auto; 
+    z-index: 9999 !important; /* Forces container to the front */
+    display: flex;
+    align-items: center;
+}
+
+/* FIX: Sorgt dafür, dass das Input-Feld im Flex-Container nicht schrumpft */
+.search-container input {
+    width: 100% !important;
+    padding-left: 45px !important; /* Space for the handle */
+    z-index: 10000;
+}
+
+/* Der Griff (Handle) */
+.search-handle {
+    position: absolute !important;
+    left: 10px;
+    z-index: 10001 !important; /* Forces handle to be the topmost element */
+    cursor: grab;
+    color: var(--burger-text);
+    font-size: 20px;
+    user-select: none;
+    padding: 5px;
+    pointer-events: auto !important; /* Ensures it can be clicked */
+}
+
+.search-handle:active {
+    cursor: grabbing;
+}
+
+#search-drag-handle {
+    cursor: move;
+    font-size: 20px;          /* Deutlich sichtbar */
+    color: var(--burger-text); /* Nutzt die Akzentfarbe (meist Neongrün) */
+    opacity: 0.7;
+    line-height: 1;
+    padding: 5px;
+    z-index: 2101;            /* Liegt über dem Input-Feld */
+    user-select: none;
+    transition: all 0.2s;
+}
+#search-drag-handle:hover {
+    opacity: 1;
+    transform: scale(1.2);    /* Feedback beim Drüberfahren */
 }
 .search-container input {
-    width: 100%;
-    padding: 12px 20px;
-    border-radius: 50px;
-    border: 1px solid var(--search-border) !important;
-    background: var(--search-glass) !important;
-    backdrop-filter: var(--search-blur) !important;
-    color: var(--search-text) !important;
-    text-align: center;
-    outline: none;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.6);
+    width: 100% !important;
+    padding-left: 35px !important; /* Schiebt den Cursor nach rechts, damit der Griff nicht den Text verdeckt */
 }
 
 .app-actions {
@@ -396,10 +439,16 @@ header {
 }
 
 /* Pill-Farben über Theme-Variablen */
-.pill-key, .pill-label {
+.pill-key {
     background: var(--key-glass) !important;
     color: var(--key-text) !important;
     border-color: var(--key-border) !important;
+}
+
+.pill-label {
+    background: var(--label-glass) !important;
+    color: var(--label-text) !important;
+    border-color: var(--label-border) !important;
 }
 .pill-user {
     background: var(--user-glass) !important;
@@ -752,10 +801,16 @@ header {
 }
 
 /* Spezifisch für Key und Label Pills */
-.pill-key, .pill-label {
-    position: relative;
-    z-index: 11; /* Absolut oberste Ebene innerhalb der Karte */
-    box-shadow: 0 2px 4px rgba(0,0,0,0.3); /* Verstärkt den Effekt der Höhe */
+.pill-key {
+    background: var(--key-glass) !important;
+    color: var(--key-text) !important;
+    border-color: var(--key-border) !important;
+}
+
+.pill-label {
+    background: var(--label-glass) !important;
+    color: var(--label-text) !important;
+    border-color: var(--label-border) !important;
 }
 
 /* Den Content-Bereich darunter halten */

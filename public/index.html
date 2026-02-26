@@ -138,12 +138,33 @@
                 </div>
 
                 <div>
-                    <h4>🏷️ Key & Label Tags</h4>
-                    <div class="color-row">Background <input type="color" id="in-key-bg"></div>
-                    <div class="color-row">Foreground <input type="color" id="in-key-text"></div>
-                    <div class="color-row">Outline <input type="color" id="in-key-border"></div>
-                    <div class="color-row">Opacity (%) <input type="number" id="in-key-opacity"></div>
-                    <div class="color-row">Enable Blur <input type="checkbox" id="in-key-blur"></div>
+<h4>Key Pill</h4>
+<div class="color-row">
+    <span>BG</span>
+    <input type="color" id="in-key-bg">
+    <span>Text</span>
+    <input type="color" id="in-key-text">
+    <span>Border</span>
+    <input type="color" id="in-key-border">
+    <span>Opacity</span>
+    <input type="number" id="in-key-opacity" min="0" max="100" step="5">
+    <span>Blur</span>
+    <input type="checkbox" id="in-key-blur">
+</div>
+
+<h4 style="margin-top:20px;">Label Pill</h4>
+<div class="color-row">
+    <span>BG</span>
+    <input type="color" id="in-label-bg">
+    <span>Text</span>
+    <input type="color" id="in-label-text">
+    <span>Border</span>
+    <input type="color" id="in-label-border">
+    <span>Opacity</span>
+    <input type="number" id="in-label-opacity" min="0" max="100" step="5">
+    <span>Blur</span>
+    <input type="checkbox" id="in-label-blur">
+</div>
 
                     <h4>🏷️ User Tags</h4>
                     <div class="color-row">Background <input type="color" id="in-user-bg"></div>
