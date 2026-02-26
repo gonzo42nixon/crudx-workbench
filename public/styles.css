@@ -685,3 +685,81 @@ header {
     pointer-events: none !important;
     cursor: not-allowed !important;
 }
+
+
+.grid-5 .pill {
+    padding: 1px 4px;
+    font-size: 0.75em;
+}
+
+.grid-7 .pill-mime icon, .grid-7 .pill-sys .emoji {
+    display: none; /* Icons innerhalb der Pills verstecken */
+}
+
+/* --- STUFE 1: COMPACT (ab 5x5) --- */
+#data-container.density-compact {
+    gap: 6px !important;
+}
+#data-container.density-compact .card-kv {
+    padding: 6px !important;  /* statt 8px */
+}
+#data-container.density-compact .pill {
+    font-size: 0.7rem;
+    padding: 2px 4px;
+}
+
+/* --- STUFE 2: MINIMAL (ab 7x7) --- */
+#data-container.density-minimal .pill {
+    border: none;
+    box-shadow: none;
+    /* Hier kannst du Größe anpassen */
+    height: 16px;                /* kleinere Höhe */
+    padding: 0 2px;              /* schmaleres Padding */
+    font-size: 0.5rem;          /* etwas kleinere Schrift */
+}
+#data-container.density-minimal .pill-sys,
+#data-container.density-minimal .pill-mime {
+    opacity: 0.8;  /* statt background-opacity (gibt es nicht) */
+}
+/* Icons in Pills ausblenden – Beispiel */
+#data-container.density-minimal .pill .emoji,
+#data-container.density-minimal .pill-sys::before {
+    display: none;
+}
+
+/* --- STUFE 3: NANO (ab 9x9) --- */
+#data-container.density-nano .value-layer {
+    font-size: 0.5rem;
+    max-height: 15px;
+}
+#data-container.density-nano .br-group {
+    gap: 2px;
+}
+#data-container.density-nano .pill {
+    font-size: 0.5rem;
+    letter-spacing: -0.2px;
+    padding: 0px 2px;
+    height: 12px; 
+}
+
+/* Container für Key und Label anheben */
+.tl-group {
+    position: relative;
+    z-index: 100; /* Höher als der Rest der Karte */
+    display: flex;
+    gap: 4px;
+    margin-bottom: -10px; /* Optional: Schiebt die Pills leicht über den Content */
+}
+
+/* Spezifisch für Key und Label Pills */
+.pill-key, .pill-label {
+    position: relative;
+    z-index: 11; /* Absolut oberste Ebene innerhalb der Karte */
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3); /* Verstärkt den Effekt der Höhe */
+}
+
+/* Den Content-Bereich darunter halten */
+.value-layer {
+    position: relative;
+    z-index: 1; /* Niedriger als tl-group */
+}

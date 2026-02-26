@@ -565,38 +565,55 @@ function applyLayout(val) {
     const dataContainer = document.getElementById('data-container');
     if (!dataContainer) return;
 
-    // 1. Alle Layout-Klassen sauber entfernen
-    dataContainer.classList.remove('grid-3', 'grid-4', 'grid-5', 'grid-7', 'grid-9', 'list');
+    // 1. Alle Layout- und Dichte-Klassen sauber entfernen
+    dataContainer.classList.remove(
+        'grid-1', 'grid-3', 'grid-4', 'grid-5', 'grid-7', 'grid-9', 'list',
+        'density-compact', 'density-minimal', 'density-nano'
+    );
 
-    // 2. Alle Inline-Styles zurücksetzen
+    // 2. Alle Inline-Styles zurücksetzen (für sauberen Wechsel)
     dataContainer.style = '';
 
-    // 3. Logik für Listview (Infinite Scroll) oder Grid
+    // 3. Logik für Listview oder Grid-Dichte
     if (val === 'list') {
-        // Wir setzen das Limit massiv hoch für das Scroll-Erlebnis
+        // Massives Limit für Scroll-Erlebnis im List-Mode
         itemsPerPage = 500; 
         dataContainer.classList.add('list');
         
-        // Paginator-Leiste ausblenden (stört beim Scrollen)
+        // Paginator-Leiste im List-Mode ausblenden
         const navi = document.querySelector('.navi-container');
         if (navi) navi.style.display = 'none';
         
         console.log("🚀 List-Mode: Limit auf 500 gesetzt, Scrollen aktiviert.");
     } else {
-        // Grid-Logik: Limit = Spalten * Spalten
         const s = parseInt(val);
         itemsPerPage = s * s;
         dataContainer.classList.add(`grid-${s}`);
         
-        // Paginator wieder einblenden
+        // --- STUFENWEISE REAKTION AUF GRID-DICHTE ---
+        if (s >= 5) {
+            // Stufe 1: Abstände & Fonts leicht reduzieren
+            dataContainer.classList.add('density-compact');
+        }
+        if (s >= 7) {
+            // Stufe 2: Icons ausblenden, Außenlinien weg
+            dataContainer.classList.add('density-minimal');
+        }
+        if (s >= 9) {
+            // Stufe 3: Maximale Kompression (Abkürzungen via CSS/JS)
+            dataContainer.classList.add('density-nano');
+        }
+
+        // Paginator im Grid-Mode wieder einblenden
         const navi = document.querySelector('.navi-container');
         if (navi) navi.style.display = 'flex';
         
-        console.log(`Square-Mode: ${s}x${s} Grid aktiviert.`);
+        console.log(`Square-Mode: ${s}x${s} Grid aktiviert (Dichte-Stufe angewendet).`);
     }
 
-    // 4. Seite zurücksetzen und Daten neu laden
+    // 4. Seite zurücksetzen, Cursor löschen und Daten neu laden
     currentPage = 1;
+    pageCursors = []; 
     fetchRealData();
 }
 
@@ -659,6 +676,10 @@ bind('btn-last', 'click', async () => {
 // --- 8. RENDER ENGINE & PAGINATION LOGIC (LABEL SORTED) ---
 
 function renderDataFromDocs(docs, container) {
+
+    const isNano = container.classList.contains('grid-9');
+    const labelCreated = isNano ? 'C:' : 'Created:';
+
     const fD = (ts) => ts ? ts.split('T')[0] : '--'; 
     const fT = (label, ts) => ts ? `${label}: ${ts.replace('T', ' ').substring(0, 19)}` : label;
     let htmlBuffer = "";
@@ -685,7 +706,7 @@ function renderDataFromDocs(docs, container) {
         });
 
         const sysTagsHtml = `
-            <div class="pill pill-sys" title="${fT('Created', d.created_at)}">🐣 C:${fD(d.created_at)}</div>
+            <div class="pill pill-sys" title="${fT('Created', d.created_at)}">🐣 ${labelCreated}${fD(d.created_at)}</div>
             <div class="pill pill-sys" title="${fT('Last Update', d.last_update_ts)}">📝 U:${fD(d.last_update_ts)}</div>
             <div class="pill pill-sys" title="${fT('Last Read', d.last_read_ts)}">👁️ R:${fD(d.last_read_ts)}</div>
             <div class="pill pill-sys" title="Reads">R:${d.reads || 0}</div>
