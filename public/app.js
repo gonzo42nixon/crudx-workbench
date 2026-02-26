@@ -557,7 +557,7 @@ bind('btn-delete', 'click', async () => {
     fetchRealData(); // UI aktualisieren
 });
 
-        let currentPage = 1, itemsPerPage = 9, pageCursors = [];
+        let currentPage = 1, itemsPerPage = 9, pageCursors = [], sortDirection = 'asc';
         const dataContainer = document.getElementById('data-container');
         const gridSelect = document.getElementById('grid-select');
 
@@ -603,8 +603,23 @@ function applyLayout(val) {
         bind('grid-select', 'change', (e) => { applyLayout(e.target.value); currentPage = 1; fetchRealData(); });
 // --- PAGINATOR ACTIONS ---
 
-// Zum Anfang springen
-// --- PAGINATOR ACTIONS ---
+// ORDER BUTTON LOGIK (Visual Update)
+const btnOrder = document.getElementById('btn-order');
+if (btnOrder) {
+    // Initialer Zustand beim Laden
+btnOrder.textContent = '↑'; 
+btnOrder.title = 'Aufsteigend (A–Z). Klicken für absteigend (Z–A)';
+
+btnOrder.addEventListener('click', () => {
+    sortDirection = (sortDirection === 'asc') ? 'desc' : 'asc';
+    btnOrder.textContent = (sortDirection === 'asc') ? '↑' : '↓'; 
+    // Optional: Seite zurücksetzen, wenn du bei Sortierwechsel zu Seite 1 springen willst
+    currentPage = 1;
+    pageCursors = [];
+    fetchRealData(); 
+});
+}
+
 bind('btn-first', 'click', () => {
     if (currentPage === 1) return;
     currentPage = 1;
@@ -707,7 +722,7 @@ async function fetchRealData() {
         const totalCount = totalSnap.data().count;
 
         // --- LOGIK FÜR RESULT SET ---
-        // Aktuell: Treffermenge = Gesamtmenge (da noch keine Filter aktiv sind)
+        // Aktuell: Treffermenge = Gesamtmenge (Vorbereitung für zukünftige Filter)
         let filteredCount = totalCount; 
 
         // 2. DYNAMISCHE BERECHNUNG DER ITEMS & SEITEN
@@ -722,22 +737,23 @@ async function fetchRealData() {
         } else {
             const n = parseInt(gridValue);
             currentLimit = n * n;
-            // WICHTIG: Berechnung basiert auf filteredCount (Result Set)
+            // Berechnung basiert auf filteredCount (Result Set)
             totalPages = Math.max(1, Math.ceil(filteredCount / currentLimit));
         }
 
-        // 3. UI AKTUALISIEREN
+        // 3. UI AKTUALISIEREN (Page X of Y & Counts)
         if(document.getElementById('total-count')) document.getElementById('total-count').textContent = totalCount;
         if(document.getElementById('result-count')) document.getElementById('result-count').textContent = filteredCount;
         if(document.getElementById('current-page')) document.getElementById('current-page').textContent = currentPage;
         if(document.getElementById('total-pages')) document.getElementById('total-pages').textContent = totalPages;
 
         // 4. FIREBASE QUERY AUFBAUEN
-        let q = query(colRef, orderBy("label"), limit(currentLimit));
+        // Nutzt die globale Variable sortDirection ('asc' oder 'desc')
+        let q = query(colRef, orderBy("label", sortDirection), limit(currentLimit));
         
         // Paginierung via Cursor anwenden
         if (currentPage > 1 && pageCursors[currentPage - 2]) {
-            q = query(colRef, orderBy("label"), startAfter(pageCursors[currentPage - 2]), limit(currentLimit));
+            q = query(colRef, orderBy("label", sortDirection), startAfter(pageCursors[currentPage - 2]), limit(currentLimit));
         }
         
         const snap = await getDocs(q);
@@ -752,19 +768,27 @@ async function fetchRealData() {
             renderDataFromDocs(snap.docs, container);
         }
 
-        // 6. PAGINATOR-BUTTONS STEUERN (Visual Feedback)
+        // 6. PAGINATOR-BUTTONS STEUERN (Visual Feedback & Edge Detection)
         const btnFirst = document.getElementById('btn-first');
         const btnPrev = document.getElementById('btn-prev');
         const btnNext = document.getElementById('btn-next');
         const btnLast = document.getElementById('btn-last');
+        const btnOrder = document.getElementById('btn-order');
 
+        // Links sperren (Anfang erreicht?)
         const isAtStart = currentPage <= 1;
         btnFirst?.classList.toggle('btn-disabled', isAtStart);
         btnPrev?.classList.toggle('btn-disabled', isAtStart);
 
+        // Rechts sperren (Ende erreicht oder List-Mode?)
         const isAtEnd = currentPage >= totalPages || gridValue === 'list';
         btnNext?.classList.toggle('btn-disabled', isAtEnd);
         btnLast?.classList.toggle('btn-disabled', isAtEnd);
+
+        // Tooltip für Order-Button aktualisieren
+        if (btnOrder) {
+            btnOrder.title = `Current: ${sortDirection === 'asc' ? 'Ascending (A-Z)' : 'Descending (Z-A)'}. Click to flip sorting.`;
+        }
 
     } catch (err) {
         console.error("🔥 Fehler in fetchRealData:", err);
@@ -781,49 +805,42 @@ async function fetchLastPageData() {
         // 1. GESAMTANZAHL UND SEITENBERECHNUNG
         const totalSnap = await getCountFromServer(colRef);
         const totalCount = totalSnap.data().count;
-        const lastPage = Math.ceil(totalCount / itemsPerPage);
         
-        // Aktuelle Seite auf das Maximum setzen
+        // Rastergröße ermitteln
+        const gridValue = document.getElementById('grid-select')?.value || "3";
+        const itemsOnPage = (gridValue === 'list') ? 500 : (parseInt(gridValue) * parseInt(gridValue));
+        
+        const lastPage = Math.max(1, Math.ceil(totalCount / itemsOnPage));
         currentPage = lastPage;
         
-        // Berechnen, wie viele Dokumente auf der letzten Seite übrig bleiben
-        const remainder = totalCount % itemsPerPage || itemsPerPage;
+        const remainder = totalCount % itemsOnPage || itemsOnPage;
 
-        // 2. QUERY: Der "Firestore-Trick" für das Ende
-        // Wir sortieren absteigend nach Label, um die "letzten" Docs zu greifen
-        const q = query(colRef, orderBy("label", "desc"), limit(remainder));
+        // 2. QUERY LOGIK (Umkehrung der aktuellen sortDirection)
+        // Wenn wir ASC sortieren, müssen wir DESC anfragen, um das Ende zu finden
+        const reverseDir = (sortDirection === 'asc') ? 'desc' : 'asc';
+        const q = query(colRef, orderBy("label", reverseDir), limit(remainder));
         const snap = await getDocs(q);
         
         // 3. RENDERING
-        // snap.docs.reverse() stellt die alphabetische A-Z Ordnung wieder her
+        // Wir drehen die Docs um, damit sie wieder in der global gewählten Richtung erscheinen
         renderDataFromDocs(snap.docs.reverse(), container);
 
         // UI-Counter aktualisieren
         if(document.getElementById('current-page')) document.getElementById('current-page').textContent = currentPage;
-        if(document.getElementById('total-count')) document.getElementById('total-count').textContent = totalCount;
+        if(document.getElementById('total-pages')) document.getElementById('total-pages').textContent = lastPage;
 
-        // 4. BUTTON-STATUS AKTUALISIEREN (Paginator-Sperre)
-        const btnFirst = document.getElementById('btn-first');
-        const btnPrev = document.getElementById('btn-prev');
+        // 4. BUTTON-STATUS & PFEIL-FIX
         const btnNext = document.getElementById('btn-next');
         const btnLast = document.getElementById('btn-last');
+        const btnOrder = document.getElementById('btn-order');
 
-        // Da wir auf der letzten Seite sind: Rechts sperren, Links freigeben
+        // Rechts sperren, da wir am Ende sind
         btnNext?.classList.add('btn-disabled');
         btnLast?.classList.add('btn-disabled');
-        
-        if (currentPage > 1) {
-            btnFirst?.classList.remove('btn-disabled');
-            btnPrev?.classList.remove('btn-disabled');
-        } else {
-            // Falls es nur eine einzige Seite gibt
-            btnFirst?.classList.add('btn-disabled');
-            btnPrev?.classList.add('btn-disabled');
-        }
+
 
     } catch (err) {
         console.error("🔥 Error fetching last page:", err);
-        container.innerHTML = `<div class="pill pill-sys">Error jumping to end: ${err.message}</div>`;
     }
 }
 
