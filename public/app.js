@@ -601,105 +601,229 @@ function applyLayout(val) {
 }
 
         bind('grid-select', 'change', (e) => { applyLayout(e.target.value); currentPage = 1; fetchRealData(); });
-        bind('btn-next', 'click', () => { currentPage++; fetchRealData(); });
-        bind('btn-prev', 'click', () => { if (currentPage > 1) { currentPage--; fetchRealData(); } });
+// --- PAGINATOR ACTIONS ---
+
+// Zum Anfang springen
+// --- PAGINATOR ACTIONS ---
+bind('btn-first', 'click', () => {
+    if (currentPage === 1) return;
+    currentPage = 1;
+    pageCursors = []; 
+    fetchRealData();
+});
+
+bind('btn-prev', 'click', () => {
+    if (currentPage > 1) {
+        currentPage--;
+        fetchRealData();
+    }
+});
+
+bind('btn-next', 'click', () => {
+    currentPage++;
+    fetchRealData();
+});
+
+bind('btn-last', 'click', async () => {
+    const colRef = collection(db, "kv-store");
+    const totalSnap = await getCountFromServer(colRef);
+    const totalCount = totalSnap.data().count;
+    const lastPage = Math.ceil(totalCount / itemsPerPage);
+    
+    if (currentPage === lastPage) return;
+    currentPage = lastPage;
+    fetchLastPageData(totalCount); 
+});
 
         const fmtD = (ts) => ts ? ts.split('T')[0] : '--'; 
         const fmtT = (label, ts) => ts ? `${label}: ${ts.replace('T', ' ').substring(0, 19)}` : label;
 
-        // --- 8. RENDER ENGINE & MIME DETECTION ---
+
+ 
+
+// --- 8. RENDER ENGINE & PAGINATION LOGIC (LABEL SORTED) ---
+
+function renderDataFromDocs(docs, container) {
+    const fD = (ts) => ts ? ts.split('T')[0] : '--'; 
+    const fT = (label, ts) => ts ? `${label}: ${ts.replace('T', ' ').substring(0, 19)}` : label;
+    let htmlBuffer = "";
+
+    docs.forEach(doc => {
+        const d = doc.data();
+        const foundMime = detectMimetype(d.value);
+        
+        const mimePill = foundMime ? 
+            `<div class="pill pill-mime" title="Mime Type" style="background-color: ${foundMime.color} !important; color: #000 !important;">
+                ${foundMime.icon} ${foundMime.type}
+            </div>` : '';
+
+        let userTags = [];
+        if (Array.isArray(d.user_tags)) {
+            d.user_tags.forEach(t => userTags.push(`<div class="pill pill-user" title="Memo: User">🏷️ ${t}</div>`));
+        }
+        
+        ['read','update','delete'].forEach(m => {
+            const list = d[`white_list_${m}`] || [];
+            if (list.length > 0) {
+                userTags.push(`<div class="pill pill-user" title="Whitelist ${m.toUpperCase()}: ${list.join(', ')}">${m === 'read' ? '👁️' : (m === 'update' ? '✏️' : '🗑️')} ${list.length}</div>`);
+            }
+        });
+
+        const sysTagsHtml = `
+            <div class="pill pill-sys" title="${fT('Created', d.created_at)}">🐣 C:${fD(d.created_at)}</div>
+            <div class="pill pill-sys" title="${fT('Last Update', d.last_update_ts)}">📝 U:${fD(d.last_update_ts)}</div>
+            <div class="pill pill-sys" title="${fT('Last Read', d.last_read_ts)}">👁️ R:${fD(d.last_read_ts)}</div>
+            <div class="pill pill-sys" title="Reads">R:${d.reads || 0}</div>
+            <div class="pill pill-sys" title="Updates">U:${d.updates || 0}</div>
+            <div class="pill pill-sys" title="Size">💾 ${d.size || '0KB'}</div>
+            <div class="pill pill-sys" title="Owner">👤 ${d.owner ? d.owner.split('@')[0] : 'Sys'}</div>
+        `;
+
+        htmlBuffer += `
+            <div class="card-kv">
+                <div class="tl-group">
+                    <div class="pill pill-key" title="KEY">${doc.id}</div>
+                    <div class="pill pill-label" title="Label">${d.label || ''}</div>
+                </div>
+                <div class="value-layer" title="VALUE">${escapeHtml(d.value) || 'NULL'}</div>
+                <div class="br-group">
+                    ${sysTagsHtml}
+                    ${mimePill}
+                    ${userTags.join('')}
+                </div>
+            </div>`;
+    });
+    container.innerHTML = htmlBuffer;
+}
+
 async function fetchRealData() {
-    const colRef = collection(db, "kv-store");
     const container = document.getElementById('data-container');
     if (!container) return;
+    const colRef = collection(db, "kv-store");
 
     try {
+        // 1. DATABASE COUNTS HOLEN
         const totalSnap = await getCountFromServer(colRef);
         const totalCount = totalSnap.data().count;
 
-        // --- 1. GLOBAL UI TOOLTIPS ---
-        const searchInput = document.querySelector('.search-container input');
-        if (searchInput) searchInput.title = "Search";
+        // --- LOGIK FÜR RESULT SET ---
+        // Aktuell: Treffermenge = Gesamtmenge (da noch keine Filter aktiv sind)
+        let filteredCount = totalCount; 
 
-        const burgerBtn = document.getElementById('btn-burger');
-        if (burgerBtn) burgerBtn.title = "Settings/Tools";
+        // 2. DYNAMISCHE BERECHNUNG DER ITEMS & SEITEN
+        const gridValue = document.getElementById('grid-select')?.value || "3";
+        let currentLimit;
+        let totalPages;
 
-        const gridSelect = document.getElementById('grid-select');
-        if (gridSelect) gridSelect.title = "View";
+        if (gridValue === 'list') {
+            currentLimit = 500; 
+            totalPages = 1;
+            currentPage = 1;
+        } else {
+            const n = parseInt(gridValue);
+            currentLimit = n * n;
+            // WICHTIG: Berechnung basiert auf filteredCount (Result Set)
+            totalPages = Math.max(1, Math.ceil(filteredCount / currentLimit));
+        }
 
-        const pageDisplay = document.getElementById('current-page');
-        if (pageDisplay) pageDisplay.parentElement.title = "Page";
-
+        // 3. UI AKTUALISIEREN
         if(document.getElementById('total-count')) document.getElementById('total-count').textContent = totalCount;
+        if(document.getElementById('result-count')) document.getElementById('result-count').textContent = filteredCount;
+        if(document.getElementById('current-page')) document.getElementById('current-page').textContent = currentPage;
+        if(document.getElementById('total-pages')) document.getElementById('total-pages').textContent = totalPages;
 
-        // --- 2. QUERY LOGIC ---
-        let currentLimit = container.classList.contains('list') ? totalCount : itemsPerPage;
-        let q = query(colRef, orderBy("__name__"), limit(currentLimit));
+        // 4. FIREBASE QUERY AUFBAUEN
+        let q = query(colRef, orderBy("label"), limit(currentLimit));
         
+        // Paginierung via Cursor anwenden
         if (currentPage > 1 && pageCursors[currentPage - 2]) {
-            q = query(colRef, orderBy("__name__"), startAfter(pageCursors[currentPage - 2]), limit(currentLimit));
+            q = query(colRef, orderBy("label"), startAfter(pageCursors[currentPage - 2]), limit(currentLimit));
         }
         
         const snap = await getDocs(q);
-        const fD = (ts) => ts ? ts.split('T')[0] : '--'; 
-        const fT = (label, ts) => ts ? `${label}: ${ts.replace('T', ' ').substring(0, 19)}` : label;
-
-        let htmlBuffer = "";
         
-        snap.forEach(doc => {
-            const d = doc.data();
-            const foundMime = detectMimetype(d.value);
-            
-            // --- 3. PILL GENERATION (TOOLTIPS OHNE WERT-REDUNDANZ) ---
+        // 5. DATEN RENDERN
+        if (snap.empty) {
+            container.innerHTML = `<div class="pill pill-sys" style="margin:20px;">Keine Dokumente in dieser Auswahl vorhanden.</div>`;
+        } else {
+            // Cursor für die nächste Seite speichern
+            pageCursors[currentPage - 1] = snap.docs[snap.docs.length - 1];
+            // Zentrale Render-Funktion nutzen
+            renderDataFromDocs(snap.docs, container);
+        }
 
-            const mimePill = foundMime ? 
-                `<div class="pill pill-mime" title="Mime Type" style="background-color: ${foundMime.color} !important; color: #000 !important;">
-                    ${foundMime.icon} ${foundMime.type}
-                </div>` : '';
+        // 6. PAGINATOR-BUTTONS STEUERN (Visual Feedback)
+        const btnFirst = document.getElementById('btn-first');
+        const btnPrev = document.getElementById('btn-prev');
+        const btnNext = document.getElementById('btn-next');
+        const btnLast = document.getElementById('btn-last');
 
-            let userTags = [];
-            if (Array.isArray(d.user_tags)) {
-                d.user_tags.forEach(t => userTags.push(`<div class="pill pill-user" title="Memo: User">🏷️ ${t}</div>`));
-            }
-            
-            ['read','update','delete'].forEach(m => {
-                const list = d[`white_list_${m}`] || [];
-                if (list.length > 0) {
-                    // Hier macht der Tooltip Sinn, da er die versteckten E-Mails zeigt
-                    userTags.push(`<div class="pill pill-user" title="Whitelist ${m.toUpperCase()}: ${list.join(', ')}">${m === 'read' ? '👁️' : (m === 'update' ? '✏️' : '🗑️')} ${list.length}</div>`);
-                }
-            });
-            const userTagsHtml = userTags.join('');
+        const isAtStart = currentPage <= 1;
+        btnFirst?.classList.toggle('btn-disabled', isAtStart);
+        btnPrev?.classList.toggle('btn-disabled', isAtStart);
 
-            const sysTagsHtml = `
-                <div class="pill pill-sys" title="${fT('Created', d.created_at)}">🐣 C:${fD(d.created_at)}</div>
-                <div class="pill pill-sys" title="${fT('Last Update', d.last_update_ts)}">📝 U:${fD(d.last_update_ts)}</div>
-                <div class="pill pill-sys" title="${fT('Last Read', d.last_read_ts)}">👁️ R:${fD(d.last_read_ts)}</div>
-                <div class="pill pill-sys" title="Reads">R:${d.reads || 0}</div>
-                <div class="pill pill-sys" title="Updates">U: ${d.updates || 0}</div>
-                <div class="pill pill-sys" title="Size">💾 ${d.size || '0KB'}</div>
-                <div class="pill pill-sys" title="Owner">👤 ${d.owner ? d.owner.split('@')[0] : 'Sys'}</div>
-            `;
+        const isAtEnd = currentPage >= totalPages || gridValue === 'list';
+        btnNext?.classList.toggle('btn-disabled', isAtEnd);
+        btnLast?.classList.toggle('btn-disabled', isAtEnd);
 
-            // --- 4. FINAL ROW ASSEMBLY ---
-            htmlBuffer += `
-                <div class="card-kv">
-                    <div class="tl-group">
-                        <div class="pill pill-key" title="KEY">${doc.id}</div>
-                        <div class="pill pill-label" title="Label">${d.label || ''}</div>
-                    </div>
-                    <div class="value-layer" title="VALUE">${escapeHtml(d.value) || 'NULL'}</div>
-                    <div class="br-group">
-                        ${sysTagsHtml}
-                        ${mimePill}
-                        ${userTagsHtml}
-                    </div>
-                </div>`;
-        });
-
-        container.innerHTML = htmlBuffer;
     } catch (err) {
-        console.error("🔥 Error in fetchData:", err);
+        console.error("🔥 Fehler in fetchRealData:", err);
+        container.innerHTML = `<div class="pill pill-sys">Fehler beim Laden: ${err.message}</div>`;
+    }
+}
+
+async function fetchLastPageData() {
+    const container = document.getElementById('data-container');
+    if (!container) return;
+    const colRef = collection(db, "kv-store");
+
+    try {
+        // 1. GESAMTANZAHL UND SEITENBERECHNUNG
+        const totalSnap = await getCountFromServer(colRef);
+        const totalCount = totalSnap.data().count;
+        const lastPage = Math.ceil(totalCount / itemsPerPage);
+        
+        // Aktuelle Seite auf das Maximum setzen
+        currentPage = lastPage;
+        
+        // Berechnen, wie viele Dokumente auf der letzten Seite übrig bleiben
+        const remainder = totalCount % itemsPerPage || itemsPerPage;
+
+        // 2. QUERY: Der "Firestore-Trick" für das Ende
+        // Wir sortieren absteigend nach Label, um die "letzten" Docs zu greifen
+        const q = query(colRef, orderBy("label", "desc"), limit(remainder));
+        const snap = await getDocs(q);
+        
+        // 3. RENDERING
+        // snap.docs.reverse() stellt die alphabetische A-Z Ordnung wieder her
+        renderDataFromDocs(snap.docs.reverse(), container);
+
+        // UI-Counter aktualisieren
+        if(document.getElementById('current-page')) document.getElementById('current-page').textContent = currentPage;
+        if(document.getElementById('total-count')) document.getElementById('total-count').textContent = totalCount;
+
+        // 4. BUTTON-STATUS AKTUALISIEREN (Paginator-Sperre)
+        const btnFirst = document.getElementById('btn-first');
+        const btnPrev = document.getElementById('btn-prev');
+        const btnNext = document.getElementById('btn-next');
+        const btnLast = document.getElementById('btn-last');
+
+        // Da wir auf der letzten Seite sind: Rechts sperren, Links freigeben
+        btnNext?.classList.add('btn-disabled');
+        btnLast?.classList.add('btn-disabled');
+        
+        if (currentPage > 1) {
+            btnFirst?.classList.remove('btn-disabled');
+            btnPrev?.classList.remove('btn-disabled');
+        } else {
+            // Falls es nur eine einzige Seite gibt
+            btnFirst?.classList.add('btn-disabled');
+            btnPrev?.classList.add('btn-disabled');
+        }
+
+    } catch (err) {
+        console.error("🔥 Error fetching last page:", err);
+        container.innerHTML = `<div class="pill pill-sys">Error jumping to end: ${err.message}</div>`;
     }
 }
 

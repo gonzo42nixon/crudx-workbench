@@ -678,3 +678,10 @@ header {
     opacity: 0 !important;
     pointer-events: none !important;
 }
+
+/* Deaktivierte Paginator-Buttons */
+.btn-disabled {
+    opacity: 0.3 !important;
+    pointer-events: none !important;
+    cursor: not-allowed !important;
+}
