@@ -3,13 +3,16 @@ import { detectMimetype } from './modules/mime.js';
 import { themeState, applyTheme, syncModalUI, initThemeEditor, initThemeControls } from './modules/theme.js';
 import { db, auth } from './modules/firebase.js';
 import { applyLayout, initPaginationControls, fetchRealData, fetchLastPageData } from './modules/pagination.js';
-import { renderDataFromDocs, escapeHtml } from './modules/ui.js'; // werden später vielleicht nicht mehr direkt benötigt
-import { collection, query, limit, getDocs, getCountFromServer, orderBy, startAfter, deleteDoc, doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { renderDataFromDocs, escapeHtml } from './modules/ui.js';
+import { initAuth } from './modules/auth.js';
+import { 
+    collection, query, limit, getDocs, getCountFromServer, orderBy, startAfter, deleteDoc, doc, 
+    writeBatch
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 document.addEventListener("DOMContentLoaded", async () => {
     try {
-
-// --- MAGIC LINK CHECKER ---
+        // --- MAGIC LINK CHECKER ---
         const finalizeLogin = async () => {
             const { signInWithEmailLink, isSignInWithEmailLink } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js");
             if (isSignInWithEmailLink(auth, window.location.href)) {
@@ -24,32 +27,35 @@ document.addEventListener("DOMContentLoaded", async () => {
         };
         finalizeLogin();
 
-window.db = db; 
-window.auth = auth; // Damit die Konsole weiß, wer 'auth' ist
+        window.db = db; 
+        window.auth = auth; // Damit die Konsole weiß, wer 'auth' ist
 
         const bind = (id, event, fn) => {
             const el = document.getElementById(id);
             if (el) el.addEventListener(event, fn);
         };
 
-        
-
-        // --- 2. THEME CONFIG (VOLLSTÄNDIG) ---
-
+        // --- THEME CONFIG ---
         const settingsBlock = document.getElementById('crudx-settings');
-if (settingsBlock && settingsBlock.textContent.trim() !== "" && settingsBlock.textContent.trim() !== "{}") {
-    try { 
-        themeState.appConfig = { ...themeState.appConfig, ...JSON.parse(settingsBlock.textContent) }; 
-    } catch (e) {}
-}
+        if (settingsBlock && settingsBlock.textContent.trim() !== "" && settingsBlock.textContent.trim() !== "{}") {
+            try { 
+                themeState.appConfig = { ...themeState.appConfig, ...JSON.parse(settingsBlock.textContent) }; 
+            } catch (e) {}
+        }
 
-// Theme initialisieren
-themeState.currentActiveTheme = themeState.appConfig.startupTheme;
-applyTheme(themeState.currentActiveTheme);
-initThemeEditor();
-initThemeControls();
-initPaginationControls();
+        // Theme initialisieren
+        themeState.currentActiveTheme = themeState.appConfig.startupTheme;
+        applyTheme(themeState.currentActiveTheme);
+        initThemeEditor();
+        initThemeControls();
 
+        // Auth initialisieren
+        initAuth();
+
+        // Paginierung initialisieren
+        initPaginationControls();
+
+        // --- FAB-FUNKTIONEN (SHARE, FULLSCREEN, PRINT) ---
         bind('btn-share', 'click', () => {
             if (navigator.share) {
                 navigator.share({ title: 'CRUDX Data View', url: window.location.href });
@@ -69,21 +75,19 @@ initPaginationControls();
 
         bind('btn-print', 'click', () => window.print());
 
-        // --- 5. NAVIGATION (BURGER, DRAWER) ---
+        // --- NAVIGATION (BURGER, DRAWER) ---
         bind('btn-burger', 'click', () => document.getElementById('drawer').classList.add('open'));
         bind('btn-close-drawer', 'click', () => document.getElementById('drawer').classList.remove('open'));
 
-        // --- 6. THEME MODAL (verschiebbar + schließen bei Klick außen) ---
+        // --- THEME MODAL (verschiebbar + schließen bei Klick außen) ---
         const themeModal = document.getElementById('theme-modal');
         const modalContent = document.querySelector('.modal-content');
-        const modalTitle = modalContent?.querySelector('h3'); // Als Ziehgriff
+        const modalTitle = modalContent?.querySelector('h3');
 
-        // Variablen für Drag
         let isDragging = false;
         let startX, startY, startTranslateX, startTranslateY;
         let currentTranslateX = 0, currentTranslateY = 0;
 
-        // Hilfsfunktion: Aktuelle Transform-Matrix auslesen
         function getTranslateValues() {
             const style = window.getComputedStyle(modalContent);
             const transform = style.transform;
@@ -91,28 +95,24 @@ initPaginationControls();
                 const matrix = transform.match(/matrix.*\((.+)\)/);
                 if (matrix) {
                     const values = matrix[1].split(', ');
-                    // Bei matrix(scaleX, skewY, skewX, scaleY, translateX, translateY)
                     if (values.length === 6) {
                         return { x: parseFloat(values[4]), y: parseFloat(values[5]) };
                     }
-                    // Bei matrix3d – ignorieren wir, nehmen vereinfacht 0
                 }
             }
             return { x: 0, y: 0 };
         }
 
-        // Drag-Start auf dem Titel
         if (modalTitle) {
             modalTitle.classList.add('modal-drag-handle');
             modalTitle.style.cursor = 'move';
 
             modalTitle.addEventListener('mousedown', (e) => {
-                e.preventDefault(); // Textselektion verhindern
+                e.preventDefault();
                 isDragging = true;
                 startX = e.clientX;
                 startY = e.clientY;
 
-                // Aktuelle Translate-Werte holen
                 const translate = getTranslateValues();
                 startTranslateX = translate.x;
                 startTranslateY = translate.y;
@@ -143,18 +143,15 @@ initPaginationControls();
             }
         }
 
-        // Schließen bei Klick außerhalb (auf das Overlay)
         themeModal.addEventListener('click', (e) => {
             if (e.target === themeModal) {
                 themeModal.classList.remove('active');
-                // Position zurücksetzen (wieder zentrieren)
                 modalContent.style.transform = 'translate(-50%, -50%)';
                 currentTranslateX = 0;
                 currentTranslateY = 0;
             }
         });
 
-        // Schließen-Button
         bind('btn-close-modal', 'click', () => {
             themeModal.classList.remove('active');
             modalContent.style.transform = 'translate(-50%, -50%)';
@@ -162,12 +159,11 @@ initPaginationControls();
             currentTranslateY = 0;
         });
 
-        // Schließen des Export-Modals
+        // --- EXPORT MODAL ---
         bind('btn-close-export', 'click', () => {
             document.getElementById('export-modal').classList.remove('active');
         });
 
-        // In die Zwischenablage kopieren
         bind('btn-copy-buffer', 'click', () => {
             const content = document.getElementById('export-area').value;
             navigator.clipboard.writeText(content).then(() => {
@@ -177,7 +173,6 @@ initPaginationControls();
             });
         });
 
-        // Als JSON Datei speichern
         bind('btn-save-json', 'click', () => {
             const content = document.getElementById('export-area').value;
             const blob = new Blob([content], { type: 'application/json' });
@@ -189,153 +184,45 @@ initPaginationControls();
             URL.revokeObjectURL(url);
         });
 
-
-        // --- 8. DATA ACTIONS ---
+        // --- DATA ACTIONS ---
         bind('btn-inject', 'click', () => import('./seed.js').then(m => m.seedData(db)));
-bind('btn-delete', 'click', async () => {
-    if(!confirm("Alle Dokumente wirklich löschen?")) return;
-    
-    const colRef = collection(db, "kv-store");
-    const snap = await getDocs(colRef);
-    
-    if (snap.empty) {
-        alert("Nichts zum Löschen da.");
-        return;
-    }
 
-    console.log(`🗑️ Starte Batch-Löschung von ${snap.size} Dokumenten...`);
+        bind('btn-delete', 'click', async () => {
+            if (!confirm("Alle Dokumente wirklich löschen?")) return;
 
-    // Wir teilen die Arbeit in 500er Pakete auf
-    let count = 0;
-    let batch = writeBatch(db);
+            const colRef = collection(db, "kv-store");
+            const snap = await getDocs(colRef);
 
-    for (const document of snap.docs) {
-        batch.delete(document.ref);
-        count++;
+            if (snap.empty) {
+                alert("Nichts zum Löschen da.");
+                return;
+            }
 
-        // Wenn 500 erreicht sind, abschicken und neuen Batch starten
-        if (count % 500 === 0) {
-            await batch.commit();
-            batch = writeBatch(db);
-            console.log(`📦 Zwischenstand: ${count} gelöscht.`);
-        }
-    }
+            console.log(`🗑️ Starte Batch-Löschung von ${snap.size} Dokumenten...`);
 
-    // Den Rest abschicken
-    if (count % 500 !== 0) {
-        await batch.commit();
-    }
+            let count = 0;
+            let batch = writeBatch(db);
 
-    console.log("✅ Alle Dokumente entfernt.");
-    fetchRealData(); // UI aktualisieren
-});
+            for (const document of snap.docs) {
+                batch.delete(document.ref);
+                count++;
 
-// --- 9. AUTH LOGIK & START ---
-(async () => {
-    try {
-        const { onAuthStateChanged, signOut } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js");
+                if (count % 500 === 0) {
+                    await batch.commit();
+                    batch = writeBatch(db);
+                    console.log(`📦 Zwischenstand: ${count} gelöscht.`);
+                }
+            }
 
-onAuthStateChanged(auth, async (user) => {
-    const loginModal = document.getElementById('login-modal');
-    const userProfile = document.getElementById('user-profile');
-    const userEmailSpan = document.getElementById('user-email');
-    const gridSelect = document.getElementById('grid-select');
-    const userModal = document.getElementById('user-modal');
-    const modalEmail = document.getElementById('modal-user-email');
+            if (count % 500 !== 0) {
+                await batch.commit();
+            }
 
-    if (user) {
-        console.log("✅ Access granted for:", user.email);
-        
-        if (loginModal) {
-            loginModal.classList.remove('active');
-            loginModal.style.display = 'none';
-        }
-
-        if (userProfile) {
-            userProfile.style.display = 'flex';
-            userProfile.style.cursor = 'pointer';
-            
-            // FEATURE FIX: Hide all wording/email from the header
-            if (userEmailSpan) userEmailSpan.style.display = 'none'; 
-            
-            // Tooltip only shows info
-            userProfile.title = `CRUDX Account\n${user.email}`;
-
-            userProfile.onclick = (e) => {
-                e.stopPropagation();
-                if (modalEmail) modalEmail.textContent = user.email;
-                
-                // Positioning floating popup directly under the icon
-                const rect = userProfile.getBoundingClientRect();
-                userModal.style.top = `${rect.bottom + 10}px`;
-                userModal.style.left = `${rect.right - 280}px`;
-                userModal.classList.toggle('active');
-            };
-        }
-
-        const btnLogoutConfirm = document.getElementById('btn-logout-confirm');
-        if (btnLogoutConfirm) {
-            btnLogoutConfirm.onclick = async () => {
-                const { signOut } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js");
-                await signOut(auth);
-                window.location.reload();
-            };
-        }
-
-        const btnCloseUser = document.getElementById('btn-close-user');
-        if (btnCloseUser) {
-            btnCloseUser.onclick = (e) => {
-                e.stopPropagation();
-                userModal.classList.remove('active');
-            };
-        }
-
-        // Apply 3x3 Layout from URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const viewParam = urlParams.get('view');
-        if (viewParam) {
-            if (gridSelect) gridSelect.value = viewParam;
-            applyLayout(viewParam); 
-        } else {
-            applyLayout(gridSelect ? gridSelect.value : '3');
-        }
-
-        fetchRealData(); 
-
-    } else {
-        console.warn("🔒 Locked. Authentication required.");
-        if (userProfile) userProfile.style.display = 'none';
-        if (loginModal) {
-            loginModal.style.display = 'flex';
-            loginModal.classList.add('active');
-        }
-        
-        const btnLink = document.getElementById('btn-send-link');
-        if (btnLink) {
-            btnLink.onclick = async () => {
-                const emailInput = document.getElementById('login-email');
-                if (!emailInput || !emailInput.value) return alert("Please enter an email address.");
-                const currentView = gridSelect ? gridSelect.value : '3';
-                const currentContinueUrl = `${window.location.origin}${window.location.pathname}?view=${currentView}`;
-                const { loginWithEmail } = await import('./auth-helper.js');
-                await loginWithEmail(auth, emailInput.value, currentContinueUrl);
-                const status = document.getElementById('login-status');
-                if (status) status.textContent = "Check your inbox (Emulator UI)!";
-            };
-        }
-    }
-});
-
-        // Global click to close the popup
-        window.addEventListener('click', () => {
-            const userModal = document.getElementById('user-modal');
-            if (userModal) userModal.classList.remove('active');
+            console.log("✅ Alle Dokumente entfernt.");
+            fetchRealData(); // UI aktualisieren
         });
 
-    } catch (err) {
-        console.error("🔥 Auth Init Error:", err);
+    } catch (e) {
+        console.error("🔥 FATAL:", e);
     }
-})(); // These are the missing brackets that were causing the crash
-
-    } catch (e) { console.error("🔥 FATAL:", e); }
 });
