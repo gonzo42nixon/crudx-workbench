@@ -130,22 +130,30 @@ header {
 }
 
 .search-container {
-    position: absolute !important;
-    top: var(--search-padding-top, 20px) !important;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 35%;
-    min-width: 300px;
-    z-index: 9999 !important; /* Forces container to the front */
+    background: var(--navi-glass);   /* Gleicher Glas-Hintergrund wie Paginator */
+    backdrop-filter: var(--navi-blur);
+    border: 1px solid var(--navi-border);
+    border-radius: 50px;             /* Gleiche Rundung */
+    padding: 0;                       /* Kein extra Padding, da der Input es übernimmt */
+    height: 45px;                     /* Feste Höhe, kann nach Bedarf angepasst werden */
     display: flex;
     align-items: center;
+    width: 35%;                        /* oder min-width: 300px wie gehabt */
+    min-width: 300px;
 }
 
 /* FIX: Sorgt dafür, dass das Input-Feld im Flex-Container nicht schrumpft */
 .search-container input {
-    width: 100% !important;
-    padding-left: 45px !important; /* Space for the handle */
-    z-index: 10000;
+    background: transparent !important;   /* Hintergrund der Hülle durchscheinen lassen */
+    border: none !important;               /* Eigenen Rahmen entfernen */
+    color: var(--search-text) !important;
+    font-size: 1em;
+    padding: 12px 20px;                    /* Innenabstand für die Höhe */
+    border-radius: 50px !important;        /* Gleiche Rundung */
+    width: 100%;
+    height: 100%;                          /* Volle Höhe der Hülle */
+    outline: none;
+    box-shadow: none !important;            /* Eventuell vorhandene Schatten entfernen */
 }
 
 /* Der Griff (Handle) */
