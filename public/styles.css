@@ -302,18 +302,32 @@ header {
     border: 2px solid #0a0a0a;
 }
 
+/* Update this block in your styles.css */
 #data-container.list .card-kv {
     display: flex !important;
     flex-direction: row !important;
     align-items: center !important;
     justify-content: flex-start !important;
-    height: 28px !important; /* Etwas mehr Höhe für die Pills */
+    height: 28px !important;
     min-height: 28px !important;
     padding: 0 10px !important;
     border-radius: 0 !important;
     margin: 0 !important;
-    background: transparent !important;
-    border-bottom: 1px solid rgba(255,255,255,0.05) !important;
+    
+    /* FIX 1: Use Card BG instead of transparent */
+    background: var(--card-bg) !important; 
+    
+    /* FIX 2: Dynamic border color based on the theme's card border */
+    border-bottom: 1px solid var(--card-border) !important; 
+    
+    /* FIX 3: Ensure text color is inherited from the theme */
+    color: var(--card-text) !important;
+}
+
+/* Optional: Add a hover effect so users see it's interactive */
+#data-container.list .card-kv:hover {
+    filter: brightness(1.2);
+    cursor: pointer;
 }
 
 /* Pills wieder sichtbar machen */
