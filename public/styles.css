@@ -130,6 +130,7 @@ header {
 }
 
 .search-container {
+    position: relative;               /* Basis für absolute Positionierung des Griffs */
     background: var(--search-glass) !important;
     backdrop-filter: var(--search-blur) !important;
     border: 1px solid var(--search-border) !important;
@@ -137,8 +138,8 @@ header {
     height: 45px;
     display: flex;
     align-items: center;
-    width: 35%;
-    min-width: 300px;
+    width: 600px;                     /* Testweise feste Breite */
+    min-width: unset;                  /* Alte min-width aufheben */
     margin: 0 auto;
 }
 
@@ -147,12 +148,13 @@ header {
     border: none !important;
     color: var(--search-text) !important;
     font-size: 1em;
-    padding: 12px 20px;
+    padding: 12px 20px 12px 35px;  /* Rechts 20px, links 35px für den Griff */
     border-radius: 50px !important;
     width: 100%;
     height: 100%;
     outline: none;
     box-shadow: none !important;
+    box-sizing: border-box; /* Wichtig: Padding in der Breite berücksichtigen */
 }
 
 /* Der Griff (Handle) */
@@ -186,10 +188,6 @@ header {
 #search-drag-handle:hover {
     opacity: 1;
     transform: scale(1.2);    /* Feedback beim Drüberfahren */
-}
-.search-container input {
-    width: 100% !important;
-    padding-left: 35px !important; /* Schiebt den Cursor nach rechts, damit der Griff nicht den Text verdeckt */
 }
 
 .app-actions {
@@ -1038,10 +1036,6 @@ header {
     .action-button-wide {
         width: 100%;
     }
-}
-/* Suchcontainer für relative Positionierung vorbereiten */
-.search-container {
-    position: relative;  /* Ermöglicht absolute Positionierung des Griffs */
 }
 
 /* Griff für die Suchleiste */

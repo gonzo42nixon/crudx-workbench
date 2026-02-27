@@ -23,9 +23,7 @@
         <div class="burger-btn" id="btn-burger">☰</div>
         <div class="search-container">
             <div id="search-grip" class="paginator-grip" title="Suchleiste verschieben">⋮⋮</div>
-            <input type="text" id="main-search" placeholder="Search Key-Value Space...">
             <input type="text" id="main-search" placeholder="Search Key-Value Space..." title="Search Key-Value Space">
-
         </div>
         <div class="app-actions">
             <span id="btn-theme" title="Toggle Theme">🌗</span>
@@ -42,7 +40,7 @@
     <div id="data-container"></div>
 
     <div id="main-paginator" title="Paging Navigator">
-        <div class="paginator-grip" id="main-grip" title="Drag to move">≡</div>
+        <div class="paginator-grip" id="main-grip" title="Drag to move">⋮⋮</div>
         
         <button id="btn-first" title="First Page">|&lt;</button>
         <button id="btn-prev" title="Back">&lt;</button>
@@ -294,7 +292,299 @@
 </div>
 
     <script id="crudx-settings" type="application/json">
-        {}
+        {
+    "startupTheme": "night",
+    "themes": {
+        "night": {
+            "canvas": {
+                "bg": "#625982",
+                "text": "#eeeeee",
+                "border": "#333333",
+                "paddingTop": 50,
+                "padding": 38,
+                "opacity": 85,
+                "blur": true
+            },
+            "card": {
+                "bg": "#322d52",
+                "text": "#eeeeee",
+                "border": "#222222",
+                "opacity": 100,
+                "blur": false,
+                "padding": 20
+            },
+            "navi": {
+                "bg": "#0f0f0f",
+                "text": "#cccccc",
+                "border": "#333333",
+                "opacity": 85,
+                "blur": false,
+                "bottom": 11
+            },
+            "editor": {
+                "bg": "#111111",
+                "text": "#eeeeee",
+                "border": "#333333",
+                "opacity": 95,
+                "blur": true
+            },
+            "search": {
+                "bg": "#c9bbbb",
+                "text": "#0a0a0a",
+                "border": "#453a3a",
+                "opacity": 85,
+                "blur": false
+            },
+            "burger": {
+                "text": "#00ff00"
+            },
+            "key": {
+                "bg": "#1a1a1a",
+                "text": "#cccccc",
+                "border": "#333333",
+                "opacity": 80,
+                "blur": false
+            },
+            "label": {
+                "bg": "#ffaa00",
+                "text": "#000000",
+                "border": "#cc8800",
+                "opacity": 80,
+                "blur": false
+            },
+            "user": {
+                "bg": "#40c4ff",
+                "text": "#000000",
+                "border": "#333333",
+                "opacity": 80,
+                "blur": false
+            },
+            "sys": {
+                "bg": "#ff5252",
+                "text": "#000000",
+                "border": "#333333",
+                "opacity": 80,
+                "blur": false
+            }
+        },
+        "day": {
+            "canvas": {
+                "bg": "#0a0a0a",
+                "text": "#111111",
+                "border": "#333333",
+                "paddingTop": 44,
+                "padding": 34,
+                "opacity": 85,
+                "blur": false
+            },
+            "card": {
+                "bg": "#ffffff",
+                "text": "#111111",
+                "border": "#dddddd",
+                "opacity": 100,
+                "blur": false,
+                "padding": 19
+            },
+            "navi": {
+                "bg": "#eeeeee",
+                "text": "#333333",
+                "border": "#bbbbbb",
+                "opacity": 80,
+                "blur": false,
+                "bottom": 6
+            },
+            "editor": {
+                "bg": "#ffffff",
+                "text": "#111111",
+                "border": "#cccccc",
+                "opacity": 75,
+                "blur": false
+            },
+            "search": {
+                "bg": "#ffffff",
+                "text": "#111111",
+                "border": "#516aec",
+                "opacity": 80,
+                "blur": false
+            },
+            "burger": {
+                "text": "#b1cdec"
+            },
+            "key": {
+                "bg": "#2a2a2a",
+                "text": "#cccccc",
+                "border": "#444444",
+                "opacity": 90,
+                "blur": false
+            },
+            "label": {
+                "bg": "#ffaa00",
+                "text": "#000000",
+                "border": "#cc8800",
+                "opacity": 95,
+                "blur": false
+            },
+            "user": {
+                "bg": "#0088cc",
+                "text": "#ffffff",
+                "border": "#0055aa",
+                "opacity": 90,
+                "blur": false
+            },
+            "sys": {
+                "bg": "#cc0000",
+                "text": "#ffffff",
+                "border": "#aa0000",
+                "opacity": 90,
+                "blur": false
+            }
+        },
+        "arnold": {
+            "canvas": {
+                "bg": "#0a0a0a",
+                "text": "#ff0000",
+                "border": "#333333",
+                "paddingTop": 50,
+                "padding": 37,
+                "opacity": 85,
+                "blur": false
+            },
+            "card": {
+                "bg": "#110000",
+                "text": "#ff0000",
+                "border": "#ff0000",
+                "opacity": 100,
+                "blur": false,
+                "padding": 20
+            },
+            "navi": {
+                "bg": "#000000",
+                "text": "#ff0000",
+                "border": "#ff0000",
+                "opacity": 80,
+                "blur": false,
+                "bottom": 10
+            },
+            "editor": {
+                "bg": "#000000",
+                "text": "#ff0000",
+                "border": "#ff0000",
+                "opacity": 100,
+                "blur": false
+            },
+            "search": {
+                "bg": "#000000",
+                "text": "#ff0000",
+                "border": "#ff0000",
+                "opacity": 80,
+                "blur": false
+            },
+            "burger": {
+                "text": "#ff0000"
+            },
+            "key": {
+                "bg": "#220000",
+                "text": "#ff5555",
+                "border": "#550000",
+                "opacity": 80,
+                "blur": false
+            },
+            "label": {
+                "bg": "#ff0000",
+                "text": "#ffffff",
+                "border": "#ff0000",
+                "opacity": 95,
+                "blur": false
+            },
+            "user": {
+                "bg": "#ff0000",
+                "text": "#000000",
+                "border": "#ff0000",
+                "opacity": 80,
+                "blur": false
+            },
+            "sys": {
+                "bg": "#ff0000",
+                "text": "#000000",
+                "border": "#ff0000",
+                "opacity": 80,
+                "blur": false
+            }
+        },
+        "gaga": {
+            "canvas": {
+                "bg": "#0a0a0a",
+                "text": "#000000",
+                "border": "#333333",
+                "paddingTop": 45,
+                "padding": 36,
+                "opacity": 85,
+                "blur": false
+            },
+            "card": {
+                "bg": "#ffb3ff",
+                "text": "#000000",
+                "border": "#000000",
+                "opacity": 90,
+                "blur": false,
+                "padding": 22
+            },
+            "navi": {
+                "bg": "#ffff00",
+                "text": "#000000",
+                "border": "#000000",
+                "opacity": 80,
+                "blur": false,
+                "bottom": 7
+            },
+            "editor": {
+                "bg": "#00ffff",
+                "text": "#000000",
+                "border": "#000000",
+                "opacity": 80,
+                "blur": false
+            },
+            "search": {
+                "bg": "#ffffff",
+                "text": "#000000",
+                "border": "#000000",
+                "opacity": 95,
+                "blur": false
+            },
+            "burger": {
+                "text": "#ff00ff"
+            },
+            "key": {
+                "bg": "#ff70ff",
+                "text": "#5c5c47",
+                "border": "#d4d3d3",
+                "opacity": 80,
+                "blur": false
+            },
+            "label": {
+                "bg": "#ff00ff",
+                "text": "#ffffff",
+                "border": "#aa00aa",
+                "opacity": 95,
+                "blur": false
+            },
+            "user": {
+                "bg": "#ffff00",
+                "text": "#000000",
+                "border": "#000000",
+                "opacity": 75,
+                "blur": true
+            },
+            "sys": {
+                "bg": "#00ffff",
+                "text": "#000000",
+                "border": "#000000",
+                "opacity": 75,
+                "blur": false
+            }
+        }
+    }
+}
     </script>
 
     <script>
