@@ -22,7 +22,10 @@
     <header>
         <div class="burger-btn" id="btn-burger">☰</div>
         <div class="search-container">
+            <div id="search-grip" class="paginator-grip" title="Suchleiste verschieben">⋮⋮</div>
+            <input type="text" id="main-search" placeholder="Search Key-Value Space...">
             <input type="text" id="main-search" placeholder="Search Key-Value Space..." title="Search Key-Value Space">
+
         </div>
         <div class="app-actions">
             <span id="btn-theme" title="Toggle Theme">🌗</span>
@@ -312,6 +315,62 @@
             if (isDragging) { initialX = currentX; initialY = currentY; isDragging = false; document.body.style.userSelect = ''; }
         });
     </script>
+
+    <script>
+    (function() {
+        const searchContainer = document.querySelector('.search-container');
+        const searchGrip = document.getElementById('search-grip');
+        if (!searchContainer || !searchGrip) return;
+
+        let isDragging = false;
+        let startX, startY, startTranslateX = 0, startTranslateY = 0;
+        let currentTranslateX = 0, currentTranslateY = 0;
+
+        // Bereits gesetzte Translation auslesen (falls vorhanden)
+        const style = window.getComputedStyle(searchContainer);
+        const transform = style.transform;
+        if (transform && transform !== 'none') {
+            const matrix = transform.match(/matrix.*\((.+)\)/);
+            if (matrix) {
+                const values = matrix[1].split(', ');
+                if (values.length === 6) {
+                    currentTranslateX = parseFloat(values[4]);
+                    currentTranslateY = parseFloat(values[5]);
+                }
+            }
+        }
+
+        searchGrip.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            startTranslateX = currentTranslateX;
+            startTranslateY = currentTranslateY;
+            document.body.style.userSelect = 'none';
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            e.preventDefault();
+
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+
+            currentTranslateX = startTranslateX + dx;
+            currentTranslateY = startTranslateY + dy;
+
+            searchContainer.style.transform = `translate(${currentTranslateX}px, ${currentTranslateY}px)`;
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                document.body.style.userSelect = '';
+            }
+        });
+    })();
+</script>
 
     <script type="module" src="./app.js"></script>
 </body>

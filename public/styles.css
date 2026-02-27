@@ -1039,3 +1039,24 @@ header {
         width: 100%;
     }
 }
+/* Suchcontainer für relative Positionierung vorbereiten */
+.search-container {
+    position: relative;  /* Ermöglicht absolute Positionierung des Griffs */
+}
+
+/* Griff für die Suchleiste */
+#search-grip {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: grab;
+    color: var(--burger-text);
+    font-size: 20px;
+    user-select: none;
+    z-index: 10;
+}
+
+#search-grip:active {
+    cursor: grabbing;
+}
