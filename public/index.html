@@ -71,9 +71,15 @@
 
 <div id="theme-modal" class="modal-overlay">
     <div class="modal-content theme-editor-wide">
-        <h3 class="modal-drag-handle">🎨 Theme Editor</h3>
+        <h3 class="modal-drag-handle">
+            🎨 Theme Editor
+            <span id="btn-close-modal-x" class="close-x" title="Close" style="float: right; cursor: pointer; font-size: 1.2rem;">✕</span>
+        </h3>
 
-        <!-- Startup & Edit Theme (volle Breite, wie gewünscht) -->
+        <!-- Verstecktes File-Input für Import -->
+        <input type="file" id="theme-import-file" accept="application/json" style="display: none;">
+
+        <!-- Startup & Edit Theme -->
         <div class="theme-selector-row">
             <div class="selector-item">
                 <label>STARTUP THEME</label>
@@ -95,11 +101,10 @@
             </div>
         </div>
 
-        <!-- Dreispaltiges Grid für die Einstellungen -->
+        <!-- Dreispaltiges Grid -->
         <div class="editor-three-col">
-            <!-- SPALTE 1: UI-Elemente -->
+            <!-- Spalte 1: UI-Elemente -->
             <div class="editor-col">
-                <!-- Search -->
                 <div class="section-card">
                     <div class="section-header">🔍 Search</div>
                     <div class="color-grid">
@@ -110,8 +115,6 @@
                         <div class="color-item"><label>Blur</label><input type="checkbox" id="in-search-blur" class="checkbox-input"></div>
                     </div>
                 </div>
-
-                <!-- Canvas -->
                 <div class="section-card">
                     <div class="section-header">🖼️ Canvas</div>
                     <div class="color-grid">
@@ -121,8 +124,6 @@
                         <div class="color-item"><label>Blur</label><input type="checkbox" id="in-canvas-blur" class="checkbox-input"></div>
                     </div>
                 </div>
-
-                <!-- Card -->
                 <div class="section-card">
                     <div class="section-header">📇 Card</div>
                     <div class="color-grid">
@@ -133,8 +134,6 @@
                         <div class="color-item"><label>Blur</label><input type="checkbox" id="in-card-blur" class="checkbox-input"></div>
                     </div>
                 </div>
-
-                <!-- Paginator -->
                 <div class="section-card">
                     <div class="section-header">🧭 Paginator</div>
                     <div class="color-grid">
@@ -145,8 +144,6 @@
                         <div class="color-item"><label>Blur</label><input type="checkbox" id="in-navi-blur" class="checkbox-input"></div>
                     </div>
                 </div>
-
-                <!-- Editor (Modal selbst) -->
                 <div class="section-card">
                     <div class="section-header">✏️ Editor</div>
                     <div class="color-grid">
@@ -159,7 +156,7 @@
                 </div>
             </div>
 
-            <!-- SPALTE 2: Key, Label & Canvas Padding -->
+            <!-- Spalte 2: Key, Label & Canvas Padding -->
             <div class="editor-col">
                 <div class="section-card">
                     <div class="section-header">🔑 Key</div>
@@ -171,7 +168,6 @@
                         <div class="color-item"><label>Blur</label><input type="checkbox" id="in-key-blur" class="checkbox-input"></div>
                     </div>
                 </div>
-
                 <div class="section-card">
                     <div class="section-header">🏷️ Label</div>
                     <div class="color-grid">
@@ -182,8 +178,6 @@
                         <div class="color-item"><label>Blur</label><input type="checkbox" id="in-label-blur" class="checkbox-input"></div>
                     </div>
                 </div>
-
-                <!-- Canvas Padding -->
                 <div class="section-card">
                     <div class="section-header">📏 Canvas Spacing</div>
                     <div class="spacing-grid">
@@ -193,7 +187,7 @@
                 </div>
             </div>
 
-            <!-- SPALTE 3: User, System & weitere Abstände -->
+            <!-- Spalte 3: User, System & weitere Abstände -->
             <div class="editor-col">
                 <div class="section-card">
                     <div class="section-header">👤 User</div>
@@ -205,7 +199,6 @@
                         <div class="color-item"><label>Blur</label><input type="checkbox" id="in-user-blur" class="checkbox-input"></div>
                     </div>
                 </div>
-
                 <div class="section-card">
                     <div class="section-header">⚙️ System</div>
                     <div class="color-grid">
@@ -216,24 +209,18 @@
                         <div class="color-item"><label>Blur</label><input type="checkbox" id="in-sys-blur" class="checkbox-input"></div>
                     </div>
                 </div>
-
-                <!-- Card Padding -->
                 <div class="section-card">
                     <div class="section-header">📏 Card Spacing</div>
                     <div class="spacing-grid">
                         <div class="spacing-item"><label>Padding</label><input type="number" id="in-card-padding" class="small-input" min="0" max="50"></div>
                     </div>
                 </div>
-
-                <!-- Paginator Position -->
                 <div class="section-card">
                     <div class="section-header">📏 Paginator Position</div>
                     <div class="spacing-grid">
                         <div class="spacing-item"><label>Bottom</label><input type="number" id="in-navi-bottom" class="small-input" min="0" max="100"></div>
                     </div>
                 </div>
-
-                <!-- Burger Farbe -->
                 <div class="section-card">
                     <div class="section-header">🍔 Burger</div>
                     <div class="color-grid" style="grid-template-columns: 1fr;">
@@ -241,12 +228,12 @@
                     </div>
                 </div>
             </div>
-        </div> <!-- Ende editor-three-col -->
+        </div>
 
-        <!-- ACTIONS-LEISTE (volle Breite) -->
+        <!-- Actions-Leiste mit Export und Import -->
         <div class="actions-bar">
+            <button id="btn-import-theme" class="action-button-wide">📥 Import Theme</button>
             <button id="btn-export-theme" class="action-button-wide">📤 Export Theme</button>
-            <button id="btn-close-modal" class="action-button-wide">❌ Close Editor</button>
         </div>
     </div>
 </div>
@@ -262,6 +249,24 @@
             </div>
         </div>
     </div>
+
+    <!-- Import Modal -->
+<div id="import-modal" class="modal-overlay">
+    <div class="modal-content" style="width: 600px;">
+        <h3>📥 Theme Import</h3>
+        <p style="margin-bottom: 10px; color: var(--editor-text); opacity: 0.8;">
+            Füge hier dein Theme-JSON ein oder wähle eine Datei aus:
+        </p>
+        <textarea id="import-area" class="export-area" style="width: 100%; height: 300px; background: #000; color: #00ff00; font-family: monospace; padding: 10px; border: 1px solid var(--editor-border); border-radius: 8px; resize: vertical;" placeholder='{ "startupTheme": "night", "themes": { ... } }'></textarea>
+        <div style="display: flex; gap: 10px; margin: 15px 0;">
+            <input type="file" id="import-file" accept="application/json" style="flex: 1; background: var(--editor-bg); color: var(--editor-text); border: 1px solid var(--editor-border); border-radius: 30px; padding: 8px 15px;">
+        </div>
+        <div class="modal-actions">
+            <button id="btn-import-confirm" class="action-button-wide">✅ Importieren</button>
+            <button id="btn-import-cancel" class="action-button-wide">❌ Abbrechen</button>
+        </div>
+    </div>
+</div>
 
     <div id="login-modal" class="modal">
         <div class="modal-content card" style="max-width: 400px; text-align: center;">

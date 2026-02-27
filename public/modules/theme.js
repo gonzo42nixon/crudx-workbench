@@ -2,62 +2,60 @@
 /**
  * Theme-Modul – verwaltet die Theme-Konfiguration, das Anwenden von Themes
  * und die Live-Bearbeitung im Editor.
- *
- * Google-Stil: klar strukturiert, kommentiert, effizient.
  */
 
-// ---------- Standard-Theme-Konfiguration ----------
+// ---------- Standard-Theme-Konfiguration (optimiert) ----------
 export const themeState = {
     appConfig: {
         startupTheme: "night",
         themes: {
             night: {
-                canvas: { bg: "#0a0a0a", border: "#333333", paddingTop: 10, padding: 15, opacity: 85, blur: true },
+                canvas: { bg: "#0a0a0a", text: "#eeeeee", border: "#333333", paddingTop: 10, padding: 15, opacity: 85, blur: true },
                 card: { bg: "#111111", text: "#eeeeee", border: "#222222", opacity: 100, blur: false, padding: 20 },
-                navi: { bg: "#0f0f0f", text: "#cccccc", border: "#333333", opacity: 85, blur: true, bottom: 25 },
+                navi: { bg: "#0f0f0f", text: "#cccccc", border: "#333333", opacity: 85, blur: false, bottom: 25 },
                 editor: { bg: "#111111", text: "#eeeeee", border: "#333333", opacity: 95, blur: true },
-                search: { bg: "#111111", text: "#eeeeee", border: "#333333", opacity: 80, blur: true },
+                search: { bg: "#111111", text: "#eeeeee", border: "#333333", opacity: 80, blur: false },
                 burger: { text: "#00ff00" },
-                key: { bg: "#000000", text: "#00ff00", border: "#333333", opacity: 80, blur: false },
-                label: { bg: "#000000", text: "#00ff00", border: "#333333", opacity: 80, blur: false }, // NEU
+                key: { bg: "#1a1a1a", text: "#cccccc", border: "#333333", opacity: 80, blur: false },
+                label: { bg: "#ffaa00", text: "#000000", border: "#cc8800", opacity: 90, blur: false },
                 user: { bg: "#40c4ff", text: "#000000", border: "#333333", opacity: 80, blur: false },
                 sys: { bg: "#ff5252", text: "#000000", border: "#333333", opacity: 80, blur: false }
             },
             day: {
-                canvas: { bg: "#0a0a0a", border: "#333333", paddingTop: 10, padding: 15, opacity: 85, blur: true },
+                canvas: { bg: "#0a0a0a", text: "#111111", border: "#333333", paddingTop: 10, padding: 15, opacity: 85, blur: true },
                 card: { bg: "#ffffff", text: "#111111", border: "#dddddd", opacity: 100, blur: false, padding: 20 },
-                navi: { bg: "#eeeeee", text: "#333333", border: "#bbbbbb", opacity: 90, blur: true, bottom: 25 },
+                navi: { bg: "#eeeeee", text: "#333333", border: "#bbbbbb", opacity: 90, blur: false, bottom: 25 },
                 editor: { bg: "#ffffff", text: "#111111", border: "#cccccc", opacity: 98, blur: true },
-                search: { bg: "#ffffff", text: "#111111", border: "#cccccc", opacity: 90, blur: true },
+                search: { bg: "#ffffff", text: "#111111", border: "#cccccc", opacity: 90, blur: false },
                 burger: { text: "#0077ff" },
-                key: { bg: "#222222", text: "#ffffff", border: "#444444", opacity: 90, blur: false },
-                label: { bg: "#222222", text: "#ffffff", border: "#444444", opacity: 90, blur: false },
+                key: { bg: "#2a2a2a", text: "#cccccc", border: "#444444", opacity: 90, blur: false },
+                label: { bg: "#ffaa00", text: "#000000", border: "#cc8800", opacity: 95, blur: false },
                 user: { bg: "#0088cc", text: "#ffffff", border: "#0055aa", opacity: 90, blur: false },
                 sys: { bg: "#cc0000", text: "#ffffff", border: "#aa0000", opacity: 90, blur: false }
             },
             arnold: {
-                canvas: { bg: "#0a0a0a", border: "#333333", paddingTop: 10, padding: 15, opacity: 85, blur: true },
+                canvas: { bg: "#0a0a0a", text: "#ff0000", border: "#333333", paddingTop: 10, padding: 15, opacity: 85, blur: true },
                 card: { bg: "#110000", text: "#ff0000", border: "#ff0000", opacity: 100, blur: false, padding: 20 },
-                navi: { bg: "#000000", text: "#ff0000", border: "#ff0000", opacity: 100, blur: false, bottom: 10 },
+                navi: { bg: "#000000", text: "#ff0000", border: "#ff0000", opacity: 80, blur: false, bottom: 10 },
                 editor: { bg: "#000000", text: "#ff0000", border: "#ff0000", opacity: 100, blur: false },
-                search: { bg: "#000000", text: "#ff0000", border: "#ff0000", opacity: 100, blur: false },
+                search: { bg: "#000000", text: "#ff0000", border: "#ff0000", opacity: 80, blur: false },
                 burger: { text: "#ff0000" },
-                key: { bg: "#330000", text: "#ff0000", border: "#ff0000", opacity: 100, blur: false },
-                label: { bg: "#330000", text: "#ff0000", border: "#ff0000", opacity: 100, blur: false },
-                user: { bg: "#ff0000", text: "#000000", border: "#ff0000", opacity: 100, blur: false },
-                sys: { bg: "#ff0000", text: "#000000", border: "#ff0000", opacity: 100, blur: false }
+                key: { bg: "#220000", text: "#ff5555", border: "#550000", opacity: 80, blur: false },
+                label: { bg: "#ff0000", text: "#ffffff", border: "#ff0000", opacity: 95, blur: false },
+                user: { bg: "#ff0000", text: "#000000", border: "#ff0000", opacity: 80, blur: false },
+                sys: { bg: "#ff0000", text: "#000000", border: "#ff0000", opacity: 80, blur: false }
             },
             gaga: {
-                canvas: { bg: "#0a0a0a", border: "#333333", paddingTop: 10, padding: 15, opacity: 85, blur: true },
+                canvas: { bg: "#0a0a0a", text: "#000000", border: "#333333", paddingTop: 10, padding: 15, opacity: 85, blur: true },
                 card: { bg: "#ffb3ff", text: "#000000", border: "#000000", opacity: 90, blur: true, padding: 20 },
-                navi: { bg: "#ffff00", text: "#000000", border: "#000000", opacity: 80, blur: true, bottom: 40 },
+                navi: { bg: "#ffff00", text: "#000000", border: "#000000", opacity: 80, blur: false, bottom: 40 },
                 editor: { bg: "#00ffff", text: "#000000", border: "#000000", opacity: 90, blur: true },
-                search: { bg: "#ffffff", text: "#000000", border: "#000000", opacity: 95, blur: true },
+                search: { bg: "#ffffff", text: "#000000", border: "#000000", opacity: 95, blur: false },
                 burger: { text: "#ff00ff" },
-                key: { bg: "#000000", text: "#ffff00", border: "#000000", opacity: 100, blur: false },
-                label: { bg: "#000000", text: "#ffff00", border: "#000000", opacity: 100, blur: false },
-                user: { bg: "#ffff00", text: "#000000", border: "#000000", opacity: 100, blur: false },
-                sys: { bg: "#00ffff", text: "#000000", border: "#000000", opacity: 100, blur: false }
+                key: { bg: "#222222", text: "#ffff00", border: "#444444", opacity: 80, blur: false },
+                label: { bg: "#ff00ff", text: "#ffffff", border: "#aa00aa", opacity: 95, blur: false },
+                user: { bg: "#ffff00", text: "#000000", border: "#000000", opacity: 80, blur: false },
+                sys: { bg: "#00ffff", text: "#000000", border: "#000000", opacity: 80, blur: false }
             }
         }
     },
@@ -65,10 +63,6 @@ export const themeState = {
 };
 
 // ---------- Hilfsfunktionen ----------
-
-/**
- * Wandelt einen Hex-Farbwert (z.B. "#ffaa00") in einen RGB-String "255,170,0" um.
- */
 export function hexToRgb(hex) {
     let c = hex.substring(1).split('');
     if (c.length === 3) {
@@ -79,19 +73,14 @@ export function hexToRgb(hex) {
 }
 
 // ---------- Theme anwenden ----------
-
-/**
- * Wendet das übergebene Theme an und setzt alle CSS-Variablen.
- */
 export function applyTheme(themeName) {
     themeState.currentActiveTheme = themeName;
     const t = themeState.appConfig.themes[themeName];
     if (!t) return;
 
     const root = document.documentElement;
-
-    // Standard-Sektionen (inkl. label)
     const sections = ['canvas', 'card', 'navi', 'editor', 'search', 'key', 'label', 'user', 'sys'];
+
     sections.forEach(s => {
         const sec = t[s];
         if (!sec) return;
@@ -122,7 +111,7 @@ export function applyTheme(themeName) {
     const cardPadding = (t.card && typeof t.card.padding === 'number') ? t.card.padding : 20;
     root.style.setProperty('--card-padding', cardPadding + 'px');
 
-    // Burger-Button direkt färben
+    // Burger-Button
     const burgerColor = t.burger?.text || '#00ff00';
     root.style.setProperty('--burger-text', burgerColor);
 
@@ -137,27 +126,20 @@ export function applyTheme(themeName) {
     const editThemeSelect = document.getElementById('in-edit-theme');
     if (editThemeSelect) editThemeSelect.value = themeName;
 
-    console.log(`🎨 Theme "${themeName}" angewendet (Card-Padding: ${cardPadding}px).`);
+    console.log(`🎨 Theme "${themeName}" angewendet.`);
 }
 
 // ---------- Modal-UI synchronisieren ----------
-
-/**
- * Holt die aktuellen Theme-Werte und schreibt sie in die Editor-Felder.
- */
 export function syncModalUI() {
     const t = themeState.appConfig.themes[themeState.currentActiveTheme];
     if (!t) return;
 
-    // Startup-Theme
     const startupInput = document.getElementById('in-startup');
     if (startupInput) startupInput.value = themeState.appConfig.startupTheme;
 
-    // Aktuelles Theme im Dropdown
     const editThemeInput = document.getElementById('in-edit-theme');
     if (editThemeInput) editThemeInput.value = themeState.currentActiveTheme;
 
-    // Hilfsfunktion für eine Section
     const sync = (sec, prefix) => {
         const s = t[sec];
         if (!s) return;
@@ -170,16 +152,13 @@ export function syncModalUI() {
         if (blurEl && s.blur !== undefined) blurEl.checked = s.blur;
     };
 
-    // Alle Sektionen (inkl. label)
     ['canvas', 'card', 'navi', 'editor', 'search', 'key', 'label', 'user', 'sys'].forEach(s => sync(s, s));
 
-    // Burger-Farbe (separat)
     const burgerColorInput = document.getElementById('in-burger-text');
     if (burgerColorInput && t.burger && t.burger.text) {
         burgerColorInput.value = t.burger.text;
     }
 
-    // Canvas-Padding
     const paddingInput = document.getElementById('in-canvas-padding');
     if (paddingInput && t.canvas && typeof t.canvas.padding === 'number') {
         paddingInput.value = t.canvas.padding;
@@ -190,30 +169,20 @@ export function syncModalUI() {
         paddingTopInput.value = t.canvas.paddingTop;
     }
 
-    // Navi-Bottom
     const naviBottomInput = document.getElementById('in-navi-bottom');
     if (naviBottomInput && t.navi && typeof t.navi.bottom === 'number') {
         naviBottomInput.value = t.navi.bottom;
     }
 
-    // Card-Padding
     const cardPaddingInput = document.getElementById('in-card-padding');
     if (cardPaddingInput && t.card && typeof t.card.padding === 'number') {
         cardPaddingInput.value = t.card.padding;
     }
-
-    console.log("🔄 Modal UI synchronisiert.");
 }
 
 // ---------- Live-Editor initialisieren ----------
-
-/**
- * Hängt Event-Listener an alle Theme-Editor-Inputs.
- */
 export function initThemeEditor() {
-    // Für jede Sektion die Standard-Felder (bg, text, border, opacity, blur)
     ['canvas', 'card', 'navi', 'editor', 'search', 'key', 'label', 'user', 'sys'].forEach(sec => {
-        // Farben & Border
         ['bg', 'text', 'border'].forEach(k => {
             const el = document.getElementById(`in-${sec}-${k}`);
             if (el) {
@@ -223,7 +192,6 @@ export function initThemeEditor() {
                 });
             }
         });
-        // Opacity
         const opEl = document.getElementById(`in-${sec}-opacity`);
         if (opEl) {
             opEl.addEventListener('input', (e) => {
@@ -231,7 +199,6 @@ export function initThemeEditor() {
                 applyTheme(themeState.currentActiveTheme);
             });
         }
-        // Blur
         const blurEl = document.getElementById(`in-${sec}-blur`);
         if (blurEl) {
             blurEl.addEventListener('change', (e) => {
@@ -241,7 +208,6 @@ export function initThemeEditor() {
         }
     });
 
-    // Burger-Farbe
     const burgerInput = document.getElementById('in-burger-text');
     if (burgerInput) {
         burgerInput.addEventListener('input', (e) => {
@@ -253,11 +219,10 @@ export function initThemeEditor() {
         });
     }
 
-    // Canvas-Padding
     const paddingEl = document.getElementById('in-canvas-padding');
     if (paddingEl) {
         paddingEl.addEventListener('input', (e) => {
-            const val = parseInt(e.target.value, 10);
+            const val = parseInt(e.target.value);
             if (!isNaN(val)) {
                 themeState.appConfig.themes[themeState.currentActiveTheme].canvas.padding = val;
                 applyTheme(themeState.currentActiveTheme);
@@ -268,7 +233,7 @@ export function initThemeEditor() {
     const paddingTopEl = document.getElementById('in-canvas-padding-top');
     if (paddingTopEl) {
         paddingTopEl.addEventListener('input', (e) => {
-            const val = parseInt(e.target.value, 10);
+            const val = parseInt(e.target.value);
             if (!isNaN(val)) {
                 themeState.appConfig.themes[themeState.currentActiveTheme].canvas.paddingTop = val;
                 document.documentElement.style.setProperty('--canvas-padding-top', val + 'px');
@@ -276,11 +241,10 @@ export function initThemeEditor() {
         });
     }
 
-    // Navi-Bottom
     const naviBottomEl = document.getElementById('in-navi-bottom');
     if (naviBottomEl) {
         naviBottomEl.addEventListener('input', (e) => {
-            const val = parseInt(e.target.value, 10);
+            const val = parseInt(e.target.value);
             if (!isNaN(val)) {
                 themeState.appConfig.themes[themeState.currentActiveTheme].navi.bottom = val;
                 applyTheme(themeState.currentActiveTheme);
@@ -288,11 +252,10 @@ export function initThemeEditor() {
         });
     }
 
-    // Card-Padding
     const cardPaddingEl = document.getElementById('in-card-padding');
     if (cardPaddingEl) {
         cardPaddingEl.addEventListener('input', (e) => {
-            const val = parseInt(e.target.value, 10);
+            const val = parseInt(e.target.value);
             if (!isNaN(val)) {
                 themeState.appConfig.themes[themeState.currentActiveTheme].card.padding = val;
                 applyTheme(themeState.currentActiveTheme);
@@ -301,24 +264,32 @@ export function initThemeEditor() {
     }
 }
 
-// ---------- Theme-Umschaltung initialisieren ----------
+// ---------- Hilfsfunktion für Import-Validierung ----------
+function validateAndApplyTheme(imported) {
+    if (!imported.startupTheme || !imported.themes) {
+        alert('Ungültiges Theme-JSON: "startupTheme" oder "themes" fehlen.');
+        return false;
+    }
+    themeState.appConfig = imported;
+    themeState.currentActiveTheme = imported.startupTheme;
+    applyTheme(themeState.currentActiveTheme);
+    syncModalUI();
+    console.log('✅ Theme importiert:', imported);
+    return true;
+}
 
-/**
- * Hängt Event-Listener an Buttons zur Theme-Umschaltung (FAB, Drawer, Dropdown).
- */
+// ---------- Theme-Umschaltung initialisieren ----------
 export function initThemeControls() {
-    // FAB-Button (Themen wechseln)
     const btnTheme = document.getElementById('btn-theme');
     if (btnTheme) {
         btnTheme.addEventListener('click', () => {
             const keys = Object.keys(themeState.appConfig.themes);
             let idx = (keys.indexOf(themeState.currentActiveTheme) + 1) % keys.length;
             applyTheme(keys[idx]);
-            syncModalUI(); // Falls Modal offen ist, UI aktualisieren
+            syncModalUI();
         });
     }
 
-    // Dropdown im Modal (Theme-Auswahl)
     const editThemeSelect = document.getElementById('in-edit-theme');
     if (editThemeSelect) {
         editThemeSelect.addEventListener('change', (e) => {
@@ -328,19 +299,15 @@ export function initThemeControls() {
         });
     }
 
-    // Drawer-Link zum Öffnen des Theme-Modals
     const drawerTheme = document.getElementById('btn-drawer-theme');
     if (drawerTheme) {
         drawerTheme.addEventListener('click', () => {
             syncModalUI();
-            const themeModal = document.getElementById('theme-modal');
-            if (themeModal) themeModal.classList.add('active');
-            const drawer = document.getElementById('drawer');
-            if (drawer) drawer.classList.remove('open');
+            document.getElementById('theme-modal').classList.add('active');
+            document.getElementById('drawer').classList.remove('open');
         });
     }
 
-    // Export-Button
     const exportBtn = document.getElementById('btn-export-theme');
     if (exportBtn) {
         exportBtn.addEventListener('click', () => {
@@ -352,6 +319,87 @@ export function initThemeControls() {
             };
             exportArea.value = JSON.stringify(fullExport, null, 4);
             exportModal.classList.add('active');
+        });
+    }
+
+    // X-Button zum Schließen
+    const closeX = document.getElementById('btn-close-modal-x');
+    if (closeX) {
+        closeX.addEventListener('click', () => {
+            document.getElementById('theme-modal').classList.remove('active');
+        });
+    }
+
+    // ----- Import Modal Logic -----
+    const importBtn = document.getElementById('btn-import-theme');
+    const importModal = document.getElementById('import-modal');
+    const importConfirm = document.getElementById('btn-import-confirm');
+    const importCancel = document.getElementById('btn-import-cancel');
+    const importFileInput = document.getElementById('import-file');
+    const importArea = document.getElementById('import-area');
+
+    if (importBtn && importModal) {
+        importBtn.addEventListener('click', () => {
+            // Textarea und File-Input zurücksetzen
+            if (importArea) importArea.value = '';
+            if (importFileInput) importFileInput.value = '';
+            importModal.classList.add('active');
+        });
+    }
+
+    if (importConfirm) {
+        importConfirm.addEventListener('click', () => {
+            // 1. Versuche aus der Textarea zu lesen
+            if (importArea && importArea.value.trim() !== '') {
+                try {
+                    const imported = JSON.parse(importArea.value);
+                    if (validateAndApplyTheme(imported)) {
+                        importModal.classList.remove('active');
+                    }
+                } catch (error) {
+                    alert('Ungültiges JSON: ' + error.message);
+                }
+            }
+            // 2. Sonst: Versuche aus der Datei zu lesen
+            else if (importFileInput && importFileInput.files.length > 0) {
+                const file = importFileInput.files[0];
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const imported = JSON.parse(e.target.result);
+                        if (validateAndApplyTheme(imported)) {
+                            importModal.classList.remove('active');
+                        }
+                    } catch (error) {
+                        alert('Fehler beim Lesen der Datei: ' + error.message);
+                    }
+                };
+                reader.readAsText(file);
+            } else {
+                alert('Bitte JSON in das Textfeld einfügen oder eine Datei auswählen.');
+            }
+        });
+    }
+
+    if (importCancel) {
+        importCancel.addEventListener('click', () => {
+            importModal.classList.remove('active');
+        });
+    }
+
+    // Option: Bei Dateiauswahl den Inhalt in die Textarea laden (zur Kontrolle)
+    if (importFileInput) {
+        importFileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    if (importArea) {
+                        importArea.value = e.target.result;
+                    }
+                };
+                reader.readAsText(file);
+            }
         });
     }
 }
