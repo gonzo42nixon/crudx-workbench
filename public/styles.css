@@ -1054,3 +1054,24 @@ header {
 #search-grip:active {
     cursor: grabbing;
 }
+
+/* Schmale, dezente Scrollbar für Karten */
+.value-layer::-webkit-scrollbar {
+    width: 4px;                /* nur 4px breit */
+}
+
+.value-layer::-webkit-scrollbar-track {
+    background: transparent;    /* unsichtbare Spur */
+}
+
+.value-layer::-webkit-scrollbar-thumb {
+    background: var(--sys-bg);  /* Farbe der System-Pill (rot) – du kannst jede Theme-Variable nehmen */
+    border-radius: 4px;
+}
+
+/* Für Firefox */
+.value-layer {
+    scrollbar-width: thin;
+    scrollbar-color: var(--sys-bg) transparent;
+}
+
