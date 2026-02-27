@@ -1089,3 +1089,23 @@ header {
     scrollbar-color: var(--sys-bg) transparent;
 }
 
+/* Specific normalization for the Top-Left group in List View */
+#data-container.list .tl-group {
+    position: static !important;
+    display: flex !important;
+    align-items: center !important; /* Forces vertical centering */
+    margin: 0 12px 0 0 !important;  /* Resets the negative margin-bottom */
+    height: 100% !important;        /* Ensures it fills the row height */
+}
+
+/* Ensure the pills themselves don't have stray margins */
+#data-container.list .pill-key, 
+#data-container.list .pill-label {
+    margin: 0 !important;
+    align-self: center !important;
+}
+
+/* Ensure the wrapper for all rows also aligns children correctly */
+#data-container.list .card-kv {
+    align-items: center !important; /* This is the 'master' vertical center */
+}
