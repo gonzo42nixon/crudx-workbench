@@ -136,7 +136,7 @@ header {
     right: 5px;
     display: flex;
     gap: 0px;
-    z-index: 100; /* Über allen Elementen */
+    z-index: 200; /* Über allen Elementen */
 }
 
 .btn-crudx {
@@ -173,7 +173,6 @@ header {
 .btn-u { color: #ff9100 !important; } /* Orange */
 .btn-d { color: #ff1744 !important; } /* Rot */
 .btn-x { color: #000000 !important; text-shadow: 0 0 2px rgba(255,255,255,0.7) !important; } /* Schwarz (mit Glow für Kontrast) */
-}
 
 .search-container {
     position: relative;               /* Basis für absolute Positionierung des Griffs */
@@ -885,7 +884,8 @@ header {
 /* --- STUFE 3: NANO (ab 9x9) --- */
 #data-container.density-nano .value-layer {
     font-size: 0.5rem;
-    max-height: 15px;
+    max-height: none;
+    padding: 2px !important;
 }
 #data-container.density-nano .br-group {
     gap: 2px;
