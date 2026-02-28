@@ -12,7 +12,6 @@ export function escapeHtml(unsafe) {
 
 export function renderDataFromDocs(docs, container) {
     const isNano = container.classList.contains('grid-9');
-    const labelCreated = isNano ? 'C:' : 'Created:';
 
     const fD = (ts) => ts ? ts.split('T')[0] : '--'; 
     const fT = (label, ts) => ts ? `${label}: ${ts.replace('T', ' ').substring(0, 19)}` : label;
@@ -28,21 +27,26 @@ export function renderDataFromDocs(docs, container) {
             </div>` : '';
 
         let userTags = [];
-        if (Array.isArray(d.user_tags)) {
-            d.user_tags.forEach(t => userTags.push(`<div class="pill pill-user" title="Memo: User">🏷️ ${t}</div>`));
-        }
-        
-        ['read','update','delete'].forEach(m => {
+        ['delete','update','read'].forEach(m => {
             const list = d[`white_list_${m}`] || [];
             if (list.length > 0) {
-                userTags.push(`<div class="pill pill-user" title="Whitelist ${m.toUpperCase()}: ${list.join(', ')}">${m === 'read' ? '👁️' : (m === 'update' ? '✏️' : '🗑️')} ${list.length}</div>`);
+                let style = '';
+                if (m === 'delete') style = 'background-color: #d32f2f !important; color: #fff !important; border: 1px solid #b71c1c !important;';
+                else if (m === 'update') style = 'background-color: #f57c00 !important; color: #fff !important; border: 1px solid #e65100 !important;';
+                else if (m === 'read') style = 'background-color: #388e3c !important; color: #fff !important; border: 1px solid #1b5e20 !important;';
+
+                userTags.push(`<div class="pill pill-user" style="${style}" title="Whitelist ${m.toUpperCase()}: ${list.join(', ')}">${m === 'read' ? '👁️' : (m === 'update' ? '✏️' : '🗑️')} ${list.length}</div>`);
             }
         });
 
+        if (Array.isArray(d.user_tags)) {
+            d.user_tags.forEach(t => userTags.push(`<div class="pill pill-user" title="Memo: User">🏷️ ${t}</div>`));
+        }
+
         const sysTagsHtml = `
-            <div class="pill pill-sys" title="${fT('Created', d.created_at)}">🐣 ${labelCreated}${fD(d.created_at)}</div>
-            <div class="pill pill-sys" title="${fT('Last Update', d.last_update_ts)}">📝 U:${fD(d.last_update_ts)}</div>
-            <div class="pill pill-sys" title="${fT('Last Read', d.last_read_ts)}">👁️ R:${fD(d.last_read_ts)}</div>
+            <div class="pill pill-sys" style="background-color: #fb8c00 !important; color: #fff !important; border-color: #ef6c00 !important;" title="${fT('Last Update', d.last_update_ts)}">📝 U:${fD(d.last_update_ts)}</div>
+            <div class="pill pill-sys" style="background-color: #43a047 !important; color: #fff !important; border-color: #2e7d32 !important;" title="${fT('Last Read', d.last_read_ts)}">👁️ R:${fD(d.last_read_ts)}</div>
+            <div class="pill pill-sys" style="background-color: #1e88e5 !important; color: #fff !important; border-color: #1565c0 !important;" title="${fT('Created', d.created_at)}">🐣 C:${fD(d.created_at)}</div>
             <div class="pill pill-sys" title="Reads">R:${d.reads || 0}</div>
             <div class="pill pill-sys" title="Updates">U:${d.updates || 0}</div>
             <div class="pill pill-sys" title="Size">💾 ${d.size || '0KB'}</div>
