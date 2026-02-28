@@ -60,28 +60,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         bind('btn-print', 'click', () => window.print());
 
-        // --- ENVIRONMENT SWITCH ---
-        const btnEnv = document.getElementById('btn-env-switch');
-        if (btnEnv) {
-            const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
-            const storedEnv = localStorage.getItem('useEmulator');
-            const isEm = isLocal && (storedEnv === 'true' || storedEnv === null);
-
-            if (!isLocal) {
-                // On hosted production, we cannot connect to local emulator directly -> Redirect
-                btnEnv.textContent = "💻 Switch to Localhost";
-                btnEnv.addEventListener('click', () => window.location.href = "http://127.0.0.1:5000/");
-            } else {
-                // On localhost, we toggle between Local Emulator and Production DB
-                btnEnv.textContent = isEm ? "🟢 Mode: EMULATOR (Click to Switch)" : "☁️ Mode: PRODUCTION (Click to Switch)";
-                btnEnv.addEventListener('click', () => {
-                    const newState = !isEm;
-                    localStorage.setItem('useEmulator', newState);
-                    window.location.reload();
-                });
-            }
-        }
-
         // --- NAVIGATION (BURGER, DRAWER) ---
         bind('btn-burger', 'click', () => document.getElementById('drawer').classList.add('open'));
         bind('btn-close-drawer', 'click', () => document.getElementById('drawer').classList.remove('open'));

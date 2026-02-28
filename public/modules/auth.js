@@ -37,9 +37,8 @@ export function initAuth() {
                 console.log("✅ Access granted for:", user.email);
 
                 // --- DEV MODE TOGGLE ---
-                if (user.email === 'drueffler@gmail.com' || localStorage.getItem('useEmulator') === 'true') {
-                    renderDevToggle(localStorage.getItem('useEmulator') === 'true');
-                }
+                const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+                if (isLocal) renderDevToggle(true);
 
                 // Login-Modal ausblenden
                 if (loginModal) {
@@ -106,9 +105,7 @@ export function initAuth() {
 
                 // Show toggle if we are already in emulator mode (so we can switch back even if logged out)
                 const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
-                if (localStorage.getItem('useEmulator') === 'true' || isLocal) {
-                    renderDevToggle(localStorage.getItem('useEmulator') === 'true');
-                }
+                if (isLocal) renderDevToggle(true);
 
                 // Login-Button für Magic Link
                 const btnLink = document.getElementById('btn-send-link');

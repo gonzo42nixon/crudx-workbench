@@ -22,9 +22,7 @@ const emulatorConfig = {
 
 // Toggle this to switch environments
 // SAFETY: Only allow emulator if we are actually on localhost/127.0.0.1
-const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
-const storedEnv = localStorage.getItem('useEmulator');
-const useEmulator = isLocal && (storedEnv === 'true' || storedEnv === null);
+const useEmulator = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
 console.log(`%c🔥 FIREBASE MODE: ${useEmulator ? 'EMULATOR' : 'PRODUCTION'}`, 'color: white; background: #ff3333; font-size: 16px; padding: 4px; border-radius: 4px;');
 
