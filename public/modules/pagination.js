@@ -116,7 +116,17 @@ export async function fetchRealData() {
         }
     } catch (err) {
         console.error("🔥 Fehler in fetchRealData:", err);
-        container.innerHTML = `<div class="pill pill-sys">Fehler: ${err.message}</div>`;
+        if (err.message.includes("requires an index")) {
+            const link = err.message.match(/https:\/\/[^\s]+/)?.[0];
+            container.innerHTML = `
+                <div style="padding: 20px; text-align: center; color: var(--sys-bg);">
+                    <h3>⚠️ Missing Index</h3>
+                    <p>Firestore requires a composite index for this query.</p>
+                    <a href="${link}" target="_blank" style="color: var(--user-bg); text-decoration: underline; font-weight: bold; cursor: pointer;">👉 Click here to create it</a>
+                </div>`;
+        } else {
+            container.innerHTML = `<div class="pill pill-sys">Fehler: ${err.message}</div>`;
+        }
     }
 }
 
