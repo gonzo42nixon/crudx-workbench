@@ -74,6 +74,13 @@ export function renderDataFromDocs(docs, container) {
 
         htmlBuffer += `
             <div class="card-kv">
+                <div class="tr-group">
+                    <button class="btn-crudx btn-c" data-action="C" title="Create">C</button>
+                    <button class="btn-crudx btn-r" data-action="R" title="Read">R</button>
+                    <button class="btn-crudx btn-u" data-action="U" title="Update">U</button>
+                    <button class="btn-crudx btn-d" data-action="D" title="Delete">D</button>
+                    <button class="btn-crudx btn-x" data-action="X" title="Execute">X</button>
+                </div>
                 <div class="tl-group">
                     <div class="pill pill-key" title="KEY">${doc.id}</div>
                     <div class="pill pill-label" title="Label">${d.label || ''}</div>

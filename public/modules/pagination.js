@@ -77,16 +77,33 @@ export async function fetchRealData() {
 
         const mineCountEl = document.getElementById('mine-count');
         if (mineCountEl) {
-            mineCountEl.textContent = user ? `(${mineCount})` : '';
-            mineCountEl.title = "Number of documents owned by you";
-            if (mineCount > 0) {
+            if (user && mineCount > 0) {
+                mineCountEl.textContent = `(${mineCount})`;
+                mineCountEl.title = "Number of documents owned by you";
                 mineCountEl.style.fontWeight = 'bold';
-                mineCountEl.style.color = '#ffd700';
+                mineCountEl.style.color = filterOwnerOnly ? '#00ff00' : '#ffd700';
                 mineCountEl.style.opacity = '1';
             } else {
-                mineCountEl.style.fontWeight = 'normal';
-                mineCountEl.style.color = 'inherit';
-                mineCountEl.style.opacity = '0.7';
+                mineCountEl.textContent = '';
+            }
+        }
+
+        // Checkbox deaktivieren, wenn keine eigenen Dokumente vorhanden sind
+        const filterOwnerCheckbox = document.getElementById('filter-owner-only');
+        if (filterOwnerCheckbox) {
+            if (user && mineCount > 0) {
+                filterOwnerCheckbox.disabled = false;
+                filterOwnerCheckbox.parentElement.style.opacity = '1';
+                filterOwnerCheckbox.parentElement.style.cursor = 'pointer';
+            } else {
+                if (filterOwnerCheckbox.checked) {
+                    filterOwnerCheckbox.checked = false;
+                    fetchRealData(); // Reload mit "Alle"
+                    return;
+                }
+                filterOwnerCheckbox.disabled = true;
+                filterOwnerCheckbox.parentElement.style.opacity = '0.5';
+                filterOwnerCheckbox.parentElement.style.cursor = 'not-allowed';
             }
         }
 

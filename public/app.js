@@ -60,6 +60,24 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         bind('btn-print', 'click', () => window.print());
 
+        // --- CRUDX WEBHOOK BUTTONS ---
+        const dataContainer = document.getElementById('data-container');
+        if (dataContainer) {
+            dataContainer.addEventListener('click', (e) => {
+                const btn = e.target.closest('.btn-crudx');
+                if (!btn) return;
+
+                e.stopPropagation(); // Prevent card selection/expansion if implemented
+                const action = btn.getAttribute('data-action');
+                const card = btn.closest('.card-kv');
+                const key = card ? card.querySelector('.pill-key')?.textContent : '';
+                const url = `https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977?action=${action}&key=${encodeURIComponent(key)}`;
+                
+                // Open response in new tab
+                window.open(url, '_blank');
+            });
+        }
+
         // --- NAVIGATION (BURGER, DRAWER) ---
         bind('btn-burger', 'click', () => document.getElementById('drawer').classList.add('open'));
         bind('btn-close-drawer', 'click', () => document.getElementById('drawer').classList.remove('open'));

@@ -129,6 +129,52 @@ header {
     pointer-events: auto;
 }
 
+/* CRUDX Action Buttons in Card */
+.tr-group {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    display: flex;
+    gap: 0px;
+    z-index: 100; /* Über allen Elementen */
+}
+
+.btn-crudx {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 900;
+    font-size: 1.2rem;
+    width: auto;
+    height: auto;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    padding: 0 2px;
+    opacity: 0.9;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+}
+.btn-crudx:hover {
+    background: transparent;
+    transform: scale(1.2);
+    opacity: 1;
+    text-shadow: 2px 2px 6px rgba(0,0,0,0.8);
+}
+.btn-crudx:active {
+    transform: scale(0.95);
+}
+
+/* Specific Colors */
+.btn-c { color: #2979ff !important; } /* Blau */
+.btn-r { color: #00e676 !important; } /* Grün */
+.btn-u { color: #ff9100 !important; } /* Orange */
+.btn-d { color: #ff1744 !important; } /* Rot */
+.btn-x { color: #000000 !important; text-shadow: 0 0 2px rgba(255,255,255,0.7) !important; } /* Schwarz (mit Glow für Kontrast) */
+}
+
 .search-container {
     position: relative;               /* Basis für absolute Positionierung des Griffs */
     background: var(--search-glass) !important;
@@ -544,6 +590,7 @@ header {
 #filter-owner-only:checked {
     background-color: var(--burger-text);
     border-color: var(--burger-text);
+    animation: checkbox-pulse 0.3s ease;
 }
 #filter-owner-only:checked::after {
     content: '';
@@ -555,6 +602,14 @@ header {
     border: solid #000000;
     border-width: 0 2px 2px 0;
     transform: rotate(45deg);
+}
+#filter-owner-only:active {
+    transform: scale(0.9);
+}
+@keyframes checkbox-pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.25); }
+    100% { transform: scale(1); }
 }
 
 /* Styling für die Optionen (das eigentliche Pop-up-Menü) */
