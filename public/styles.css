@@ -407,6 +407,22 @@ header {
     box-shadow: none !important;
 }
 
+/* List View: Action Buttons Proximity & Layout */
+#data-container.list .tr-group {
+    top: 0 !important;
+    right: 0 !important;
+    opacity: 0;
+    transition: opacity 0.2s;
+    height: 100%;
+    align-items: flex-start;
+    padding-top: 2px;
+    padding-right: 4px;
+    background: var(--card-bg);
+}
+#data-container.list .card-kv:hover .tr-group {
+    opacity: 1;
+}
+
 /* ========== KARTEN (CARDS) ========== */
 .card-kv {
     position: relative;
