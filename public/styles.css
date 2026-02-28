@@ -805,9 +805,12 @@ header {
 }
 #data-container.density-nano .pill {
     font-size: 0.5rem;
+    font-size: 0.4rem;
     letter-spacing: -0.2px;
     padding: 0px 2px;
     height: 12px; 
+    padding: 0px 1px;
+    height: 10px; 
 }
 
 /* Container für Key und Label anheben */

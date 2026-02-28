@@ -31,16 +31,11 @@ export async function seedData(db) {
 
     const userTagPool = ["critical", "backup", "external", "reviewed", "legacy", "sync-pending"];
     
-    // Pool an Ownern: Gonzo, Drueffler und zufällige (KEIN system_node mehr)
-    const owners = [
-        "gonzo42nixon@gmail.com",
+    // Pool an echten Ownern für Whitelist-Tests
+    const realUsers = [
         "drueffler@gmail.com",
         "gonzo42nixon@gmail.com",
-        "drueffler@gmail.com",
-        "alice.dev@example.com",
-        "bob.qa@test.org",
-        "charlie.ops@random.net",
-        "dave.manager@business.io"
+        "gertrud3@gmx.de"
     ];
 
     try {
@@ -56,21 +51,34 @@ export async function seedData(db) {
                 const ocrId = encodeOCR(baseId);
                 const docRef = doc(colRef, ocrId);
                 const payload = payloads[index % payloads.length];
+                const owner = realUsers[index % realUsers.length];
+
+                // Helper für Whitelist-Generierung (max 50% gefüllt, Mix aus 1 oder mehreren Einträgen)
+                const getWhitelist = (currentOwner) => {
+                    if (Math.random() > 0.5) return []; // 50% leer (Count 0)
+                    const candidates = realUsers.filter(u => u !== currentOwner);
+                    // 30% Chance auf alle verbleibenden Kandidaten (Mehrfacheinträge), sonst einer zufällig
+                    if (Math.random() < 0.3) return candidates;
+                    return [candidates[Math.floor(Math.random() * candidates.length)]];
+                };
 
                 batch.set(docRef, {
                     label: `VOL_DATA_${index}_${payload.type}${payload.ext}`,
                     value: payload.val,
                     size: `${(Math.random() * 500 + 50).toFixed(1)}KB`,
-                    owner: owners[index % owners.length],
+                    owner: owner,
                     reads: Math.floor(Math.random() * 10000),
                     updates: Math.floor(Math.random() * 500),
+                    executes: Math.floor(Math.random() * 100),
                     created_at: new Date(Date.now() - (index * 3600000)).toISOString(),
                     last_read_ts: new Date().toISOString(),
                     last_update_ts: new Date().toISOString(),
+                    last_execute_ts: new Date().toISOString(),
                     user_tags: [userTagPool[index % userTagPool.length], "AUTO_GEN"],
-                    white_list_read: ["admin"],
-                    white_list_update: ["root"],
-                    white_list_delete: ["root"]
+                    white_list_read: getWhitelist(owner),
+                    white_list_update: getWhitelist(owner),
+                    white_list_delete: getWhitelist(owner),
+                    white_list_execute: getWhitelist(owner)
                 });
             }
 
@@ -78,7 +86,7 @@ export async function seedData(db) {
             console.log(`📦 Chunk (${i + currentChunk}/${totalRecords}) committed.`);
         }
 
-        alert(`✅ Massen-Injection (Owner-Fix) abgeschlossen: ${totalRecords} Records erstellt.`);
+        alert(`✅ Massen-Injection (Whitelist-Fix) abgeschlossen: ${totalRecords} Records erstellt.`);
         location.reload();
     } catch (error) {
         console.error("❌ Mass-Seed Fehler:", error);
