@@ -417,7 +417,8 @@ header {
     align-items: flex-start;
     padding-top: 2px;
     padding-right: 4px;
-    background: var(--card-bg);
+    padding-left: 20px;
+    background: linear-gradient(to right, transparent, var(--card-bg) 20px);
 }
 #data-container.list .card-kv:hover .tr-group {
     opacity: 1;
