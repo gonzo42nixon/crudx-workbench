@@ -1,5 +1,5 @@
 // modules/auth.js
-import { auth } from './firebase.js';
+import { auth, db } from './firebase.js';
 import { applyLayout, fetchRealData } from './pagination.js';
 
 // Hilfsfunktion für Event-Listener (wie in app.js)
@@ -35,6 +35,11 @@ export function initAuth() {
 
             if (user) {
                 console.log("✅ Access granted for:", user.email);
+
+                // --- DEV MODE TOGGLE ---
+                if (user.email === 'drueffler@gmail.com' || localStorage.getItem('useEmulator') === 'true') {
+                    renderDevToggle(localStorage.getItem('useEmulator') === 'true');
+                }
 
                 // Login-Modal ausblenden
                 if (loginModal) {
@@ -99,6 +104,12 @@ export function initAuth() {
                     loginModal.classList.add('active');
                 }
 
+                // Show toggle if we are already in emulator mode (so we can switch back even if logged out)
+                const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+                if (localStorage.getItem('useEmulator') === 'true' || isLocal) {
+                    renderDevToggle(localStorage.getItem('useEmulator') === 'true');
+                }
+
                 // Login-Button für Magic Link
                 const btnLink = document.getElementById('btn-send-link');
                 if (btnLink) {
@@ -108,9 +119,11 @@ export function initAuth() {
                         const currentView = gridSelect ? gridSelect.value : '3';
                         const currentContinueUrl = `${window.location.origin}${window.location.pathname}?view=${currentView}`;
                         const { loginWithEmail } = await import('../auth-helper.js');
-                        await loginWithEmail(auth, emailInput.value, currentContinueUrl);
-                        const status = document.getElementById('login-status');
-                        if (status) status.textContent = "Check your inbox (Emulator UI)!";
+                        const success = await loginWithEmail(auth, emailInput.value, currentContinueUrl);
+                        if (success) {
+                            const status = document.getElementById('login-status');
+                            if (status) status.textContent = "Link sent! Check your email inbox.";
+                        }
                     };
                 }
             }
@@ -122,4 +135,17 @@ export function initAuth() {
         const userModal = document.getElementById('user-modal');
         if (userModal) userModal.classList.remove('active');
     });
+}
+
+function renderDevToggle(isEmulator) {
+    if (document.getElementById('emulator-badge')) return;
+
+    if (isEmulator) {
+        document.body.style.border = "4px solid #ff3333";
+        const badge = document.createElement('div');
+        badge.id = 'emulator-badge';
+        badge.textContent = "⚠️ EMULATOR MODE";
+        badge.style.cssText = "position:fixed; top:0; left:50%; transform:translateX(-50%); background:#ff3333; color:white; padding:2px 8px; font-size:11px; font-weight:bold; border-radius:0 0 6px 6px; z-index:10001; pointer-events:none;";
+        document.body.appendChild(badge);
+    }
 }

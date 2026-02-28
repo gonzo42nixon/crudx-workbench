@@ -12,21 +12,6 @@ import {
 
 document.addEventListener("DOMContentLoaded", async () => {
     try {
-        // --- MAGIC LINK CHECKER ---
-        const finalizeLogin = async () => {
-            const { signInWithEmailLink, isSignInWithEmailLink } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js");
-            if (isSignInWithEmailLink(auth, window.location.href)) {
-                let email = window.localStorage.getItem('emailForSignIn') || window.prompt('Please provide your email for confirmation:');
-                try {
-                    await signInWithEmailLink(auth, email, window.location.href);
-                    window.localStorage.removeItem('emailForSignIn');
-                    window.history.replaceState({}, document.title, window.location.pathname);
-                    console.log("✅ Magic Link verified!");
-                } catch (e) { console.error("❌ Link Error:", e); }
-            }
-        };
-        finalizeLogin();
-
         window.db = db; 
         window.auth = auth; // Damit die Konsole weiß, wer 'auth' ist
 
@@ -74,6 +59,28 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
 
         bind('btn-print', 'click', () => window.print());
+
+        // --- ENVIRONMENT SWITCH ---
+        const btnEnv = document.getElementById('btn-env-switch');
+        if (btnEnv) {
+            const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+            const storedEnv = localStorage.getItem('useEmulator');
+            const isEm = isLocal && (storedEnv === 'true' || storedEnv === null);
+
+            if (!isLocal) {
+                // On hosted production, we cannot connect to local emulator directly -> Redirect
+                btnEnv.textContent = "💻 Switch to Localhost";
+                btnEnv.addEventListener('click', () => window.location.href = "http://127.0.0.1:5000/");
+            } else {
+                // On localhost, we toggle between Local Emulator and Production DB
+                btnEnv.textContent = isEm ? "🟢 Mode: EMULATOR (Click to Switch)" : "☁️ Mode: PRODUCTION (Click to Switch)";
+                btnEnv.addEventListener('click', () => {
+                    const newState = !isEm;
+                    localStorage.setItem('useEmulator', newState);
+                    window.location.reload();
+                });
+            }
+        }
 
         // --- NAVIGATION (BURGER, DRAWER) ---
         bind('btn-burger', 'click', () => document.getElementById('drawer').classList.add('open'));
@@ -203,8 +210,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             let count = 0;
             let batch = writeBatch(db);
 
-            for (const document of snap.docs) {
-                batch.delete(document.ref);
+            for (const docSnap of snap.docs) {
+                batch.delete(docSnap.ref);
                 count++;
 
                 if (count % 500 === 0) {
