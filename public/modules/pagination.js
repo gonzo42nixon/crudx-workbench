@@ -1,6 +1,6 @@
 // modules/pagination.js
-import { db } from './firebase.js';
-import { collection, query, limit, getDocs, getCountFromServer, orderBy, startAfter } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { db, auth } from './firebase.js';
+import { collection, query, limit, getDocs, getCountFromServer, orderBy, startAfter, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { renderDataFromDocs } from './ui.js';
 
 // ---------- Zustand ----------
@@ -50,9 +50,14 @@ export async function fetchRealData() {
     const container = document.getElementById('data-container');
     if (!container) return;
     const colRef = collection(db, "kv-store");
+    const user = auth.currentUser;
 
     try {
-        const totalSnap = await getCountFromServer(colRef);
+        let countQuery = colRef;
+        if (user) {
+            countQuery = query(colRef, where("owner", "==", user.email));
+        }
+        const totalSnap = await getCountFromServer(countQuery);
         const totalCount = totalSnap.data().count;
         let filteredCount = totalCount;
 
@@ -74,10 +79,16 @@ export async function fetchRealData() {
         document.getElementById('current-page') && (document.getElementById('current-page').textContent = currentPage);
         document.getElementById('total-pages') && (document.getElementById('total-pages').textContent = totalPages);
 
-        let q = query(colRef, orderBy("label", sortDirection), limit(currentLimit));
-        if (currentPage > 1 && pageCursors[currentPage - 2]) {
-            q = query(colRef, orderBy("label", sortDirection), startAfter(pageCursors[currentPage - 2]), limit(currentLimit));
+        let constraints = [];
+        if (user) {
+            constraints.push(where("owner", "==", user.email));
         }
+        constraints.push(orderBy("label", sortDirection));
+        if (currentPage > 1 && pageCursors[currentPage - 2]) {
+            constraints.push(startAfter(pageCursors[currentPage - 2]));
+        }
+        constraints.push(limit(currentLimit));
+        const q = query(colRef, ...constraints);
 
         const snap = await getDocs(q);
         if (snap.empty) {
@@ -114,9 +125,14 @@ export async function fetchLastPageData() {
     const container = document.getElementById('data-container');
     if (!container) return;
     const colRef = collection(db, "kv-store");
+    const user = auth.currentUser;
 
     try {
-        const totalSnap = await getCountFromServer(colRef);
+        let countQuery = colRef;
+        if (user) {
+            countQuery = query(colRef, where("owner", "==", user.email));
+        }
+        const totalSnap = await getCountFromServer(countQuery);
         const totalCount = totalSnap.data().count;
         const gridValue = document.getElementById('grid-select')?.value || "3";
         const itemsOnPage = (gridValue === 'list') ? 500 : (parseInt(gridValue) * parseInt(gridValue));
@@ -126,7 +142,12 @@ export async function fetchLastPageData() {
 
         // Lade ALLE Dokumente (Achtung: nur bei überschaubaren Datenmengen)
         // Alternativ könnte man seitenweise laden, aber für die Demo reicht das
-        const allDocsQuery = query(colRef, orderBy("label", sortDirection));
+        let allDocsConstraints = [];
+        if (user) {
+            allDocsConstraints.push(where("owner", "==", user.email));
+        }
+        allDocsConstraints.push(orderBy("label", sortDirection));
+        const allDocsQuery = query(colRef, ...allDocsConstraints);
         const allSnap = await getDocs(allDocsQuery);
         const allDocs = allSnap.docs;
 
@@ -209,7 +230,11 @@ export function initPaginationControls() {
     // Letzte Seite
     document.getElementById('btn-last')?.addEventListener('click', async () => {
         const colRef = collection(db, "kv-store");
-        const totalSnap = await getCountFromServer(colRef);
+        let countQuery = colRef;
+        if (auth.currentUser) {
+            countQuery = query(colRef, where("owner", "==", auth.currentUser.email));
+        }
+        const totalSnap = await getCountFromServer(countQuery);
         const totalCount = totalSnap.data().count;
         const lastPage = Math.ceil(totalCount / itemsPerPage);
         if (currentPage === lastPage) return;
