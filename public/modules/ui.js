@@ -46,7 +46,7 @@ export function renderDataFromDocs(docs, container) {
             <div class="pill pill-sys" title="Reads">R:${d.reads || 0}</div>
             <div class="pill pill-sys" title="Updates">U:${d.updates || 0}</div>
             <div class="pill pill-sys" title="Size">💾 ${d.size || '0KB'}</div>
-            <div class="pill pill-sys" title="Owner">👤 ${d.owner ? d.owner.split('@')[0] : 'Sys'}</div>
+            <div class="pill pill-sys" title="Owner">👤 ${d.owner || 'Sys'}</div>
         `;
 
         htmlBuffer += `

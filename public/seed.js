@@ -30,6 +30,18 @@ export async function seedData(db) {
     ];
 
     const userTagPool = ["critical", "backup", "external", "reviewed", "legacy", "sync-pending"];
+    
+    // Pool an Ownern: Gonzo, Drueffler und zufällige (KEIN system_node mehr)
+    const owners = [
+        "gonzo42nixon@gmail.com",
+        "drueffler@gmail.com",
+        "gonzo42nixon@gmail.com",
+        "drueffler@gmail.com",
+        "alice.dev@example.com",
+        "bob.qa@test.org",
+        "charlie.ops@random.net",
+        "dave.manager@business.io"
+    ];
 
     try {
         console.log(`🚀 Starte Injection von ${totalRecords} Dokumenten...`);
@@ -49,7 +61,7 @@ export async function seedData(db) {
                     label: `VOL_DATA_${index}_${payload.type}${payload.ext}`,
                     value: payload.val,
                     size: `${(Math.random() * 500 + 50).toFixed(1)}KB`,
-                    owner: `system_node_${index % 10}@crudx.internal`,
+                    owner: owners[index % owners.length],
                     reads: Math.floor(Math.random() * 10000),
                     updates: Math.floor(Math.random() * 500),
                     created_at: new Date(Date.now() - (index * 3600000)).toISOString(),
@@ -66,7 +78,7 @@ export async function seedData(db) {
             console.log(`📦 Chunk (${i + currentChunk}/${totalRecords}) committed.`);
         }
 
-        alert(`✅ Massen-Injection abgeschlossen: ${totalRecords} Records erstellt.`);
+        alert(`✅ Massen-Injection (Owner-Fix) abgeschlossen: ${totalRecords} Records erstellt.`);
         location.reload();
     } catch (error) {
         console.error("❌ Mass-Seed Fehler:", error);

@@ -170,7 +170,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
 
         // --- DATA ACTIONS ---
-        bind('btn-inject', 'click', () => import('./seed.js').then(m => m.seedData(db)));
+        bind('btn-inject', 'click', () => import(`./seed.js?t=${Date.now()}`).then(m => m.seedData(db)));
 
         bind('btn-delete', 'click', async () => {
             if (!confirm("Alle Dokumente wirklich löschen?")) return;
