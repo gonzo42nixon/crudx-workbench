@@ -62,6 +62,12 @@ export async function seedData(db) {
                     return [candidates[Math.floor(Math.random() * candidates.length)]];
                 };
 
+                const wlRead = getWhitelist(owner);
+                const wlUpdate = getWhitelist(owner);
+                const wlDelete = getWhitelist(owner);
+                const wlExecute = getWhitelist(owner);
+                const accessControl = [...new Set([owner, ...wlRead, ...wlUpdate, ...wlDelete, ...wlExecute])];
+
                 batch.set(docRef, {
                     label: `VOL_DATA_${index}_${payload.type}${payload.ext}`,
                     value: payload.val,
@@ -75,10 +81,11 @@ export async function seedData(db) {
                     last_update_ts: new Date().toISOString(),
                     last_execute_ts: new Date().toISOString(),
                     user_tags: [userTagPool[index % userTagPool.length], "AUTO_GEN"],
-                    white_list_read: getWhitelist(owner),
-                    white_list_update: getWhitelist(owner),
-                    white_list_delete: getWhitelist(owner),
-                    white_list_execute: getWhitelist(owner)
+                    access_control: accessControl,
+                    white_list_read: wlRead,
+                    white_list_update: wlUpdate,
+                    white_list_delete: wlDelete,
+                    white_list_execute: wlExecute
                 });
             }
 

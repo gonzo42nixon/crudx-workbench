@@ -1,5 +1,6 @@
 // public/modules/ui.js
 import { detectMimetype } from './mime.js';
+import { auth } from './firebase.js';
 
 export function escapeHtml(unsafe) {
     if (!unsafe) return '';
@@ -12,6 +13,7 @@ export function escapeHtml(unsafe) {
 
 export function renderDataFromDocs(docs, container) {
     const isNano = container.classList.contains('grid-9');
+    const currentUserEmail = auth.currentUser?.email;
 
     const fD = (ts) => ts ? ts.split('T')[0] : '--'; 
     const fT = (label, ts) => ts ? `${label}: ${ts.replace('T', ' ').substring(0, 19)}` : label;
@@ -36,6 +38,10 @@ export function renderDataFromDocs(docs, container) {
                 else if (m === 'read') style = 'background-color: #388e3c !important; color: #fff !important; border: 1px solid #1b5e20 !important;';
                 else if (m === 'execute') style = 'background-color: #000000 !important; color: #ffffff !important; border: 1px solid #333333 !important;';
 
+                if (currentUserEmail && list.includes(currentUserEmail)) {
+                    style += ' border: 2px solid #ffffff !important; box-shadow: 0 0 6px rgba(255, 255, 255, 0.8);';
+                }
+
                 let icon = '📋';
 
                 userTags.push(`<div class="pill pill-user" style="${style}" title="Whitelist ${m.toUpperCase()}: ${list.join(', ')}">${icon} ${list.length}</div>`);
@@ -44,6 +50,14 @@ export function renderDataFromDocs(docs, container) {
 
         if (Array.isArray(d.user_tags)) {
             d.user_tags.forEach(t => userTags.push(`<div class="pill pill-user" title="Memo: User">${t}</div>`));
+        }
+
+        const isOwner = currentUserEmail && d.owner === currentUserEmail;
+        let ownerStyle = '';
+        let ownerText = `👤 ${d.owner || 'Sys'}`;
+        if (isOwner) {
+            ownerStyle = 'background-color: #ffd700 !important; color: #000 !important; border: 1px solid #b29400 !important; font-weight: bold;';
+            ownerText = '👤 YOU';
         }
 
         const sysTagsHtml = `
@@ -55,7 +69,7 @@ export function renderDataFromDocs(docs, container) {
             <div class="pill pill-sys" style="background-color: #fb8c00 !important; color: #fff !important; border-color: #ef6c00 !important;" title="Updates">U:${d.updates || 0}</div>
             <div class="pill pill-sys" style="background-color: #43a047 !important; color: #fff !important; border-color: #2e7d32 !important;" title="Reads">R:${d.reads || 0}</div>
             <div class="pill pill-sys" title="Size">${d.size || '0KB'}</div>
-            <div class="pill pill-sys" title="Owner">👤 ${d.owner || 'Sys'}</div>
+            <div class="pill pill-sys" style="${ownerStyle}" title="Owner: ${d.owner || 'Sys'}">${ownerText}</div>
         `;
 
         htmlBuffer += `

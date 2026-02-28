@@ -51,14 +51,45 @@ export async function fetchRealData() {
     if (!container) return;
     const colRef = collection(db, "kv-store");
     const user = auth.currentUser;
+    const filterOwnerOnly = document.getElementById('filter-owner-only')?.checked;
 
     try {
         let countQuery = colRef;
+        let mineCount = 0;
+
         if (user) {
-            countQuery = query(colRef, where("owner", "==", user.email));
+            if (filterOwnerOnly) {
+                countQuery = query(colRef, where("owner", "==", user.email));
+            } else {
+                countQuery = query(colRef, where("access_control", "array-contains", user.email));
+                // Wenn wir alle sehen, brauchen wir eine extra Abfrage für den "Mine"-Zähler
+                const mineQuery = query(colRef, where("owner", "==", user.email));
+                const mineSnap = await getCountFromServer(mineQuery);
+                mineCount = mineSnap.data().count;
+            }
         }
         const totalSnap = await getCountFromServer(countQuery);
         const totalCount = totalSnap.data().count;
+
+        if (user && filterOwnerOnly) {
+            mineCount = totalCount;
+        }
+
+        const mineCountEl = document.getElementById('mine-count');
+        if (mineCountEl) {
+            mineCountEl.textContent = user ? `(${mineCount})` : '';
+            mineCountEl.title = "Number of documents owned by you";
+            if (mineCount > 0) {
+                mineCountEl.style.fontWeight = 'bold';
+                mineCountEl.style.color = '#ffd700';
+                mineCountEl.style.opacity = '1';
+            } else {
+                mineCountEl.style.fontWeight = 'normal';
+                mineCountEl.style.color = 'inherit';
+                mineCountEl.style.opacity = '0.7';
+            }
+        }
+
         let filteredCount = totalCount;
 
         const gridValue = document.getElementById('grid-select')?.value || "3";
@@ -81,7 +112,11 @@ export async function fetchRealData() {
 
         let constraints = [];
         if (user) {
-            constraints.push(where("owner", "==", user.email));
+            if (filterOwnerOnly) {
+                constraints.push(where("owner", "==", user.email));
+            } else {
+                constraints.push(where("access_control", "array-contains", user.email));
+            }
         }
         constraints.push(orderBy("label", sortDirection));
         if (currentPage > 1 && pageCursors[currentPage - 2]) {
@@ -136,11 +171,16 @@ export async function fetchLastPageData() {
     if (!container) return;
     const colRef = collection(db, "kv-store");
     const user = auth.currentUser;
+    const filterOwnerOnly = document.getElementById('filter-owner-only')?.checked;
 
     try {
         let countQuery = colRef;
         if (user) {
-            countQuery = query(colRef, where("owner", "==", user.email));
+            if (filterOwnerOnly) {
+                countQuery = query(colRef, where("owner", "==", user.email));
+            } else {
+                countQuery = query(colRef, where("access_control", "array-contains", user.email));
+            }
         }
         const totalSnap = await getCountFromServer(countQuery);
         const totalCount = totalSnap.data().count;
@@ -154,7 +194,11 @@ export async function fetchLastPageData() {
         // Alternativ könnte man seitenweise laden, aber für die Demo reicht das
         let allDocsConstraints = [];
         if (user) {
-            allDocsConstraints.push(where("owner", "==", user.email));
+            if (filterOwnerOnly) {
+                allDocsConstraints.push(where("owner", "==", user.email));
+            } else {
+                allDocsConstraints.push(where("access_control", "array-contains", user.email));
+            }
         }
         allDocsConstraints.push(orderBy("label", sortDirection));
         const allDocsQuery = query(colRef, ...allDocsConstraints);
@@ -215,6 +259,16 @@ export function initPaginationControls() {
         });
     }
 
+    // Owner-Only Filter Toggle
+    const filterOwner = document.getElementById('filter-owner-only');
+    if (filterOwner) {
+        filterOwner.addEventListener('change', () => {
+            currentPage = 1;
+            pageCursors = [];
+            fetchRealData();
+        });
+    }
+
     // Erste Seite
     document.getElementById('btn-first')?.addEventListener('click', () => {
         if (currentPage === 1) return;
@@ -242,7 +296,12 @@ export function initPaginationControls() {
         const colRef = collection(db, "kv-store");
         let countQuery = colRef;
         if (auth.currentUser) {
-            countQuery = query(colRef, where("owner", "==", auth.currentUser.email));
+            const filterOwnerOnly = document.getElementById('filter-owner-only')?.checked;
+            if (filterOwnerOnly) {
+                countQuery = query(colRef, where("owner", "==", auth.currentUser.email));
+            } else {
+                countQuery = query(colRef, where("access_control", "array-contains", auth.currentUser.email));
+            }
         }
         const totalSnap = await getCountFromServer(countQuery);
         const totalCount = totalSnap.data().count;

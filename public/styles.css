@@ -525,6 +525,38 @@ header {
     -webkit-appearance: none;
 }
 
+/* Custom Checkbox im Paginator */
+#filter-owner-only {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    background-color: rgba(0,0,0,0.3);
+    border: 1px solid var(--navi-border);
+    border-radius: 4px;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.2s;
+}
+#filter-owner-only:hover {
+    border-color: var(--burger-text);
+}
+#filter-owner-only:checked {
+    background-color: var(--burger-text);
+    border-color: var(--burger-text);
+}
+#filter-owner-only:checked::after {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 1px;
+    width: 4px;
+    height: 9px;
+    border: solid #000000;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
 /* Styling für die Optionen (das eigentliche Pop-up-Menü) */
 #main-paginator select option {
     background: var(--navi-bg);
