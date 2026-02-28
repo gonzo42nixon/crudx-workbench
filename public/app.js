@@ -60,21 +60,83 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         bind('btn-print', 'click', () => window.print());
 
-        // --- CRUDX WEBHOOK BUTTONS ---
+        // --- CRUDX WEBHOOK BUTTONS & PILLS ---
         const dataContainer = document.getElementById('data-container');
         if (dataContainer) {
             dataContainer.addEventListener('click', (e) => {
+                // 1. Action Buttons (C, R, U, D, X)
                 const btn = e.target.closest('.btn-crudx');
-                if (!btn) return;
+                if (btn) {
+                    e.stopPropagation(); 
+                    const action = btn.getAttribute('data-action');
+                    const card = btn.closest('.card-kv');
+                    const key = card ? card.querySelector('.pill-key')?.textContent : '';
+                    const url = `https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977?action=${action}&key=${encodeURIComponent(key)}`;
+                    
+                    if (e.shiftKey) {
+                        navigator.clipboard.writeText(url).then(() => {
+                            console.log(`📋 Webhook URL copied for action '${action}'.`);
+                            const originalText = btn.textContent;
+                            btn.textContent = "📋";
+                            setTimeout(() => btn.textContent = originalText, 1000);
+                        }).catch(err => console.error("Copy failed:", err));
+                    } else {
+                        window.open(url, '_blank');
+                    }
+                    return;
+                }
 
-                e.stopPropagation(); // Prevent card selection/expansion if implemented
-                const action = btn.getAttribute('data-action');
-                const card = btn.closest('.card-kv');
-                const key = card ? card.querySelector('.pill-key')?.textContent : '';
-                const url = `https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977?action=${action}&key=${encodeURIComponent(key)}`;
-                
-                // Open response in new tab
-                window.open(url, '_blank');
+                // 2. Pills (Key, Label, Sys, User, Mime)
+                const pill = e.target.closest('.pill');
+                if (pill) {
+                    e.stopPropagation();
+
+                    if (e.shiftKey) {
+                        // Shift+Click: Copy Tooltip (title) to clipboard
+                        const tooltip = pill.getAttribute('title') || '';
+                        navigator.clipboard.writeText(tooltip).then(() => {
+                            console.log(`📋 Tooltip copied: '${tooltip}'`);
+                            // Visual feedback: Flash border/glow
+                            const originalTransition = pill.style.transition;
+                            pill.style.transition = "all 0.2s";
+                            pill.style.transform = "scale(1.1)";
+                            pill.style.boxShadow = "0 0 10px #00ff00";
+                            pill.style.borderColor = "#00ff00";
+                            
+                            setTimeout(() => {
+                                pill.style.transform = "";
+                                pill.style.boxShadow = "";
+                                pill.style.borderColor = "";
+                                setTimeout(() => pill.style.transition = originalTransition, 200);
+                            }, 500);
+                        }).catch(err => console.error("Copy failed:", err));
+                    } else {
+                        // Normal Click: Open Webhook with action=pill&pill=<content>
+                        const value = pill.textContent.trim();
+                        const url = `https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977?action=pill&pill=${encodeURIComponent(value)}`;
+                        window.open(url, '_blank');
+                    }
+                }
+
+                // 3. Value Layer (Shift+Click to Copy)
+                const valueLayer = e.target.closest('.value-layer');
+                if (valueLayer && e.shiftKey) {
+                    e.stopPropagation();
+                    const content = valueLayer.textContent;
+                    navigator.clipboard.writeText(content).then(() => {
+                        console.log("📋 Value copied to clipboard.");
+                        
+                        // Visual feedback: Flash green glow inside
+                        const originalTransition = valueLayer.style.transition;
+                        valueLayer.style.transition = "box-shadow 0.2s";
+                        valueLayer.style.boxShadow = "inset 0 0 20px rgba(0, 255, 0, 0.6)";
+                        
+                        setTimeout(() => {
+                            valueLayer.style.boxShadow = "";
+                            setTimeout(() => valueLayer.style.transition = originalTransition, 200);
+                        }, 400);
+                    }).catch(err => console.error("Copy failed:", err));
+                }
             });
         }
 
