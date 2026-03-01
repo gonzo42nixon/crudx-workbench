@@ -276,7 +276,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         // --- NAVIGATION (BURGER, DRAWER) ---
-        bind('btn-burger', 'click', () => document.getElementById('drawer').classList.add('open'));
+        bind('btn-burger', 'click', () => document.getElementById('drawer').classList.toggle('open'));
         bind('btn-close-drawer', 'click', () => document.getElementById('drawer').classList.remove('open'));
 
         // --- THEME MODAL (verschiebbar + schließen bei Klick außen) ---

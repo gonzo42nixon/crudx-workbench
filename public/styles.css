@@ -127,8 +127,26 @@ header {
     top: 50%;
     transform: translateY(-50%);
     pointer-events: auto;
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    background: var(--canvas-glass);
+    backdrop-filter: var(--canvas-blur);
+    border: 1px solid var(--canvas-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
 }
 
+/* Hover-Effekt für den runden Burger-Button */
+.burger-btn:hover {
+    border-color: var(--burger-text);
+    transform: translateY(-50%) scale(1.1);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
 /* CRUDX Action Buttons in Card */
 .tr-group {
     position: absolute;
@@ -241,9 +259,15 @@ header {
     top: 50%;
     transform: translateY(-50%);
     display: flex;
-    gap: 18px;
+    gap: 15px;
     align-items: center;
     pointer-events: auto;
+    height: 45px;
+    padding: 0 20px;
+    border-radius: 50px;
+    background: var(--canvas-glass);
+    backdrop-filter: var(--canvas-blur);
+    border: 1px solid var(--canvas-border);
 }
 .app-actions span {
     cursor: pointer;
