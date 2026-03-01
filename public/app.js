@@ -7,7 +7,7 @@ import { renderDataFromDocs, escapeHtml } from './modules/ui.js';
 import { initAuth } from './modules/auth.js';
 import { 
     collection, query, limit, getDocs, getCountFromServer, orderBy, startAfter, deleteDoc, doc, 
-    writeBatch, updateDoc, arrayUnion, getDoc, arrayRemove
+    writeBatch, updateDoc, arrayUnion, getDoc, arrayRemove, where
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const FREEMAIL_DOMAINS = new Set([
@@ -400,6 +400,47 @@ document.addEventListener("DOMContentLoaded", async () => {
                 reader.readAsText(file);
             };
             input.click();
+        });
+
+        // Delete by Tag Tool (Available in Production & Dev)
+        bind('btn-delete-by-tag', 'click', async () => {
+            const tag = prompt("Enter the tag to delete documents by:");
+            if (!tag) return;
+
+            const colRef = collection(db, "kv-store");
+            const q = query(colRef, where("user_tags", "array-contains", tag));
+            
+            try {
+                const snap = await getDocs(q);
+                if (snap.empty) {
+                    alert(`No documents found with tag "${tag}".`);
+                    return;
+                }
+
+                if (!confirm(`⚠️ WARNING: This will delete ${snap.size} documents with tag "${tag}".\n\nAre you sure?`)) return;
+
+                console.log(`🗑️ Deleting ${snap.size} items with tag "${tag}"...`);
+                const batchSize = 500;
+                let batch = writeBatch(db);
+                let count = 0;
+
+                for (const docSnap of snap.docs) {
+                    batch.delete(docSnap.ref);
+                    count++;
+                    if (count % batchSize === 0) {
+                        await batch.commit();
+                        batch = writeBatch(db);
+                    }
+                }
+                if (count % batchSize !== 0) await batch.commit();
+
+                console.log("✅ Deletion complete.");
+                alert(`Successfully deleted ${count} documents.`);
+                fetchRealData();
+            } catch (e) {
+                console.error("Delete by tag failed:", e);
+                alert("Error: " + e.message);
+            }
         });
 
         if (isLocal) {
