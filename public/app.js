@@ -7,7 +7,7 @@ import { renderDataFromDocs, escapeHtml } from './modules/ui.js';
 import { initAuth } from './modules/auth.js';
 import { 
     collection, query, limit, getDocs, getCountFromServer, orderBy, startAfter, deleteDoc, doc, 
-    writeBatch, updateDoc, arrayUnion, getDoc, arrayRemove, where
+    writeBatch, updateDoc, arrayUnion, getDoc, arrayRemove, where, increment
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const FREEMAIL_DOMAINS = new Set([
@@ -134,8 +134,22 @@ document.addEventListener("DOMContentLoaded", async () => {
                             return;
                         }
 
-                        // Normal Click: Open "Naked" New Tab with Shareable Link
-                        window.open(url, '_blank');
+                        // ACCOUNTING: Increment Reads & Update Timestamp
+                        if (key) {
+                            updateDoc(doc(db, "kv-store", key), {
+                                reads: increment(1),
+                                last_read_ts: new Date().toISOString()
+                            })
+                            .then(() => fetchRealData())
+                            .catch(err => console.error("Accounting Error (Reads):", err));
+                        }
+
+                        // Normal Click: Open Pop-Out Window with Address Bar
+                        const width = 800;
+                        const height = 600;
+                        const left = (window.screen.width - width) / 2;
+                        const top = (window.screen.height - height) / 2;
+                        window.open(url, '_blank', `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes,location=yes`);
                         return;
                     }
 
