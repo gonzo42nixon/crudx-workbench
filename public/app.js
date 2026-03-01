@@ -310,6 +310,98 @@ document.addEventListener("DOMContentLoaded", async () => {
         // --- DATA ACTIONS ---
         const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
+        // Backup Tool (Available in Production & Dev)
+        bind('btn-backup', 'click', async () => {
+            const btn = document.getElementById('btn-backup');
+            if (btn) {
+                btn.disabled = true;
+                btn.style.opacity = '0.5';
+                btn.style.cursor = 'wait';
+            }
+
+            try {
+                console.log("📦 Starting Backup...");
+                const colRef = collection(db, "kv-store");
+                const snap = await getDocs(colRef);
+                const data = snap.docs.map(doc => ({ _id: doc.id, ...doc.data() }));
+
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `CRUDX-BACKUP-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                console.log(`✅ Backup complete: ${data.length} records.`);
+            } catch (e) {
+                console.error("Backup failed:", e);
+                alert("Backup failed: " + e.message);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
+                    btn.style.cursor = 'pointer';
+                }
+            }
+        });
+
+        // Restore Tool (Available in Production & Dev)
+        bind('btn-restore', 'click', () => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'application/json';
+            input.onchange = e => {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    try {
+                        const json = JSON.parse(event.target.result);
+                        if (!Array.isArray(json)) {
+                            alert("Invalid backup file format.");
+                            return;
+                        }
+
+                        if (!confirm(`⚠️ RESTORE WARNING\n\nThis will overwrite/add ${json.length} documents.\nExisting documents with the same ID will be replaced.\n\nContinue?`)) return;
+
+                        console.log(`♻️ Restoring ${json.length} items...`);
+                        const batchSize = 500;
+                        let batch = writeBatch(db);
+                        let count = 0;
+
+                        for (const item of json) {
+                            if (!item._id) continue;
+                            const { _id, ...data } = item;
+                            const docRef = doc(db, "kv-store", _id);
+                            batch.set(docRef, data);
+                            count++;
+
+                            if (count % batchSize === 0) {
+                                await batch.commit();
+                                batch = writeBatch(db);
+                                console.log(`📦 Restored ${count} items...`);
+                            }
+                        }
+                        
+                        if (count % batchSize !== 0) await batch.commit();
+                        
+                        console.log("✅ Restore complete.");
+                        alert(`Successfully restored ${count} documents.`);
+                        fetchRealData();
+
+                    } catch (err) {
+                        console.error("Restore failed", err);
+                        alert("Error parsing backup file: " + err.message);
+                    }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        });
+
         if (isLocal) {
             bind('btn-inject', 'click', () => import(`./seed.js?t=${Date.now()}`).then(m => m.seedData(db)));
 
