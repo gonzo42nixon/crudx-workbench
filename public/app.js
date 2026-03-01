@@ -37,6 +37,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         // State for Whitelist Modal Context
         let currentWhitelistDocId = null;
         let currentWhitelistField = null;
+        let currentWhitelistItems = [];
+        let editingOrigin = null;
 
         const bind = (id, event, fn) => {
             const el = document.getElementById(id);
@@ -139,6 +141,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                         if (modal && input) {
                             modal.classList.add('active');
                             input.value = ''; // Reset input for new entry
+                            editingOrigin = null;
+                            document.getElementById('btn-save-whitelist').textContent = "Add Entry";
                             input.focus();
                             document.getElementById('whitelist-warning').classList.remove('visible');
                         }
@@ -375,6 +379,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const wlWarningText = document.getElementById('whitelist-warning-text');
 
         const renderWhitelistChips = (list) => {
+            currentWhitelistItems = list || [];
             const container = document.getElementById('whitelist-chips');
             if (!container) return;
             container.innerHTML = '';
@@ -387,11 +392,28 @@ document.addEventListener("DOMContentLoaded", async () => {
             list.forEach(email => {
                 const chip = document.createElement('div');
                 chip.className = 'pill pill-user';
-                chip.style.cssText = "cursor: pointer; border-color: #ff5252; color: #ff5252; background: rgba(255, 82, 82, 0.1); display: inline-flex; gap: 6px;";
-                chip.innerHTML = `${escapeHtml(email)} <span style="font-weight:900;">×</span>`;
-                chip.title = `Remove ${email}`;
+                chip.style.cssText = "cursor: default; border-color: #ff5252; color: #ff5252; background: rgba(255, 82, 82, 0.1); display: inline-flex; gap: 6px; align-items: center;";
                 
-                chip.onclick = async () => {
+                const textSpan = document.createElement('span');
+                textSpan.textContent = email;
+                textSpan.style.cursor = "pointer";
+                textSpan.title = "Click to edit";
+                textSpan.onclick = (e) => {
+                    e.stopPropagation();
+                    wlInput.value = email;
+                    editingOrigin = email;
+                    document.getElementById('btn-save-whitelist').textContent = "Update Entry";
+                    wlInput.focus();
+                    wlInput.dispatchEvent(new Event('input')); // Trigger warning check
+                };
+
+                const closeSpan = document.createElement('span');
+                closeSpan.textContent = "×";
+                closeSpan.style.fontWeight = "900";
+                closeSpan.style.cursor = "pointer";
+                closeSpan.title = "Remove entry";
+                closeSpan.onclick = async (e) => {
+                    e.stopPropagation();
                     if (!confirm(`Remove "${email}" from whitelist?`)) return;
                     try {
                         const docRef = doc(db, "kv-store", currentWhitelistDocId);
@@ -408,6 +430,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                         alert(e.message);
                     }
                 };
+                chip.appendChild(textSpan);
+                chip.appendChild(closeSpan);
                 container.appendChild(chip);
             });
         };
@@ -423,17 +447,34 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
         });
 
-        document.getElementById('btn-cancel-whitelist').addEventListener('click', () => wlModal.classList.remove('active'));
+        document.getElementById('btn-cancel-whitelist').addEventListener('click', () => {
+            wlModal.classList.remove('active');
+            editingOrigin = null;
+            document.getElementById('btn-save-whitelist').textContent = "Add Entry";
+        });
+
         document.getElementById('btn-save-whitelist').addEventListener('click', async () => {
             const val = wlInput.value.trim();
             if (!val) return;
 
+            if (currentWhitelistItems.includes(val) && val !== editingOrigin) {
+                alert("This entry is already in the whitelist.");
+                return;
+            }
+
             if (currentWhitelistDocId && currentWhitelistField) {
                 try {
                     const docRef = doc(db, "kv-store", currentWhitelistDocId);
-                    await updateDoc(docRef, {
-                        [currentWhitelistField]: arrayUnion(val)
-                    });
+                    
+                    if (editingOrigin && editingOrigin !== val) {
+                        // Update Mode: Remove old, add new
+                        await updateDoc(docRef, { [currentWhitelistField]: arrayRemove(editingOrigin) });
+                        await updateDoc(docRef, { [currentWhitelistField]: arrayUnion(val) });
+                    } else if (!editingOrigin) {
+                        // Add Mode
+                        await updateDoc(docRef, { [currentWhitelistField]: arrayUnion(val) });
+                    }
+                    // If editingOrigin === val, no change needed (just refresh UI)
                     
                     // Refresh list and clear input
                     const snap = await getDoc(docRef);
@@ -441,6 +482,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                         renderWhitelistChips(snap.data()[currentWhitelistField] || []);
                     }
                     wlInput.value = '';
+                    editingOrigin = null;
+                    document.getElementById('btn-save-whitelist').textContent = "Add Entry";
                     document.getElementById('whitelist-warning').classList.remove('visible');
                     fetchRealData(); // Refresh Grid to show new pill count
                 } catch (e) {
