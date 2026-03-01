@@ -134,22 +134,27 @@ document.addEventListener("DOMContentLoaded", async () => {
                             return;
                         }
 
-                        // ACCOUNTING: Increment Reads & Update Timestamp
-                        if (key) {
+                        // Normal Click: Open Pop-Out Window with Address Bar
+                        let targetUrl = url; // Default to Webhook
+
+                        // EMULATOR FIX: Simulate Webhook-Update locally
+                        // Since Make.com updates Production DB, the Emulator DB (Localhost) would never update.
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const forceProd = urlParams.get('mode') === 'live';
+                        const isEmulator = !forceProd && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+                        if (isEmulator && key) {
                             updateDoc(doc(db, "kv-store", key), {
                                 reads: increment(1),
                                 last_read_ts: new Date().toISOString()
-                            })
-                            .then(() => fetchRealData())
-                            .catch(err => console.error("Accounting Error (Reads):", err));
+                            }).catch(err => console.error("Emulator Update Error:", err));
                         }
 
-                        // Normal Click: Open Pop-Out Window with Address Bar
                         const width = 800;
                         const height = 600;
                         const left = (window.screen.width - width) / 2;
                         const top = (window.screen.height - height) / 2;
-                        window.open(url, '_blank', `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes,location=yes`);
+                        window.open(targetUrl, '_blank', `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes,location=yes`);
                         return;
                     }
 

@@ -22,7 +22,9 @@ const emulatorConfig = {
 
 // Toggle this to switch environments
 // SAFETY: Only allow emulator if we are actually on localhost/127.0.0.1
-const useEmulator = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+const urlParams = new URLSearchParams(window.location.search);
+const forceProd = urlParams.get('mode') === 'live';
+const useEmulator = !forceProd && ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
 console.log(`%c🔥 FIREBASE MODE: ${useEmulator ? 'EMULATOR' : 'PRODUCTION'}`, 'color: white; background: #ff3333; font-size: 16px; padding: 4px; border-radius: 4px;');
 

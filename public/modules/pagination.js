@@ -1,6 +1,6 @@
 // modules/pagination.js
 import { db, auth } from './firebase.js';
-import { collection, query, limit, getDocs, getCountFromServer, orderBy, startAfter, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { collection, query, limit, getDocs, getCountFromServer, orderBy, startAfter, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { renderDataFromDocs } from './ui.js';
 
 // ---------- Zustand ----------
@@ -20,6 +20,7 @@ function getAccessTokens(email) {
 export let itemsPerPage = 9;
 export let pageCursors = [];
 export let sortDirection = 'asc';
+let currentUnsubscribe = null;
 
 // ---------- Layout anwenden ----------
 export function applyLayout(val) {
@@ -156,30 +157,38 @@ export async function fetchRealData() {
         constraints.push(limit(currentLimit));
         const q = query(colRef, ...constraints);
 
-        const snap = await getDocs(q);
-        if (snap.empty) {
-            container.innerHTML = `<div class="pill pill-sys" style="margin:20px;">Keine Dokumente.</div>`;
-        } else {
-            pageCursors[currentPage - 1] = snap.docs[snap.docs.length - 1];
-            renderDataFromDocs(snap.docs, container);
-        }
+        // Realtime Listener statt einmaligem Fetch
+        if (currentUnsubscribe) currentUnsubscribe();
 
-        // Buttons deaktivieren / aktivieren
-        const btnFirst = document.getElementById('btn-first');
-        const btnPrev = document.getElementById('btn-prev');
-        const btnNext = document.getElementById('btn-next');
-        const btnLast = document.getElementById('btn-last');
-        const isAtStart = currentPage <= 1;
-        btnFirst?.classList.toggle('btn-disabled', isAtStart);
-        btnPrev?.classList.toggle('btn-disabled', isAtStart);
-        const isAtEnd = currentPage >= totalPages || gridValue === 'list';
-        btnNext?.classList.toggle('btn-disabled', isAtEnd);
-        btnLast?.classList.toggle('btn-disabled', isAtEnd);
+        currentUnsubscribe = onSnapshot(q, (snap) => {
+            if (snap.empty) {
+                container.innerHTML = `<div class="pill pill-sys" style="margin:20px;">Keine Dokumente.</div>`;
+            } else {
+                pageCursors[currentPage - 1] = snap.docs[snap.docs.length - 1];
+                renderDataFromDocs(snap.docs, container);
+            }
 
-        const btnOrder = document.getElementById('btn-order');
-        if (btnOrder) {
-            btnOrder.title = `Current: ${sortDirection === 'asc' ? 'A-Z' : 'Z-A'}. Click to flip.`;
-        }
+            // Buttons deaktivieren / aktivieren
+            const btnFirst = document.getElementById('btn-first');
+            const btnPrev = document.getElementById('btn-prev');
+            const btnNext = document.getElementById('btn-next');
+            const btnLast = document.getElementById('btn-last');
+            const isAtStart = currentPage <= 1;
+            btnFirst?.classList.toggle('btn-disabled', isAtStart);
+            btnPrev?.classList.toggle('btn-disabled', isAtStart);
+            const isAtEnd = currentPage >= totalPages || gridValue === 'list';
+            btnNext?.classList.toggle('btn-disabled', isAtEnd);
+            btnLast?.classList.toggle('btn-disabled', isAtEnd);
+
+            const btnOrder = document.getElementById('btn-order');
+            if (btnOrder) {
+                btnOrder.title = `Current: ${sortDirection === 'asc' ? 'A-Z' : 'Z-A'}. Click to flip.`;
+            }
+        }, (err) => {
+            console.error("🔥 Fehler in fetchRealData (Snapshot):", err);
+            container.innerHTML = `<div class="pill pill-sys">Fehler: ${err.message}</div>`;
+        });
+
     } catch (err) {
         console.error("🔥 Fehler in fetchRealData:", err);
         if (err.message.includes("requires an index")) {
@@ -251,18 +260,10 @@ export async function fetchLastPageData() {
             pageCursors[lastPage - 1] = allDocs[allDocs.length - 1];
         }
 
-        // Nur die letzten `remainder` Dokumente für die letzte Seite rendern
-        const lastPageDocs = allDocs.slice(-remainder);
-        renderDataFromDocs(lastPageDocs, container);
-
-        document.getElementById('current-page') && (document.getElementById('current-page').textContent = currentPage);
-        document.getElementById('total-pages') && (document.getElementById('total-pages').textContent = lastPage);
-
-        // Buttons anpassen
-        document.getElementById('btn-next')?.classList.add('btn-disabled');
-        document.getElementById('btn-last')?.classList.add('btn-disabled');
-        document.getElementById('btn-first')?.classList.remove('btn-disabled');
-        document.getElementById('btn-prev')?.classList.remove('btn-disabled');
+        // Statt manuell zu rendern, rufen wir fetchRealData auf.
+        // Das aktiviert den onSnapshot-Listener auch für die letzte Seite!
+        fetchRealData();
+        
     } catch (err) {
         console.error("🔥 Error fetching last page:", err);
     }

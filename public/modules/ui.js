@@ -15,8 +15,16 @@ export function renderDataFromDocs(docs, container) {
     const isNano = container.classList.contains('grid-9');
     const currentUserEmail = auth.currentUser?.email;
 
-    const fD = (ts) => ts ? ts.split('T')[0] : '--'; 
-    const fT = (label, ts) => ts ? `${label}: ${ts.replace('T', ' ').substring(0, 19)}` : label;
+    const toIso = (val) => {
+        if (!val) return null;
+        if (typeof val === 'string') return val;
+        if (val.toDate && typeof val.toDate === 'function') return val.toDate().toISOString();
+        if (val instanceof Date) return val.toISOString();
+        return String(val);
+    };
+
+    const fD = (ts) => { const s = toIso(ts); return s ? s.split('T')[0] : '--'; };
+    const fT = (label, ts) => { const s = toIso(ts); return s ? `${label}: ${s.replace('T', ' ').substring(0, 19)}` : label; };
     let htmlBuffer = "";
 
     docs.forEach(doc => {
