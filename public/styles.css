@@ -1234,3 +1234,23 @@ header {
 .whitelist-warning-box.visible {
     display: flex;
 }
+
+/* ========== JSON VIEWER MODAL ========== */
+.json-viewer {
+    background: #0d0d0d;
+    color: #a9b7c6;
+    padding: 15px;
+    border-radius: 6px;
+    border: 1px solid #333;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85em;
+    overflow: auto;
+    max-height: 60vh;
+    white-space: pre-wrap;
+    line-height: 1.5;
+}
+.json-key { color: #9876aa; }
+.json-string { color: #6a8759; }
+.json-number { color: #6897bb; }
+.json-boolean { color: #cc7832; }
+.json-null { color: #cc7832; }

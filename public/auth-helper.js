@@ -1,4 +1,11 @@
-import { getAuth, connectAuthEmulator, signInWithEmailLink, isSignInWithEmailLink } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import { 
+    getAuth, 
+    connectAuthEmulator, 
+    signInWithEmailLink, 
+    isSignInWithEmailLink,
+    GoogleAuthProvider,
+    signInWithPopup
+} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
 export function setupAuth(app, useEmulator = false) {
     const auth = getAuth(app);
@@ -27,6 +34,18 @@ export async function loginWithEmail(auth, email, continueUrl) {
         } else {
             alert('Error: ' + error.message);
         }
+        return false;
+    }
+}
+
+export async function loginWithGoogle(auth) {
+    const provider = new GoogleAuthProvider();
+    try {
+        await signInWithPopup(auth, provider);
+        return true;
+    } catch (error) {
+        console.error("Google Login Error:", error);
+        alert("Google Login failed: " + error.message);
         return false;
     }
 }

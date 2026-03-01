@@ -123,6 +123,15 @@ export function initAuth() {
                         }
                     };
                 }
+
+                // Google Login Button
+                const btnGoogle = document.getElementById('btn-login-google');
+                if (btnGoogle) {
+                    btnGoogle.onclick = async () => {
+                        const { loginWithGoogle } = await import('../auth-helper.js');
+                        await loginWithGoogle(auth);
+                    };
+                }
             }
         });
     });

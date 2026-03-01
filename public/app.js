@@ -29,6 +29,28 @@ function getEmailWarning(email) {
     return null;
 }
 
+function syntaxHighlight(json) {
+    if (typeof json !== 'string') {
+        json = JSON.stringify(json, undefined, 2);
+    }
+    json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+        var cls = 'json-number';
+        if (/^"/.test(match)) {
+            if (/:$/.test(match)) {
+                cls = 'json-key';
+            } else {
+                cls = 'json-string';
+            }
+        } else if (/true|false/.test(match)) {
+            cls = 'json-boolean';
+        } else if (/null/.test(match)) {
+            cls = 'json-null';
+        }
+        return '<span class="' + cls + '">' + match + '</span>';
+    });
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
     try {
         window.db = db; 
@@ -39,6 +61,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         let currentWhitelistField = null;
         let currentWhitelistItems = [];
         let editingOrigin = null;
+        let currentDocData = null; // Store for JSON Modal
 
         const bind = (id, event, fn) => {
             const el = document.getElementById(id);
@@ -96,7 +119,47 @@ document.addEventListener("DOMContentLoaded", async () => {
                     const action = btn.getAttribute('data-action');
                     const card = btn.closest('.card-kv');
                     const key = card ? card.querySelector('.pill-key')?.textContent : '';
-                    const url = `https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977?action=${action}&key=${encodeURIComponent(key)}`;
+                    let url = `https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977?action=${action}&key=${encodeURIComponent(key)}`;
+                    
+                    // --- ACTION: READ (Open New Tab) ---
+                    if (action === 'R') {
+                        // Shift+Click: Copy Share Link (GET Request) for external use
+                        if (e.shiftKey) {
+                            navigator.clipboard.writeText(url).then(() => {
+                                console.log(`📋 Webhook Link copied: ${url}`);
+                                const originalText = btn.textContent;
+                                btn.textContent = "📋 Link";
+                                setTimeout(() => btn.textContent = originalText, 1000);
+                            }).catch(err => console.error("Copy failed:", err));
+                            return;
+                        }
+
+                        // Normal Click: Open "Naked" New Tab with Shareable Link
+                        window.open(url, '_blank');
+                        return;
+                    }
+
+                    // --- ACTION: UPDATE (Shift+Click -> Copy CURL) ---
+                    if (action === 'U' && e.shiftKey && auth.currentUser) {
+                        try {
+                            const token = await auth.currentUser.getIdToken();
+                            const projectId = "crudx-e0599"; // Hardcoded or from config
+                            
+                            const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+                            const baseUrl = isLocal 
+                                ? `http://127.0.0.1:8080/v1/projects/${projectId}/databases/(default)/documents/kv-store/`
+                                : `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/kv-store/`;
+                            
+                            const curl = `curl -X PATCH -H "Authorization: Bearer ${token}" -H "Content-Type: application/json" -d '{"fields": {"value": {"stringValue": "NEW_VALUE"}}}' "${baseUrl}${key}"`;
+                            
+                            await navigator.clipboard.writeText(curl);
+                            alert("📋 CURL command for PATCH copied to clipboard!");
+                        } catch (err) {
+                            console.error("CURL Gen Error:", err);
+                            alert("Failed to generate CURL: " + err.message);
+                        }
+                        return;
+                    }
                     
                     if (e.shiftKey) {
                         navigator.clipboard.writeText(url).then(() => {
@@ -400,6 +463,33 @@ document.addEventListener("DOMContentLoaded", async () => {
                 reader.readAsText(file);
             };
             input.click();
+        });
+
+        // JSON Modal Close
+        bind('btn-close-json', 'click', () => {
+            document.getElementById('json-modal').classList.remove('active');
+            currentDocData = null;
+        });
+
+        // JSON Modal Forward Button
+        bind('btn-forward-json', 'click', async () => {
+            if (!currentDocData) return;
+            const btn = document.getElementById('btn-forward-json');
+            const originalText = btn.textContent;
+            btn.textContent = "Sending...";
+            try {
+                await fetch("https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(currentDocData)
+                });
+                btn.textContent = "✅ Sent!";
+                setTimeout(() => btn.textContent = originalText, 2000);
+            } catch (e) {
+                alert("Error sending data: " + e.message);
+                btn.textContent = "❌ Error";
+                setTimeout(() => btn.textContent = originalText, 2000);
+            }
         });
 
         // Delete by Tag Tool (Available in Production & Dev)
