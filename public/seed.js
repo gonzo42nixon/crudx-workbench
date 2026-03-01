@@ -8,6 +8,24 @@ function encodeOCR(id) {
     return `CRUDX-${groups.join('-')}`.toUpperCase();
 }
 
+const FREEMAIL_DOMAINS = new Set([
+    'gmail.com', 'googlemail.com', 'outlook.com', 'hotmail.com', 'live.com',
+    'gmx.de', 'gmx.net', 'web.de', 't-online.de', 'freenet.de', 'icloud.com'
+]);
+
+function validateGenericEmail(email) {
+    const [local, domain] = email.split('@');
+    if (!local || !domain) return;
+
+    if (local === '*' && domain === '*') {
+        console.warn(`⚠️ [${email}] This is unrestricted usage!`);
+    } else if (local === '*' && FREEMAIL_DOMAINS.has(domain)) {
+        console.warn(`⚠️ [${email}] This is a freemailer with a very large user base.`);
+    } else if (domain === '*' && local !== '*') {
+        console.warn(`⚠️ [${email}] Please do not specify a name addressing a natural person here, but a group, role or team.`);
+    }
+}
+
 export async function seedData(db) {
     const totalRecords = 333;
     const batchSize = 500;
@@ -38,6 +56,16 @@ export async function seedData(db) {
         "gertrud3@gmx.de"
     ];
 
+    const genericRoles = ['info', 'admin', 'sales', 'support', 'contact', 'marketing', 'office', 'hr', 'finance', 'dev'];
+    const genericPool = [
+        "*@*",
+        "*@gmail.com",
+        "*@gmx.de",
+        "drueffler@*", 
+        ...genericRoles.map(r => `${r}@*`)
+    ];
+    const allCandidates = [...realUsers, ...genericPool];
+
     try {
         console.log(`🚀 Starte Injection von ${totalRecords} Dokumenten...`);
         
@@ -56,10 +84,20 @@ export async function seedData(db) {
                 // Helper für Whitelist-Generierung (max 50% gefüllt, Mix aus 1 oder mehreren Einträgen)
                 const getWhitelist = (currentOwner) => {
                     if (Math.random() > 0.5) return []; // 50% leer (Count 0)
-                    const candidates = realUsers.filter(u => u !== currentOwner);
-                    // 30% Chance auf alle verbleibenden Kandidaten (Mehrfacheinträge), sonst einer zufällig
-                    if (Math.random() < 0.3) return candidates;
-                    return [candidates[Math.floor(Math.random() * candidates.length)]];
+                    
+                    const pool = allCandidates.filter(u => u !== currentOwner);
+                    let selection = [];
+
+                    if (Math.random() < 0.3) {
+                        const count = Math.floor(Math.random() * 2) + 2;
+                        for(let k=0; k<count; k++) selection.push(pool[Math.floor(Math.random() * pool.length)]);
+                    } else {
+                        selection = [pool[Math.floor(Math.random() * pool.length)]];
+                    }
+                    
+                    const unique = [...new Set(selection)];
+                    unique.forEach(validateGenericEmail);
+                    return unique;
                 };
 
                 const wlRead = getWhitelist(owner);

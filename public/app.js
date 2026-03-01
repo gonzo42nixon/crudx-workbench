@@ -7,13 +7,36 @@ import { renderDataFromDocs, escapeHtml } from './modules/ui.js';
 import { initAuth } from './modules/auth.js';
 import { 
     collection, query, limit, getDocs, getCountFromServer, orderBy, startAfter, deleteDoc, doc, 
-    writeBatch
+    writeBatch, updateDoc, arrayUnion, getDoc, arrayRemove
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+const FREEMAIL_DOMAINS = new Set([
+    'gmail.com', 'googlemail.com', 'outlook.com', 'hotmail.com', 'live.com',
+    'gmx.de', 'gmx.net', 'web.de', 't-online.de', 'freenet.de', 'icloud.com'
+]);
+
+function getEmailWarning(email) {
+    const [local, domain] = email.split('@');
+    if (!local || !domain) return null;
+
+    if (local === '*' && domain === '*') {
+        return "⚠️ This is unrestricted usage!";
+    } else if (local === '*' && FREEMAIL_DOMAINS.has(domain)) {
+        return "⚠️ This is a freemailer with a very large user base.";
+    } else if (domain === '*' && local !== '*') {
+        return "⚠️ Please do not specify a name addressing a natural person here, but a group, role or team.";
+    }
+    return null;
+}
 
 document.addEventListener("DOMContentLoaded", async () => {
     try {
         window.db = db; 
         window.auth = auth; // Damit die Konsole weiß, wer 'auth' ist
+
+        // State for Whitelist Modal Context
+        let currentWhitelistDocId = null;
+        let currentWhitelistField = null;
 
         const bind = (id, event, fn) => {
             const el = document.getElementById(id);
@@ -63,7 +86,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         // --- CRUDX WEBHOOK BUTTONS & PILLS ---
         const dataContainer = document.getElementById('data-container');
         if (dataContainer) {
-            dataContainer.addEventListener('click', (e) => {
+            dataContainer.addEventListener('click', async (e) => {
                 // 1. Action Buttons (C, R, U, D, X)
                 const btn = e.target.closest('.btn-crudx');
                 if (btn) {
@@ -90,6 +113,37 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const pill = e.target.closest('.pill');
                 if (pill) {
                     e.stopPropagation();
+
+                    // --- NEW: Whitelist Edit Mode ---
+                    if (pill.classList.contains('pill-user') && pill.title.startsWith('Whitelist')) {
+                        const card = pill.closest('.card-kv');
+                        if (card) {
+                            currentWhitelistDocId = card.querySelector('.pill-key').textContent.trim();
+                            // Extract type from title "Whitelist READ: ..." -> "read"
+                            const type = pill.title.split(':')[0].replace('Whitelist', '').trim().toLowerCase();
+                            currentWhitelistField = `white_list_${type}`;
+
+                            // Load existing data for chips
+                            const docRef = doc(db, "kv-store", currentWhitelistDocId);
+                            try {
+                                const snap = await getDoc(docRef);
+                                if (snap.exists()) {
+                                    renderWhitelistChips(snap.data()[currentWhitelistField] || []);
+                                }
+                            } catch (e) {
+                                console.error("Error fetching whitelist:", e);
+                            }
+                        }
+                        const modal = document.getElementById('whitelist-modal');
+                        const input = document.getElementById('whitelist-input');
+                        if (modal && input) {
+                            modal.classList.add('active');
+                            input.value = ''; // Reset input for new entry
+                            input.focus();
+                            document.getElementById('whitelist-warning').classList.remove('visible');
+                        }
+                        return;
+                    }
 
                     if (e.shiftKey) {
                         // Shift+Click: Copy Tooltip (title) to clipboard
@@ -285,6 +339,115 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             console.log("✅ Alle Dokumente entfernt.");
             fetchRealData(); // UI aktualisieren
+        });
+
+        // --- WHITELIST MODAL INJECTION ---
+        const wlModalHTML = `
+        <div id="whitelist-modal" class="modal-overlay">
+            <div class="modal-content" style="width: 500px; max-width: 90vw;">
+                <h3 class="modal-drag-handle">Edit Whitelist Entry</h3>
+                <div style="display: flex; flex-direction: column; gap: 15px;">
+                    <div>
+                        <label style="font-size: 0.8em; opacity: 0.7; text-transform: uppercase;">Current Entries</label>
+                        <div id="whitelist-chips" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; min-height: 40px; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 4px; border: 1px solid #333;"></div>
+                    </div>
+
+                    <label style="font-size: 0.8em; opacity: 0.7; text-transform: uppercase;">Email / Pattern</label>
+                    <input type="text" id="whitelist-input" placeholder="e.g. *@gmail.com" style="background: rgba(0,0,0,0.3); border: 1px solid #333; color: #fff; padding: 10px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; outline: none;">
+                    
+                    <div id="whitelist-warning" class="whitelist-warning-box">
+                        <span style="font-size: 1.5em;">⚠️</span>
+                        <span id="whitelist-warning-text"></span>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button id="btn-cancel-whitelist" style="border-color: #555;">Close</button>
+                        <button id="btn-save-whitelist" style="border-color: #00ff00; color: #00ff00;">Add Entry</button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        document.body.insertAdjacentHTML('beforeend', wlModalHTML);
+
+        const wlModal = document.getElementById('whitelist-modal');
+        const wlInput = document.getElementById('whitelist-input');
+        const wlWarningBox = document.getElementById('whitelist-warning');
+        const wlWarningText = document.getElementById('whitelist-warning-text');
+
+        const renderWhitelistChips = (list) => {
+            const container = document.getElementById('whitelist-chips');
+            if (!container) return;
+            container.innerHTML = '';
+            
+            if (!list || list.length === 0) {
+                container.innerHTML = '<span style="opacity:0.5; font-size:0.8em; font-style:italic; padding: 4px;">No entries.</span>';
+                return;
+            }
+
+            list.forEach(email => {
+                const chip = document.createElement('div');
+                chip.className = 'pill pill-user';
+                chip.style.cssText = "cursor: pointer; border-color: #ff5252; color: #ff5252; background: rgba(255, 82, 82, 0.1); display: inline-flex; gap: 6px;";
+                chip.innerHTML = `${escapeHtml(email)} <span style="font-weight:900;">×</span>`;
+                chip.title = `Remove ${email}`;
+                
+                chip.onclick = async () => {
+                    if (!confirm(`Remove "${email}" from whitelist?`)) return;
+                    try {
+                        const docRef = doc(db, "kv-store", currentWhitelistDocId);
+                        await updateDoc(docRef, {
+                            [currentWhitelistField]: arrayRemove(email)
+                        });
+                        const snap = await getDoc(docRef);
+                        if (snap.exists()) {
+                            renderWhitelistChips(snap.data()[currentWhitelistField] || []);
+                        }
+                        fetchRealData(); 
+                    } catch (e) {
+                        console.error("Removal failed:", e);
+                        alert(e.message);
+                    }
+                };
+                container.appendChild(chip);
+            });
+        };
+        
+        wlInput.addEventListener('input', () => {
+            const val = wlInput.value.trim();
+            const warning = getEmailWarning(val);
+            if (warning) {
+                wlWarningText.textContent = warning;
+                wlWarningBox.classList.add('visible');
+            } else {
+                wlWarningBox.classList.remove('visible');
+            }
+        });
+
+        document.getElementById('btn-cancel-whitelist').addEventListener('click', () => wlModal.classList.remove('active'));
+        document.getElementById('btn-save-whitelist').addEventListener('click', async () => {
+            const val = wlInput.value.trim();
+            if (!val) return;
+
+            if (currentWhitelistDocId && currentWhitelistField) {
+                try {
+                    const docRef = doc(db, "kv-store", currentWhitelistDocId);
+                    await updateDoc(docRef, {
+                        [currentWhitelistField]: arrayUnion(val)
+                    });
+                    
+                    // Refresh list and clear input
+                    const snap = await getDoc(docRef);
+                    if (snap.exists()) {
+                        renderWhitelistChips(snap.data()[currentWhitelistField] || []);
+                    }
+                    wlInput.value = '';
+                    document.getElementById('whitelist-warning').classList.remove('visible');
+                    fetchRealData(); // Refresh Grid to show new pill count
+                } catch (e) {
+                    console.error("Firestore Update Error:", e);
+                    alert("Update failed: " + e.message);
+                }
+            }
         });
 
     } catch (e) {
