@@ -5,6 +5,18 @@ import { renderDataFromDocs } from './ui.js';
 
 // ---------- Zustand ----------
 export let currentPage = 1;
+
+function getAccessTokens(email) {
+    if (!email) return [];
+    const [local, domain] = email.split('@');
+    return [
+        email,
+        `*@${domain}`,
+        `${local}@*`,
+        `*@*`
+    ];
+}
+
 export let itemsPerPage = 9;
 export let pageCursors = [];
 export let sortDirection = 'asc';
@@ -61,7 +73,8 @@ export async function fetchRealData() {
             if (filterOwnerOnly) {
                 countQuery = query(colRef, where("owner", "==", user.email));
             } else {
-                countQuery = query(colRef, where("access_control", "array-contains", user.email));
+                const tokens = getAccessTokens(user.email);
+                countQuery = query(colRef, where("access_control", "array-contains-any", tokens));
                 // Wenn wir alle sehen, brauchen wir eine extra Abfrage für den "Mine"-Zähler
                 const mineQuery = query(colRef, where("owner", "==", user.email));
                 const mineSnap = await getCountFromServer(mineQuery);
@@ -132,7 +145,8 @@ export async function fetchRealData() {
             if (filterOwnerOnly) {
                 constraints.push(where("owner", "==", user.email));
             } else {
-                constraints.push(where("access_control", "array-contains", user.email));
+                const tokens = getAccessTokens(user.email);
+                constraints.push(where("access_control", "array-contains-any", tokens));
             }
         }
         constraints.push(orderBy("label", sortDirection));
@@ -196,7 +210,8 @@ export async function fetchLastPageData() {
             if (filterOwnerOnly) {
                 countQuery = query(colRef, where("owner", "==", user.email));
             } else {
-                countQuery = query(colRef, where("access_control", "array-contains", user.email));
+                const tokens = getAccessTokens(user.email);
+                countQuery = query(colRef, where("access_control", "array-contains-any", tokens));
             }
         }
         const totalSnap = await getCountFromServer(countQuery);
@@ -214,7 +229,8 @@ export async function fetchLastPageData() {
             if (filterOwnerOnly) {
                 allDocsConstraints.push(where("owner", "==", user.email));
             } else {
-                allDocsConstraints.push(where("access_control", "array-contains", user.email));
+                const tokens = getAccessTokens(user.email);
+                allDocsConstraints.push(where("access_control", "array-contains-any", tokens));
             }
         }
         allDocsConstraints.push(orderBy("label", sortDirection));
@@ -317,7 +333,8 @@ export function initPaginationControls() {
             if (filterOwnerOnly) {
                 countQuery = query(colRef, where("owner", "==", auth.currentUser.email));
             } else {
-                countQuery = query(colRef, where("access_control", "array-contains", auth.currentUser.email));
+                const tokens = getAccessTokens(auth.currentUser.email);
+                countQuery = query(colRef, where("access_control", "array-contains-any", tokens));
             }
         }
         const totalSnap = await getCountFromServer(countQuery);

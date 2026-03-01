@@ -308,42 +308,51 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
 
         // --- DATA ACTIONS ---
-        bind('btn-inject', 'click', () => import(`./seed.js?t=${Date.now()}`).then(m => m.seedData(db)));
+        const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
-        bind('btn-delete', 'click', async () => {
-            if (!confirm("Alle Dokumente wirklich löschen?")) return;
+        if (isLocal) {
+            bind('btn-inject', 'click', () => import(`./seed.js?t=${Date.now()}`).then(m => m.seedData(db)));
 
-            const colRef = collection(db, "kv-store");
-            const snap = await getDocs(colRef);
+            bind('btn-delete', 'click', async () => {
+                if (!confirm("Alle Dokumente wirklich löschen?")) return;
 
-            if (snap.empty) {
-                alert("Nichts zum Löschen da.");
-                return;
-            }
+                const colRef = collection(db, "kv-store");
+                const snap = await getDocs(colRef);
 
-            console.log(`🗑️ Starte Batch-Löschung von ${snap.size} Dokumenten...`);
-
-            let count = 0;
-            let batch = writeBatch(db);
-
-            for (const docSnap of snap.docs) {
-                batch.delete(docSnap.ref);
-                count++;
-
-                if (count % 500 === 0) {
-                    await batch.commit();
-                    batch = writeBatch(db);
-                    console.log(`📦 Zwischenstand: ${count} gelöscht.`);
+                if (snap.empty) {
+                    alert("Nichts zum Löschen da.");
+                    return;
                 }
-            }
 
-            if (count % 500 !== 0) {
-                await batch.commit();
-            }
+                console.log(`🗑️ Starte Batch-Löschung von ${snap.size} Dokumenten...`);
 
-            console.log("✅ Alle Dokumente entfernt.");
-            fetchRealData(); // UI aktualisieren
-        });
+                let count = 0;
+                let batch = writeBatch(db);
+
+                for (const docSnap of snap.docs) {
+                    batch.delete(docSnap.ref);
+                    count++;
+
+                    if (count % 500 === 0) {
+                        await batch.commit();
+                        batch = writeBatch(db);
+                        console.log(`📦 Zwischenstand: ${count} gelöscht.`);
+                    }
+                }
+
+                if (count % 500 !== 0) {
+                    await batch.commit();
+                }
+
+                console.log("✅ Alle Dokumente entfernt.");
+                fetchRealData(); // UI aktualisieren
+            });
+        } else {
+            const btnInject = document.getElementById('btn-inject');
+            if (btnInject) btnInject.style.display = 'none';
+            const btnDelete = document.getElementById('btn-delete');
+            if (btnDelete) btnDelete.style.display = 'none';
+        }
 
         // --- WHITELIST MODAL INJECTION ---
         const wlModalHTML = `
