@@ -184,10 +184,11 @@ document.addEventListener("DOMContentLoaded", async () => {
                     if (action === 'U' && !e.shiftKey) {
                         const card = btn.closest('.card-kv');
                         const key = card ? card.querySelector('.pill-key')?.textContent : '';
+                        const label = card ? card.querySelector('.pill-label')?.textContent : '';
                         const valueLayer = card ? card.querySelector('.value-layer') : null;
                         const currentValue = valueLayer ? valueLayer.textContent : "";
                         
-                        openUpdateModal(key, currentValue);
+                        openUpdateModal(key, currentValue, label);
                         return;
                     }
                     
@@ -757,13 +758,23 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         // --- UPDATE MODAL LOGIC ---
         const updateModal = document.getElementById('update-modal');
+        const updateModalContent = updateModal ? updateModal.querySelector('.modal-content') : null;
         const updateEditor = document.getElementById('update-editor');
-        const updateKeyDisplay = document.getElementById('update-key-display');
+        const updateLabelDisplay = document.getElementById('update-label-display');
         const updateMimeDisplay = document.getElementById('update-mime-display');
+        const btnBeautify = document.getElementById('btn-beautify');
+        
+        // Store current key for saving
+        let currentUpdateKey = "";
 
-        function openUpdateModal(key, value) {
+        function openUpdateModal(key, value, label) {
             if (!updateModal) return;
-            updateKeyDisplay.textContent = key;
+            currentUpdateKey = key;
+            
+            // Title Logic: Show Label, Tooltip is Key (ID)
+            updateLabelDisplay.textContent = label || key;
+            updateLabelDisplay.title = `CRUDX-ID: ${key}`;
+            
             updateEditor.value = value;
             
             // Mime Detection für das Badge
@@ -773,21 +784,41 @@ document.addEventListener("DOMContentLoaded", async () => {
             updateMimeDisplay.style.color = (mime.type === 'TXT' || mime.type === 'BASE64') ? '#000' : '#fff';
             if (mime.type === 'JSON' || mime.type === 'JS' || mime.type === 'SVG') updateMimeDisplay.style.color = '#000';
 
+            // Beautify Button Logic
+            if (mime.type === 'JSON') {
+                btnBeautify.style.display = 'inline-block';
+            } else {
+                btnBeautify.style.display = 'none';
+            }
+
             updateModal.classList.add('active');
             updateEditor.focus();
         }
 
         function closeUpdateModal() {
             updateModal.classList.remove('active');
+            // Reset position on close (optional, or keep it)
+            if (updateModalContent) updateModalContent.style.transform = 'translate(-50%, -50%)';
         }
 
         // Close Buttons
         bind('btn-close-update-x', 'click', closeUpdateModal);
         bind('btn-cancel-update', 'click', closeUpdateModal);
 
+        // Beautify Action
+        bind('btn-beautify', 'click', () => {
+            try {
+                const val = updateEditor.value;
+                const json = JSON.parse(val);
+                updateEditor.value = JSON.stringify(json, null, 4);
+            } catch (e) {
+                alert("Invalid JSON, cannot beautify.");
+            }
+        });
+
         // Save Action (POST to Make.com)
         bind('btn-save-update', 'click', async () => {
-            const key = updateKeyDisplay.textContent;
+            const key = currentUpdateKey;
             const newValue = updateEditor.value;
             const btn = document.getElementById('btn-save-update');
             const originalText = btn.textContent;
@@ -835,6 +866,47 @@ document.addEventListener("DOMContentLoaded", async () => {
                 btn.disabled = false;
             }
         });
+
+        // --- DRAG LOGIC FOR UPDATE MODAL ---
+        if (updateModalContent) {
+            const handle = updateModalContent.querySelector('.modal-drag-handle');
+            if (handle) {
+                handle.style.cursor = 'move';
+                let isDraggingUpdate = false;
+                let startX, startY, startTransX, startTransY;
+
+                handle.addEventListener('mousedown', (e) => {
+                    // Prevent dragging when clicking buttons inside header
+                    if (e.target.closest('.close-x') || e.target.closest('#btn-beautify')) return;
+                    
+                    e.preventDefault();
+                    isDraggingUpdate = true;
+                    startX = e.clientX;
+                    startY = e.clientY;
+
+                    const style = window.getComputedStyle(updateModalContent);
+                    const matrix = new WebKitCSSMatrix(style.transform);
+                    startTransX = matrix.m41;
+                    startTransY = matrix.m42;
+
+                    document.addEventListener('mousemove', onMouseMoveUpdate);
+                    document.addEventListener('mouseup', onMouseUpUpdate);
+                });
+
+                function onMouseMoveUpdate(e) {
+                    if (!isDraggingUpdate) return;
+                    const dx = e.clientX - startX;
+                    const dy = e.clientY - startY;
+                    updateModalContent.style.transform = `translate(${startTransX + dx}px, ${startTransY + dy}px)`;
+                }
+
+                function onMouseUpUpdate() {
+                    isDraggingUpdate = false;
+                    document.removeEventListener('mousemove', onMouseMoveUpdate);
+                    document.removeEventListener('mouseup', onMouseUpUpdate);
+                }
+            }
+        }
 
         // Global ESC Key to close modals
         document.addEventListener('keydown', (e) => {

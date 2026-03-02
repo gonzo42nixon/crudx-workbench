@@ -292,10 +292,17 @@
     <!-- Update Editor Modal -->
     <div id="update-modal" class="modal-overlay">
         <div class="modal-content" style="width: 800px; max-width: 95vw; height: 80vh; display: flex; flex-direction: column;">
-            <h3 class="modal-drag-handle">
-                ✏️ Update Value <span id="update-key-display" style="opacity:0.5; font-size:0.8em; margin-left:10px;"></span>
-                <span id="update-mime-display" class="pill pill-mime" style="float: right; margin-right: 40px; font-size: 0.7em;">TXT</span>
-                <span id="btn-close-update-x" class="close-x" title="Close" style="float: right; cursor: pointer; font-size: 1.2rem;">✕</span>
+            <h3 class="modal-drag-handle" style="display: flex; justify-content: space-between; align-items: center; padding-right: 10px;">
+                <div style="flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; display: flex; align-items: center; gap: 10px;">
+                    <span>✏️</span> <span id="update-label-display" style="font-size: 0.9em;"></span>
+                </div>
+                <div style="flex: 0 0 auto; text-align: center;">
+                    <span id="update-mime-display" class="pill pill-mime" title="MIME Type" style="font-size: 0.7em;">TXT</span>
+                </div>
+                <div style="flex: 1; display: flex; justify-content: flex-end; align-items: center; gap: 15px;">
+                    <span id="btn-beautify" title="Beautify Code" style="cursor: pointer; font-size: 1.2rem; display: none; opacity: 0.8;">🪄</span>
+                    <span id="btn-close-update-x" class="close-x" title="Close" style="cursor: pointer; font-size: 1.2rem;">✕</span>
+                </div>
             </h3>
             <textarea id="update-editor" spellcheck="false" placeholder="Enter new value..."></textarea>
             <div class="modal-actions">
