@@ -1293,7 +1293,8 @@ header {
     outline: none;
     margin-bottom: 15px;
     line-height: 1.5;
-    white-space: pre;
+    white-space: pre-wrap;
+    word-break: break-all;
     overflow: auto;
 }
 #update-editor:focus {
@@ -1328,3 +1329,17 @@ header {
     transform: scale(1.02);
     transition: all 0.3s ease;
 }
+
+/* ========== TAG EDITOR MODAL ========== */
+.tag-modal-content {
+    background: #1e2228 !important; /* Farblich abgesetzt (Bläulich-Dunkel) */
+    border: 1px solid #445566 !important;
+    resize: both; /* Größenveränderbar */
+    overflow: hidden;
+    min-width: 400px;
+    min-height: 300px;
+    display: flex;
+    flex-direction: column;
+}
+.tag-modal-trans-1 { background: rgba(30, 34, 40, 0.7) !important; }
+.tag-modal-trans-2 { background: rgba(30, 34, 40, 0.3) !important; }
