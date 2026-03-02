@@ -795,37 +795,39 @@ document.addEventListener("DOMContentLoaded", async () => {
             btn.textContent = "⏳ Sending...";
             btn.disabled = true;
 
-            // Fix: Escape quotes/backslashes to prevent breaking the JSON structure in Make.com
-            // This ensures that strings like '{"a":1}' are sent as '{\"a\":1}'
-            const safeValue = JSON.stringify(newValue).slice(1, -1);
+            const urlParams = new URLSearchParams(window.location.search);
+            const forceProd = urlParams.get('mode') === 'live';
+            const isEmulator = !forceProd && ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
             try {
-                await fetch("https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        action: "U",
-                        key: key,
-                        value: safeValue
-                    })
-                });
-
-                // --- EMULATOR FIX: Simulate Update locally (Realtime UI) ---
-                const urlParams = new URLSearchParams(window.location.search);
-                const forceProd = urlParams.get('mode') === 'live';
-                const isEmulator = !forceProd && ['localhost', '127.0.0.1'].includes(window.location.hostname);
-
                 if (isEmulator) {
+                    // --- EMULATOR: SDK Update ONLY (No Webhook) ---
+                    console.log("🔧 Emulator Mode: Updating via SDK directly.");
                     await updateDoc(doc(db, "kv-store", key), {
                         value: newValue,
                         updates: increment(1),
                         last_update_ts: new Date().toISOString()
                     });
+                } else {
+                    // --- PRODUCTION: Webhook Update ---
+                    // Fix: Escape quotes/backslashes to prevent breaking the JSON structure in Make.com
+                    const safeValue = JSON.stringify(newValue).slice(1, -1);
+
+                    await fetch("https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            action: "U",
+                            key: key,
+                            value: safeValue
+                        })
+                    });
+                    
+                    // Optional: Kurz warten, damit Make.com Zeit hat zu schreiben, dann Refresh
+                    setTimeout(() => fetchRealData(), 1000);
                 }
 
                 closeUpdateModal();
-                // Optional: Kurz warten, damit Make.com Zeit hat zu schreiben, dann Refresh
-                setTimeout(() => fetchRealData(), 1000);
             } catch (e) {
                 alert("Update failed: " + e.message);
             } finally {
