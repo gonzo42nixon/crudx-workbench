@@ -1299,6 +1299,12 @@ header {
 #update-editor:focus {
     border-color: #555;
 }
+/* Transparenz-Stufen für den Editor (ohne Blur) */
+.editor-trans-1 { background: rgba(13, 13, 13, 0.6) !important; }
+.editor-trans-2 { background: rgba(13, 13, 13, 0.2) !important; }
+
+/* Resize-Handle für das Modal sichtbar machen */
+#update-modal .modal-content { resize: both; overflow: auto; min-width: 400px; min-height: 300px; }
 
 /* Scrollbar für den Editor im Dark Mode */
 #update-editor::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -1306,3 +1312,12 @@ header {
 #update-editor::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; border: 2px solid #1a1a1a; }
 #update-editor::-webkit-scrollbar-thumb:hover { background: #666; }
 #update-editor::-webkit-scrollbar-corner { background: #1a1a1a; }
+
+/* Highlight für die Ursprungskarte */
+.card-highlight {
+    border-color: #ff9100 !important;
+    box-shadow: 0 0 20px rgba(255, 145, 0, 0.4), inset 0 0 10px rgba(255, 145, 0, 0.2) !important;
+    z-index: 1000 !important;
+    transform: scale(1.02);
+    transition: all 0.3s ease;
+}

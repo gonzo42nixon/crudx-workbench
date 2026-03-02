@@ -188,7 +188,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                         const valueLayer = card ? card.querySelector('.value-layer') : null;
                         const currentValue = valueLayer ? valueLayer.textContent : "";
                         
-                        openUpdateModal(key, currentValue, label);
+                        openUpdateModal(key, currentValue, label, card);
                         return;
                     }
                     
@@ -763,13 +763,22 @@ document.addEventListener("DOMContentLoaded", async () => {
         const updateLabelDisplay = document.getElementById('update-label-display');
         const updateMimeDisplay = document.getElementById('update-mime-display');
         const btnBeautify = document.getElementById('btn-beautify');
+        const btnTransparency = document.getElementById('btn-toggle-transparency');
         
         // Store current key for saving
         let currentUpdateKey = "";
+        let currentHighlightedCard = null;
 
-        function openUpdateModal(key, value, label) {
+        function openUpdateModal(key, value, label, cardElement) {
             if (!updateModal) return;
             currentUpdateKey = key;
+
+            // Highlight Origin Card
+            if (currentHighlightedCard) currentHighlightedCard.classList.remove('card-highlight');
+            if (cardElement) {
+                currentHighlightedCard = cardElement;
+                currentHighlightedCard.classList.add('card-highlight');
+            }
             
             // Title Logic: Show Label, Tooltip is Key (ID)
             updateLabelDisplay.textContent = label || key;
@@ -797,6 +806,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         function closeUpdateModal() {
             updateModal.classList.remove('active');
+            // Remove Highlight
+            if (currentHighlightedCard) currentHighlightedCard.classList.remove('card-highlight');
+            currentHighlightedCard = null;
             // Reset position on close (optional, or keep it)
             if (updateModalContent) updateModalContent.style.transform = 'translate(-50%, -50%)';
         }
@@ -813,6 +825,23 @@ document.addEventListener("DOMContentLoaded", async () => {
                 updateEditor.value = JSON.stringify(json, null, 4);
             } catch (e) {
                 alert("Invalid JSON, cannot beautify.");
+            }
+        });
+
+        // Transparency Toggle Logic (3 Levels)
+        let transLevel = 0; // 0: Opaque, 1: Trans, 2: Very Trans
+        bind('btn-toggle-transparency', 'click', () => {
+            transLevel = (transLevel + 1) % 3;
+            updateEditor.classList.remove('editor-trans-1', 'editor-trans-2');
+            
+            if (transLevel === 1) {
+                updateEditor.classList.add('editor-trans-1');
+                btnTransparency.style.opacity = "1";
+            } else if (transLevel === 2) {
+                updateEditor.classList.add('editor-trans-2');
+                btnTransparency.style.opacity = "0.5";
+            } else {
+                btnTransparency.style.opacity = "0.8";
             }
         });
 
