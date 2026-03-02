@@ -289,6 +289,22 @@
         </div>
     </div>
 
+    <!-- Update Editor Modal -->
+    <div id="update-modal" class="modal-overlay">
+        <div class="modal-content" style="width: 800px; max-width: 95vw; height: 80vh; display: flex; flex-direction: column;">
+            <h3 class="modal-drag-handle">
+                ✏️ Update Value <span id="update-key-display" style="opacity:0.5; font-size:0.8em; margin-left:10px;"></span>
+                <span id="update-mime-display" class="pill pill-mime" style="float: right; margin-right: 40px; font-size: 0.7em;">TXT</span>
+                <span id="btn-close-update-x" class="close-x" title="Close" style="float: right; cursor: pointer; font-size: 1.2rem;">✕</span>
+            </h3>
+            <textarea id="update-editor" spellcheck="false" placeholder="Enter new value..."></textarea>
+            <div class="modal-actions">
+                <button id="btn-cancel-update">Cancel (ESC)</button>
+                <button id="btn-save-update" style="border-color: #ff9100; color: #ff9100;">💾 SAVE & UPDATE</button>
+            </div>
+        </div>
+    </div>
+
     <div id="login-modal" class="modal">
         <div class="modal-content card" style="max-width: 400px; text-align: center;">
             <h3>Authentication Required</h3>

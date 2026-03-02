@@ -179,6 +179,17 @@ document.addEventListener("DOMContentLoaded", async () => {
                         }
                         return;
                     }
+
+                    // --- ACTION: UPDATE (Modal Editor) ---
+                    if (action === 'U' && !e.shiftKey) {
+                        const card = btn.closest('.card-kv');
+                        const key = card ? card.querySelector('.pill-key')?.textContent : '';
+                        const valueLayer = card ? card.querySelector('.value-layer') : null;
+                        const currentValue = valueLayer ? valueLayer.textContent : "";
+                        
+                        openUpdateModal(key, currentValue);
+                        return;
+                    }
                     
                     if (e.shiftKey) {
                         navigator.clipboard.writeText(url).then(() => {
@@ -741,6 +752,96 @@ document.addEventListener("DOMContentLoaded", async () => {
                     console.error("Firestore Update Error:", e);
                     alert("Update failed: " + e.message);
                 }
+            }
+        });
+
+        // --- UPDATE MODAL LOGIC ---
+        const updateModal = document.getElementById('update-modal');
+        const updateEditor = document.getElementById('update-editor');
+        const updateKeyDisplay = document.getElementById('update-key-display');
+        const updateMimeDisplay = document.getElementById('update-mime-display');
+
+        function openUpdateModal(key, value) {
+            if (!updateModal) return;
+            updateKeyDisplay.textContent = key;
+            updateEditor.value = value;
+            
+            // Mime Detection für das Badge
+            const mime = detectMimetype(value);
+            updateMimeDisplay.textContent = mime.type;
+            updateMimeDisplay.style.backgroundColor = mime.color;
+            updateMimeDisplay.style.color = (mime.type === 'TXT' || mime.type === 'BASE64') ? '#000' : '#fff';
+            if (mime.type === 'JSON' || mime.type === 'JS' || mime.type === 'SVG') updateMimeDisplay.style.color = '#000';
+
+            updateModal.classList.add('active');
+            updateEditor.focus();
+        }
+
+        function closeUpdateModal() {
+            updateModal.classList.remove('active');
+        }
+
+        // Close Buttons
+        bind('btn-close-update-x', 'click', closeUpdateModal);
+        bind('btn-cancel-update', 'click', closeUpdateModal);
+
+        // Save Action (POST to Make.com)
+        bind('btn-save-update', 'click', async () => {
+            const key = updateKeyDisplay.textContent;
+            const newValue = updateEditor.value;
+            const btn = document.getElementById('btn-save-update');
+            const originalText = btn.textContent;
+
+            btn.textContent = "⏳ Sending...";
+            btn.disabled = true;
+
+            // Fix: Escape quotes/backslashes to prevent breaking the JSON structure in Make.com
+            // This ensures that strings like '{"a":1}' are sent as '{\"a\":1}'
+            const safeValue = JSON.stringify(newValue).slice(1, -1);
+
+            try {
+                await fetch("https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        action: "U",
+                        key: key,
+                        value: safeValue
+                    })
+                });
+
+                // --- EMULATOR FIX: Simulate Update locally (Realtime UI) ---
+                const urlParams = new URLSearchParams(window.location.search);
+                const forceProd = urlParams.get('mode') === 'live';
+                const isEmulator = !forceProd && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+                if (isEmulator) {
+                    await updateDoc(doc(db, "kv-store", key), {
+                        value: newValue,
+                        updates: increment(1),
+                        last_update_ts: new Date().toISOString()
+                    });
+                }
+
+                closeUpdateModal();
+                // Optional: Kurz warten, damit Make.com Zeit hat zu schreiben, dann Refresh
+                setTimeout(() => fetchRealData(), 1000);
+            } catch (e) {
+                alert("Update failed: " + e.message);
+            } finally {
+                btn.textContent = originalText;
+                btn.disabled = false;
+            }
+        });
+
+        // Global ESC Key to close modals
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                if (updateModal && updateModal.classList.contains('active')) closeUpdateModal();
+                // Auch andere Modals schließen, falls offen
+                if (themeModal && themeModal.classList.contains('active')) themeModal.classList.remove('active');
+                if (document.getElementById('json-modal').classList.contains('active')) document.getElementById('json-modal').classList.remove('active');
+                if (document.getElementById('whitelist-modal') && document.getElementById('whitelist-modal').classList.contains('active')) document.getElementById('whitelist-modal').classList.remove('active');
             }
         });
 

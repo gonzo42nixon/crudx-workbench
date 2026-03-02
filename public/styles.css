@@ -1278,3 +1278,24 @@ header {
 .json-number { color: #6897bb; }
 .json-boolean { color: #cc7832; }
 .json-null { color: #cc7832; }
+
+/* ========== UPDATE EDITOR ========== */
+#update-editor {
+    flex: 1;
+    background: #0d0d0d;
+    color: #a9b7c6;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 15px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9em;
+    resize: none;
+    outline: none;
+    margin-bottom: 15px;
+    line-height: 1.5;
+    white-space: pre;
+    overflow: auto;
+}
+#update-editor:focus {
+    border-color: #555;
+}
