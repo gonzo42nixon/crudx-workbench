@@ -98,21 +98,41 @@ export function renderDataFromDocs(docs, container) {
             return list.some(entry => tokens.includes(entry));
         };
 
-        const getBtnStyle = (char, listName) => {
-            if (!protectionLetters.includes(char)) return '';
-            return checkAuth(listName) 
-                ? 'style="background-color: #ffd700; color: #000 !important; border-radius: 4px;"' 
-                : 'style="background-color: #ff1744; color: #fff !important; border-radius: 4px;"';
+        const getBtnState = (char, listName, actionName) => {
+            const isProtected = protectionLetters.includes(char);
+            const isAuthorized = checkAuth(listName);
+            const actionUpper = actionName.toUpperCase();
+            
+            if (isProtected) {
+                return isAuthorized 
+                    ? { style: 'style="background-color: #ffd700; color: #000 !important; border-radius: 4px;"', title: `${actionUpper} protected but authorized` }
+                    : { style: 'style="background-color: #ff1744; color: #fff !important; border-radius: 4px;"', title: `${actionUpper} protected but not authorized` };
+            } else {
+                // Unprotected
+                if (!isAuthorized) {
+                    return { 
+                        style: 'style="background-color: #9e9e9e; color: #e0e0e0 !important; border-radius: 4px; cursor: not-allowed;"', 
+                        title: `${actionUpper} unprotected but not authorized` 
+                    };
+                }
+                return { style: '', title: `${actionUpper} unprotected but authorized` };
+            }
         };
+
+        const btnC = getBtnState('C', null, 'Create');
+        const btnR = getBtnState('R', 'white_list_read', 'Read');
+        const btnU = getBtnState('U', 'white_list_update', 'Update');
+        const btnD = getBtnState('D', 'white_list_delete', 'Delete');
+        const btnX = getBtnState('X', 'white_list_execute', 'Execute');
 
         htmlBuffer += `
             <div class="card-kv">
                 <div class="tr-group">
-                    <button class="btn-crudx btn-c" data-action="C" title="Create" ${getBtnStyle('C', null)}>C</button>
-                    <button class="btn-crudx btn-r" data-action="R" title="Read" ${getBtnStyle('R', 'white_list_read')}>R</button>
-                    <button class="btn-crudx btn-u" data-action="U" title="Update" ${getBtnStyle('U', 'white_list_update')}>U</button>
-                    <button class="btn-crudx btn-d" data-action="D" title="Delete" ${getBtnStyle('D', 'white_list_delete')}>D</button>
-                    <button class="btn-crudx btn-x" data-action="X" title="Execute" ${getBtnStyle('X', 'white_list_execute')}>X</button>
+                    <button class="btn-crudx btn-c" data-action="C" title="${btnC.title}" ${btnC.style}>C</button>
+                    <button class="btn-crudx btn-r" data-action="R" title="${btnR.title}" ${btnR.style}>R</button>
+                    <button class="btn-crudx btn-u" data-action="U" title="${btnU.title}" ${btnU.style}>U</button>
+                    <button class="btn-crudx btn-d" data-action="D" title="${btnD.title}" ${btnD.style}>D</button>
+                    <button class="btn-crudx btn-x" data-action="X" title="${btnX.title}" ${btnX.style}>X</button>
                 </div>
                 <div class="tl-group">
                     <div class="pill pill-key" title="KEY">${doc.id}</div>

@@ -140,6 +140,13 @@ document.addEventListener("DOMContentLoaded", async () => {
                         }
                     }
 
+                    // Case 3: Unprotected & Unauthorized (Gray Button)
+                    // Note: rgb(158, 158, 158) is #9e9e9e
+                    if (bgColor === 'rgb(158, 158, 158)') {
+                        alert("Action blocked: Unprotected but unauthorized.");
+                        return;
+                    }
+
                     // --- ACTION: READ (Open New Tab) ---
                     if (action === 'R') {
                         // Shift+Click: Copy Share Link (GET Request) for external use
