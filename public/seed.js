@@ -120,18 +120,23 @@ export async function seedData(db) {
                 // Protection Tag Logic (Equally distributed)
                 const protectionTag = "🛡️ " + protectionOptions[index % protectionOptions.length];
 
+                // Generate consistent counters and timestamps
+                const reads = Math.floor(Math.random() * 20); // 0-19
+                const updates = Math.floor(Math.random() * 5); // 0-4
+                const executes = Math.floor(Math.random() * 5); // 0-4
+
                 batch.set(docRef, {
                     label: `VOL_DATA_${index}_${payload.type}${payload.ext}`,
                     value: payload.val,
                     size: `${(Math.random() * 500 + 50).toFixed(1)}KB`,
                     owner: owner,
-                    reads: 0,
-                    updates: 0,
-                    executes: 0,
+                    reads: reads,
+                    updates: updates,
+                    executes: executes,
                     created_at: new Date(Date.now() - (index * 3600000)).toISOString(),
-                    last_read_ts: new Date().toISOString(),
-                    last_update_ts: new Date().toISOString(),
-                    last_execute_ts: new Date().toISOString(),
+                    last_read_ts: reads > 0 ? new Date().toISOString() : null,
+                    last_update_ts: updates > 0 ? new Date().toISOString() : null,
+                    last_execute_ts: executes > 0 ? new Date().toISOString() : null,
                     user_tags: [userTagPool[index % userTagPool.length], "AUTO_GEN", protectionTag],
                     access_control: accessControl,
                     white_list_read: wlRead,
