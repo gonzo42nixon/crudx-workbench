@@ -126,7 +126,7 @@ export function applyTheme(themeName) {
     const editThemeSelect = document.getElementById('in-edit-theme');
     if (editThemeSelect) editThemeSelect.value = themeName;
 
-    console.log(`🎨 Theme "${themeName}" angewendet.`);
+    console.log(`🎨 Theme "${themeName}" applied.`);
 }
 
 // ---------- Modal-UI synchronisieren ----------
@@ -267,14 +267,14 @@ export function initThemeEditor() {
 // ---------- Hilfsfunktion für Import-Validierung ----------
 function validateAndApplyTheme(imported) {
     if (!imported.startupTheme || !imported.themes) {
-        alert('Ungültiges Theme-JSON: "startupTheme" oder "themes" fehlen.');
+        alert('Invalid Theme JSON: "startupTheme" or "themes" missing.');
         return false;
     }
     themeState.appConfig = imported;
     themeState.currentActiveTheme = imported.startupTheme;
     applyTheme(themeState.currentActiveTheme);
     syncModalUI();
-    console.log('✅ Theme importiert:', imported);
+    console.log('✅ Theme imported:', imported);
     return true;
 }
 
@@ -357,7 +357,7 @@ export function initThemeControls() {
                         importModal.classList.remove('active');
                     }
                 } catch (error) {
-                    alert('Ungültiges JSON: ' + error.message);
+                    alert('Invalid JSON: ' + error.message);
                 }
             }
             // 2. Sonst: Versuche aus der Datei zu lesen
@@ -371,12 +371,12 @@ export function initThemeControls() {
                             importModal.classList.remove('active');
                         }
                     } catch (error) {
-                        alert('Fehler beim Lesen der Datei: ' + error.message);
+                        alert('Error reading file: ' + error.message);
                     }
                 };
                 reader.readAsText(file);
             } else {
-                alert('Bitte JSON in das Textfeld einfügen oder eine Datei auswählen.');
+                alert('Please paste JSON into the text field or select a file.');
             }
         });
     }

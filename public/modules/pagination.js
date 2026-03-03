@@ -38,7 +38,7 @@ export function applyLayout(val) {
         dataContainer.classList.add('list');
         const navi = document.querySelector('.navi-container');
         if (navi) navi.style.display = 'none';
-        console.log("🚀 List-Mode aktiviert.");
+        console.log("🚀 List mode activated.");
     } else {
         const s = parseInt(val);
         itemsPerPage = s * s;
@@ -50,7 +50,7 @@ export function applyLayout(val) {
 
         const navi = document.querySelector('.navi-container');
         if (navi) navi.style.display = 'flex';
-        console.log(`Square-Mode: ${s}x${s} Grid aktiviert.`);
+        console.log(`Square mode: ${s}x${s} grid activated.`);
     }
 
     currentPage = 1;
@@ -162,7 +162,7 @@ export async function fetchRealData() {
 
         currentUnsubscribe = onSnapshot(q, (snap) => {
             if (snap.empty) {
-                container.innerHTML = `<div class="pill pill-sys" style="margin:20px;">Keine Dokumente.</div>`;
+                container.innerHTML = `<div class="pill pill-sys" style="margin:20px;">No documents.</div>`;
             } else {
                 pageCursors[currentPage - 1] = snap.docs[snap.docs.length - 1];
                 renderDataFromDocs(snap.docs, container);
@@ -185,12 +185,12 @@ export async function fetchRealData() {
                 btnOrder.title = `Current: ${sortDirection === 'asc' ? 'A-Z' : 'Z-A'}. Click to flip.`;
             }
         }, (err) => {
-            console.error("🔥 Fehler in fetchRealData (Snapshot):", err);
-            container.innerHTML = `<div class="pill pill-sys">Fehler: ${err.message}</div>`;
+            console.error("🔥 Error in fetchRealData (Snapshot):", err);
+            container.innerHTML = `<div class="pill pill-sys">Error: ${err.message}</div>`;
         });
 
     } catch (err) {
-        console.error("🔥 Fehler in fetchRealData:", err);
+        console.error("🔥 Error in fetchRealData:", err);
         if (err.message.includes("requires an index")) {
             const link = err.message.match(/https:\/\/[^\s]+/)?.[0];
             container.innerHTML = `
@@ -200,7 +200,7 @@ export async function fetchRealData() {
                     <a href="${link}" target="_blank" style="color: var(--user-bg); text-decoration: underline; font-weight: bold; cursor: pointer;">👉 Click here to create it</a>
                 </div>`;
         } else {
-            container.innerHTML = `<div class="pill pill-sys">Fehler: ${err.message}</div>`;
+            container.innerHTML = `<div class="pill pill-sys">Error: ${err.message}</div>`;
         }
     }
 }
@@ -275,7 +275,7 @@ export function initPaginationControls() {
     const btnOrder = document.getElementById('btn-order');
     if (btnOrder) {
         btnOrder.textContent = '↑';
-        btnOrder.title = 'Aufsteigend (A–Z). Klicken für absteigend (Z–A)';
+        btnOrder.title = 'Ascending (A–Z). Click for descending (Z–A)';
         btnOrder.addEventListener('click', () => {
             sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
             btnOrder.textContent = sortDirection === 'asc' ? '↑' : '↓';

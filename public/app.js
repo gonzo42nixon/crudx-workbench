@@ -94,7 +94,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 navigator.share({ title: 'CRUDX Data View', url: window.location.href });
             } else {
                 navigator.clipboard.writeText(window.location.href);
-                alert("Link in Zwischenablage kopiert!");
+                alert("Link copied to clipboard!");
             }
         });
 
@@ -535,17 +535,17 @@ document.addEventListener("DOMContentLoaded", async () => {
             bind('btn-inject', 'click', () => import(`./seed.js?t=${Date.now()}`).then(m => m.seedData(db)));
 
             bind('btn-delete', 'click', async () => {
-                if (!confirm("Alle Dokumente wirklich löschen?")) return;
+                if (!confirm("Really delete all documents?")) return;
 
                 const colRef = collection(db, "kv-store");
                 const snap = await getDocs(colRef);
 
                 if (snap.empty) {
-                    alert("Nichts zum Löschen da.");
+                    alert("Nothing to delete.");
                     return;
                 }
 
-                console.log(`🗑️ Starte Batch-Löschung von ${snap.size} Dokumenten...`);
+                console.log(`🗑️ Starting batch deletion of ${snap.size} documents...`);
 
                 let count = 0;
                 let batch = writeBatch(db);
@@ -557,7 +557,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     if (count % 500 === 0) {
                         await batch.commit();
                         batch = writeBatch(db);
-                        console.log(`📦 Zwischenstand: ${count} gelöscht.`);
+                        console.log(`📦 Progress: ${count} deleted.`);
                     }
                 }
 
@@ -565,7 +565,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     await batch.commit();
                 }
 
-                console.log("✅ Alle Dokumente entfernt.");
+                console.log("✅ All documents removed.");
                 fetchRealData(); // UI aktualisieren
             });
         } else {

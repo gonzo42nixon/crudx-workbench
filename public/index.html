@@ -27,9 +27,9 @@
     </div>
 
     <header>
-        <div class="burger-btn" id="btn-burger">☰</div>
+        <div class="burger-btn" id="btn-burger" title="Open Menu">☰</div>
         <div class="search-container">
-            <div id="search-grip" class="paginator-grip" title="Suchleiste verschieben">⋮⋮</div>
+            <div id="search-grip" class="paginator-grip" title="Move search bar">⋮⋮</div>
             <input type="text" id="main-search" placeholder="Search Key-Value Space..." title="Search Key-Value Space">
         </div>
         <div class="app-actions">
@@ -264,15 +264,15 @@
     <div class="modal-content" style="width: 600px;">
         <h3>📥 Theme Import</h3>
         <p style="margin-bottom: 10px; color: var(--editor-text); opacity: 0.8;">
-            Füge hier dein Theme-JSON ein oder wähle eine Datei aus:
+            Paste your theme JSON here or select a file:
         </p>
         <textarea id="import-area" class="export-area" style="width: 100%; height: 300px; background: #000; color: #00ff00; font-family: monospace; padding: 10px; border: 1px solid var(--editor-border); border-radius: 8px; resize: vertical;" placeholder='{ "startupTheme": "night", "themes": { ... } }'></textarea>
         <div style="display: flex; gap: 10px; margin: 15px 0;">
             <input type="file" id="import-file" accept="application/json" style="flex: 1; background: var(--editor-bg); color: var(--editor-text); border: 1px solid var(--editor-border); border-radius: 30px; padding: 8px 15px;">
         </div>
         <div class="modal-actions">
-            <button id="btn-import-confirm" class="action-button-wide">✅ Importieren</button>
-            <button id="btn-import-cancel" class="action-button-wide">❌ Abbrechen</button>
+            <button id="btn-import-confirm" class="action-button-wide">✅ Import</button>
+            <button id="btn-import-cancel" class="action-button-wide">❌ Cancel</button>
         </div>
     </div>
 </div>
@@ -371,58 +371,58 @@
     "themes": {
         "night": {
             "canvas": {
-                "bg": "#625982",
+                "bg": "#473e65",
                 "text": "#eeeeee",
-                "border": "#333333",
+                "border": "#384c9f",
                 "paddingTop": 50,
                 "padding": 38,
-                "opacity": 85,
-                "blur": true
+                "opacity": 75,
+                "blur": false
             },
             "card": {
-                "bg": "#322d52",
-                "text": "#eeeeee",
-                "border": "#222222",
-                "opacity": 100,
+                "bg": "#433a7e",
+                "text": "#939dec",
+                "border": "#7665b3",
+                "opacity": 80,
                 "blur": false,
                 "padding": 20
             },
             "navi": {
-                "bg": "#0f0f0f",
-                "text": "#cccccc",
+                "bg": "#c9bbbb",
+                "text": "#000000",
                 "border": "#333333",
                 "opacity": 85,
                 "blur": false,
                 "bottom": 11
             },
             "editor": {
-                "bg": "#111111",
-                "text": "#eeeeee",
-                "border": "#333333",
-                "opacity": 95,
-                "blur": true
+                "bg": "#3d7076",
+                "text": "#0a0a0a",
+                "border": "#33575b",
+                "opacity": 75,
+                "blur": false
             },
             "search": {
                 "bg": "#c9bbbb",
                 "text": "#0a0a0a",
                 "border": "#453a3a",
-                "opacity": 85,
+                "opacity": 80,
                 "blur": false
             },
             "burger": {
                 "text": "#00ff00"
             },
             "key": {
-                "bg": "#1a1a1a",
+                "bg": "#32324e",
                 "text": "#cccccc",
                 "border": "#333333",
                 "opacity": 80,
                 "blur": false
             },
             "label": {
-                "bg": "#ffaa00",
+                "bg": "#7685c1",
                 "text": "#000000",
-                "border": "#cc8800",
+                "border": "#3f3870",
                 "opacity": 80,
                 "blur": false
             },
@@ -434,7 +434,7 @@
                 "blur": false
             },
             "sys": {
-                "bg": "#ff5252",
+                "bg": "#a39ee6",
                 "text": "#000000",
                 "border": "#333333",
                 "opacity": 80,
@@ -443,7 +443,7 @@
         },
         "day": {
             "canvas": {
-                "bg": "#0a0a0a",
+                "bg": "#ecfc03",
                 "text": "#111111",
                 "border": "#333333",
                 "paddingTop": 44,
@@ -452,20 +452,20 @@
                 "blur": false
             },
             "card": {
-                "bg": "#ffffff",
+                "bg": "#a2bcf1",
                 "text": "#111111",
-                "border": "#dddddd",
+                "border": "#807599",
                 "opacity": 100,
                 "blur": false,
                 "padding": 19
             },
             "navi": {
-                "bg": "#eeeeee",
-                "text": "#333333",
-                "border": "#bbbbbb",
+                "bg": "#0cb028",
+                "text": "#fafafa",
+                "border": "#278637",
                 "opacity": 80,
                 "blur": false,
-                "bottom": 6
+                "bottom": 10
             },
             "editor": {
                 "bg": "#ffffff",
@@ -475,9 +475,9 @@
                 "blur": false
             },
             "search": {
-                "bg": "#ffffff",
-                "text": "#111111",
-                "border": "#516aec",
+                "bg": "#ffae00",
+                "text": "#000000",
+                "border": "#b38219",
                 "opacity": 80,
                 "blur": false
             },
@@ -499,16 +499,16 @@
                 "blur": false
             },
             "user": {
-                "bg": "#0088cc",
-                "text": "#ffffff",
-                "border": "#0055aa",
+                "bg": "#fafafa",
+                "text": "#000000",
+                "border": "#000000",
                 "opacity": 90,
                 "blur": false
             },
             "sys": {
-                "bg": "#cc0000",
-                "text": "#ffffff",
-                "border": "#aa0000",
+                "bg": "#ffffff",
+                "text": "#6e724f",
+                "border": "#646543",
                 "opacity": 90,
                 "blur": false
             }
@@ -587,12 +587,12 @@
         },
         "gaga": {
             "canvas": {
-                "bg": "#0a0a0a",
+                "bg": "#594f4f",
                 "text": "#000000",
                 "border": "#333333",
                 "paddingTop": 45,
                 "padding": 36,
-                "opacity": 85,
+                "opacity": 90,
                 "blur": false
             },
             "card": {
