@@ -22,8 +22,48 @@ export let pageCursors = [];
 export let sortDirection = 'asc';
 let currentUnsubscribe = null;
 
+// ---------- URL State Management ----------
+export function updateUrlParams() {
+    const params = new URLSearchParams();
+    
+    if (currentPage > 1) params.set('page', currentPage);
+    if (sortDirection !== 'asc') params.set('sort', sortDirection);
+    
+    const gridSelect = document.getElementById('grid-select');
+    if (gridSelect && gridSelect.value !== '3') params.set('view', gridSelect.value);
+    
+    const searchInput = document.getElementById('main-search');
+    if (searchInput && searchInput.value.trim()) params.set('search', searchInput.value.trim());
+    
+    const mineCheck = document.getElementById('filter-owner-only');
+    if (mineCheck && mineCheck.checked) params.set('mine', 'true');
+    
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState({}, '', newUrl);
+}
+
+export function loadStateFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    
+    const s = params.get('sort');
+    if (s === 'asc' || s === 'desc') sortDirection = s;
+    const btnOrder = document.getElementById('btn-order');
+    if (btnOrder) btnOrder.textContent = sortDirection === 'asc' ? '↑' : '↓';
+
+    const q = params.get('search');
+    const searchInput = document.getElementById('main-search');
+    if (q !== null && searchInput) searchInput.value = q;
+
+    const m = params.get('mine');
+    const mineCheck = document.getElementById('filter-owner-only');
+    if (mineCheck) mineCheck.checked = (m === 'true');
+
+    const v = params.get('view');
+    return (v && ['1','3','5','7','9','list'].includes(v)) ? v : '3';
+}
+
 // ---------- Layout anwenden ----------
-export function applyLayout(val) {
+export function applyLayout(val, initialLoad = false) {
     const dataContainer = document.getElementById('data-container');
     if (!dataContainer) return;
 
@@ -53,8 +93,10 @@ export function applyLayout(val) {
         console.log(`Square mode: ${s}x${s} grid activated.`);
     }
 
-    currentPage = 1;
-    pageCursors = [];
+    if (!initialLoad) {
+        currentPage = 1;
+        pageCursors = [];
+    }
     fetchRealData();
 }
 
@@ -65,6 +107,10 @@ export async function fetchRealData() {
     const colRef = collection(db, "kv-store");
     const user = auth.currentUser;
     const filterOwnerOnly = document.getElementById('filter-owner-only')?.checked;
+    const searchTerm = document.getElementById('main-search')?.value.trim();
+
+    // URL Update bei jedem Fetch
+    updateUrlParams();
 
     try {
         let countQuery = colRef;
@@ -150,7 +196,13 @@ export async function fetchRealData() {
                 constraints.push(where("access_control", "array-contains-any", tokens));
             }
         }
-        constraints.push(orderBy("label", sortDirection));
+        
+        if (searchTerm) {
+            constraints.push(where("__name__", "==", searchTerm));
+        } else {
+            constraints.push(orderBy("label", sortDirection));
+        }
+
         if (currentPage > 1 && pageCursors[currentPage - 2]) {
             constraints.push(startAfter(pageCursors[currentPage - 2]));
         }

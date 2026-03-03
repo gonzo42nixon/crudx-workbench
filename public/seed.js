@@ -47,8 +47,6 @@ export async function seedData(db) {
         { type: "BINARY_DATA", ext: ".bin", val: "0x43 0x52 0x55 0x44 0x58 0x20 0x42 0x49 0x4E 0x41 0x52 0x59" }
     ];
 
-    const userTagPool = ["critical", "backup", "external", "reviewed", "legacy", "sync-pending"];
-    
     // Pool an echten Ownern für Whitelist-Tests
     const realUsers = [
         "drueffler@gmail.com",
@@ -143,6 +141,30 @@ export async function seedData(db) {
                 protectionChars.sort((a, b) => order.indexOf(a) - order.indexOf(b));
                 const protectionTag = protectionChars.length > 0 ? "🛡️ " + protectionChars.join('') : "🛡️ -";
 
+                // User Tags Logic
+                const tags = ["AUTO_GEN", protectionTag];
+                
+                if (Math.random() < 0.10) tags.push("backup");
+                
+                const vRand = Math.random();
+                if (vRand < 0.08) tags.push("v1");
+                else if (vRand < 0.14) tags.push("v2");
+                else if (vRand < 0.18) tags.push("v3");
+                else if (vRand < 0.21) tags.push("v4");
+                else if (vRand < 0.23) tags.push("v5");
+                
+                if (Math.random() < 0.80) {
+                    tags.push("data");
+                    tags.push(`x:${ocrId}`);
+                }
+                
+                if (Math.random() < 0.10) {
+                    tags.push("app");
+                    tags.push(`x:${ocrId}`);
+                }
+                
+                if (Math.random() < 0.05) tags.push("example");
+
                 // Generate consistent counters and timestamps
                 const reads = Math.floor(Math.random() * 20); // 0-19
                 const updates = Math.floor(Math.random() * 5); // 0-4
@@ -160,7 +182,7 @@ export async function seedData(db) {
                     last_read_ts: reads > 0 ? new Date().toISOString() : null,
                     last_update_ts: updates > 0 ? new Date().toISOString() : null,
                     last_execute_ts: executes > 0 ? new Date().toISOString() : null,
-                    user_tags: [userTagPool[index % userTagPool.length], "AUTO_GEN", protectionTag],
+                    user_tags: [...new Set(tags)],
                     access_control: accessControl,
                     white_list_read: wlRead,
                     white_list_update: wlUpdate,

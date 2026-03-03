@@ -277,6 +277,18 @@
     </div>
 </div>
 
+    <!-- IFrame Viewer Modal (Pop-Out) -->
+    <div id="iframe-modal" class="modal-overlay">
+        <div class="modal-content" style="width: 90vw; height: 90vh; display: flex; flex-direction: column; padding: 0; overflow: hidden; resize: both; min-width: 600px; min-height: 400px;">
+            <div class="modal-drag-handle" style="padding: 10px; background: rgba(255,255,255,0.05); border-bottom: 1px solid var(--editor-border); display: flex; justify-content: space-between; align-items: center; gap: 15px;">
+                <span style="font-size: 1.2rem;">📄</span>
+                <input type="text" id="iframe-url" readonly style="flex: 1; background: #000; border: 1px solid #333; color: #00ff00; padding: 6px 10px; font-family: 'JetBrains Mono', monospace; font-size: 0.85em; border-radius: 4px; outline: none;">
+                <span id="btn-close-iframe" class="close-x" title="Close" style="cursor: pointer; font-size: 1.2rem;">✕</span>
+            </div>
+            <iframe id="doc-frame" style="flex: 1; border: none; width: 100%; height: 100%; background: var(--canvas-bg);" src=""></iframe>
+        </div>
+    </div>
+
     <!-- JSON Viewer Modal -->
     <div id="json-modal" class="modal-overlay">
         <div class="modal-content" style="width: 700px; max-width: 95vw;">

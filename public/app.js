@@ -2,7 +2,7 @@ import { setupAuth } from './auth-helper.js';
 import { detectMimetype } from './modules/mime.js';
 import { themeState, applyTheme, syncModalUI, initThemeEditor, initThemeControls } from './modules/theme.js';
 import { db, auth } from './modules/firebase.js';
-import { applyLayout, initPaginationControls, fetchRealData, fetchLastPageData } from './modules/pagination.js';
+import { applyLayout, initPaginationControls, fetchRealData, fetchLastPageData, loadStateFromUrl } from './modules/pagination.js';
 import { renderDataFromDocs, escapeHtml } from './modules/ui.js';
 import { initAuth } from './modules/auth.js';
 import { 
@@ -67,6 +67,13 @@ document.addEventListener("DOMContentLoaded", async () => {
             const el = document.getElementById(id);
             if (el) el.addEventListener(event, fn);
         };
+
+        // --- SEARCH LISTENER ---
+        bind('main-search', 'keydown', (e) => {
+            if (e.key === 'Enter') {
+                fetchRealData();
+            }
+        });
 
         // --- THEME CONFIG ---
         const settingsBlock = document.getElementById('crudx-settings');
@@ -267,6 +274,35 @@ document.addEventListener("DOMContentLoaded", async () => {
                 if (pill) {
                     e.stopPropagation();
 
+                    // --- CLICK ON KEY: Jump to 1x1 & Filter ---
+                    if (pill.classList.contains('pill-key') && !e.shiftKey) {
+                        const key = pill.textContent.trim();
+                        
+                        // Open in IFrame Modal (Pop-Out style) to preserve history
+                        const iframeModal = document.getElementById('iframe-modal');
+                        const iframe = document.getElementById('doc-frame');
+                        const iframeUrl = document.getElementById('iframe-url');
+
+                        if (iframeModal && iframe) {
+                            const targetUrl = `${window.location.href.split('?')[0]}?view=1&search=${encodeURIComponent(key)}`;
+                            iframe.src = targetUrl;
+                            if (iframeUrl) iframeUrl.value = targetUrl;
+                            iframeModal.classList.add('active');
+                            return;
+                        }
+
+                        // Fallback if modal missing
+                        const searchInput = document.getElementById('main-search');
+                        const gridSelect = document.getElementById('grid-select');
+                        
+                        if (searchInput && gridSelect) {
+                            searchInput.value = key;
+                            gridSelect.value = '1';
+                            applyLayout('1'); // Triggers fetchRealData
+                            return;
+                        }
+                    }
+
                     if (e.shiftKey) {
                         // Shift+Click: Copy Tooltip (title) to clipboard
                         const tooltip = pill.getAttribute('title') || '';
@@ -398,6 +434,14 @@ document.addEventListener("DOMContentLoaded", async () => {
             modalContent.style.transform = 'translate(-50%, -50%)';
             currentTranslateX = 0;
             currentTranslateY = 0;
+        });
+
+        // --- IFRAME MODAL ---
+        bind('btn-close-iframe', 'click', () => {
+            const iframeModal = document.getElementById('iframe-modal');
+            const iframe = document.getElementById('doc-frame');
+            if (iframeModal) iframeModal.classList.remove('active');
+            if (iframe) iframe.src = 'about:blank';
         });
 
         // --- EXPORT MODAL ---
@@ -1501,6 +1545,49 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
         }
 
+        // --- DRAG LOGIC FOR IFRAME MODAL ---
+        const iframeModal = document.getElementById('iframe-modal');
+        const iframeContent = iframeModal ? iframeModal.querySelector('.modal-content') : null;
+        if (iframeContent) {
+            const handle = iframeContent.querySelector('.modal-drag-handle');
+            if (handle) {
+                handle.style.cursor = 'move';
+                let isDraggingIframe = false;
+                let startX, startY, startTransX, startTransY;
+
+                handle.addEventListener('mousedown', (e) => {
+                    // Prevent dragging when interacting with inputs or close button
+                    if (e.target.closest('.close-x') || e.target.tagName === 'INPUT') return;
+                    
+                    e.preventDefault();
+                    isDraggingIframe = true;
+                    startX = e.clientX;
+                    startY = e.clientY;
+
+                    const style = window.getComputedStyle(iframeContent);
+                    const matrix = new WebKitCSSMatrix(style.transform);
+                    startTransX = matrix.m41;
+                    startTransY = matrix.m42;
+
+                    document.addEventListener('mousemove', onMouseMoveIframe);
+                    document.addEventListener('mouseup', onMouseUpIframe);
+                });
+
+                function onMouseMoveIframe(e) {
+                    if (!isDraggingIframe) return;
+                    const dx = e.clientX - startX;
+                    const dy = e.clientY - startY;
+                    iframeContent.style.transform = `translate(${startTransX + dx}px, ${startTransY + dy}px)`;
+                }
+
+                function onMouseUpIframe() {
+                    isDraggingIframe = false;
+                    document.removeEventListener('mousemove', onMouseMoveIframe);
+                    document.removeEventListener('mouseup', onMouseUpIframe);
+                }
+            }
+        }
+
         // --- DRAG LOGIC FOR WHITELIST MODAL ---
         if (wlContent) {
             const handle = wlContent.querySelector('.modal-drag-handle');
@@ -1540,6 +1627,13 @@ document.addEventListener("DOMContentLoaded", async () => {
                 if (themeModal && themeModal.classList.contains('active')) themeModal.classList.remove('active');
                 if (document.getElementById('json-modal').classList.contains('active')) document.getElementById('json-modal').classList.remove('active');
                 if (document.getElementById('whitelist-modal') && document.getElementById('whitelist-modal').style.display === 'block') document.getElementById('whitelist-modal').style.display = 'none';
+                
+                const iframeModal = document.getElementById('iframe-modal');
+                if (iframeModal && iframeModal.classList.contains('active')) {
+                    iframeModal.classList.remove('active');
+                    const iframe = document.getElementById('doc-frame');
+                    if (iframe) iframe.src = 'about:blank';
+                }
             }
         });
 

@@ -1227,6 +1227,7 @@ header {
     align-items: center !important; /* Forces vertical centering */
     margin: 0 12px 0 0 !important;  /* Resets the negative margin-bottom */
     height: 100% !important;        /* Ensures it fills the row height */
+    pointer-events: auto !important; /* Ensure clicks are registered in List View */
 }
 
 /* Ensure the pills themselves don't have stray margins */

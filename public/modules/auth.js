@@ -1,6 +1,6 @@
 // modules/auth.js
 import { auth, db } from './firebase.js';
-import { applyLayout, fetchRealData } from './pagination.js';
+import { applyLayout, fetchRealData, loadStateFromUrl } from './pagination.js';
 
 // Hilfsfunktion für Event-Listener (wie in app.js)
 const bind = (id, event, fn) => {
@@ -83,17 +83,12 @@ export function initAuth() {
                     };
                 }
 
-                // Layout aus URL oder Standard
-                const urlParams = new URLSearchParams(window.location.search);
-                const viewParam = urlParams.get('view');
-                if (viewParam) {
-                    if (gridSelect) gridSelect.value = viewParam;
-                    applyLayout(viewParam);
-                } else {
-                    applyLayout(gridSelect ? gridSelect.value : '3');
-                }
+                // 1. State aus URL laden (Search, Sort, View, Mine)
+                const layout = loadStateFromUrl();
+                if (gridSelect) gridSelect.value = layout;
 
-                fetchRealData();
+                // 2. Layout anwenden (initialLoad = true verhindert Page-Reset)
+                applyLayout(layout, true);
 
             } else {
                 console.warn("🔒 Locked. Authentication required.");
