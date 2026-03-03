@@ -14,6 +14,13 @@ export function escapeHtml(unsafe) {
 export function renderDataFromDocs(docs, container) {
     const isNano = container.classList.contains('grid-9');
     const currentUserEmail = auth.currentUser?.email;
+    
+    const tokens = currentUserEmail ? [
+        currentUserEmail,
+        `*@${currentUserEmail.split('@')[1]}`,
+        `${currentUserEmail.split('@')[0]}@*`,
+        `*@*`
+    ] : [];
 
     const toIso = (val) => {
         if (!val) return null;
@@ -37,6 +44,14 @@ export function renderDataFromDocs(docs, container) {
             </div>` : '';
 
         let userTags = [];
+        let protectionLetters = "";
+        if (Array.isArray(d.user_tags)) {
+            d.user_tags.forEach(t => {
+                userTags.push(`<div class="pill pill-user" title="Memo: User">${t}</div>`);
+                if (t.includes("🛡️")) protectionLetters = t;
+            });
+        }
+
         ['execute','delete','update','read'].forEach(m => {
             const list = d[`white_list_${m}`] || [];
             if (list.length > 0) {
@@ -55,10 +70,6 @@ export function renderDataFromDocs(docs, container) {
                 userTags.push(`<div class="pill pill-user" style="${style}" title="Whitelist ${m.toUpperCase()}: ${list.join(', ')}">${icon} ${list.length}</div>`);
             }
         });
-
-        if (Array.isArray(d.user_tags)) {
-            d.user_tags.forEach(t => userTags.push(`<div class="pill pill-user" title="Memo: User">${t}</div>`));
-        }
 
         const isOwner = currentUserEmail && d.owner === currentUserEmail;
         let ownerStyle = '';
@@ -80,14 +91,28 @@ export function renderDataFromDocs(docs, container) {
             <div class="pill pill-sys" style="${ownerStyle}" title="Owner: ${d.owner || 'Sys'}">${ownerText}</div>
         `;
 
+        const checkAuth = (listName) => {
+            if (isOwner) return true;
+            if (!listName) return false;
+            const list = d[listName] || [];
+            return list.some(entry => tokens.includes(entry));
+        };
+
+        const getBtnStyle = (char, listName) => {
+            if (!protectionLetters.includes(char)) return '';
+            return checkAuth(listName) 
+                ? 'style="background-color: #ffd700; color: #000 !important; border-radius: 4px;"' 
+                : 'style="background-color: #ff1744; color: #fff !important; border-radius: 4px;"';
+        };
+
         htmlBuffer += `
             <div class="card-kv">
                 <div class="tr-group">
-                    <button class="btn-crudx btn-c" data-action="C" title="Create">C</button>
-                    <button class="btn-crudx btn-r" data-action="R" title="Read">R</button>
-                    <button class="btn-crudx btn-u" data-action="U" title="Update">U</button>
-                    <button class="btn-crudx btn-d" data-action="D" title="Delete">D</button>
-                    <button class="btn-crudx btn-x" data-action="X" title="Execute">X</button>
+                    <button class="btn-crudx btn-c" data-action="C" title="Create" ${getBtnStyle('C', null)}>C</button>
+                    <button class="btn-crudx btn-r" data-action="R" title="Read" ${getBtnStyle('R', 'white_list_read')}>R</button>
+                    <button class="btn-crudx btn-u" data-action="U" title="Update" ${getBtnStyle('U', 'white_list_update')}>U</button>
+                    <button class="btn-crudx btn-d" data-action="D" title="Delete" ${getBtnStyle('D', 'white_list_delete')}>D</button>
+                    <button class="btn-crudx btn-x" data-action="X" title="Execute" ${getBtnStyle('X', 'white_list_execute')}>X</button>
                 </div>
                 <div class="tl-group">
                     <div class="pill pill-key" title="KEY">${doc.id}</div>

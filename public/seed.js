@@ -66,6 +66,17 @@ export async function seedData(db) {
     ];
     const allCandidates = [...realUsers, ...genericPool];
 
+    // Generate all valid CRUDX subsequences for equal distribution
+    const protectionOptions = ["-"];
+    const baseChars = ['C', 'R', 'U', 'D', 'X'];
+    for (let i = 1; i < 32; i++) {
+        let combo = "";
+        for (let j = 0; j < 5; j++) {
+            if ((i >> j) & 1) combo += baseChars[j];
+        }
+        protectionOptions.push(combo);
+    }
+
     try {
         console.log(`🚀 Starte Injection von ${totalRecords} Dokumenten...`);
         
@@ -106,6 +117,9 @@ export async function seedData(db) {
                 const wlExecute = getWhitelist(owner);
                 const accessControl = [...new Set([owner, ...wlRead, ...wlUpdate, ...wlDelete, ...wlExecute])];
 
+                // Protection Tag Logic (Equally distributed)
+                const protectionTag = "🛡️ " + protectionOptions[index % protectionOptions.length];
+
                 batch.set(docRef, {
                     label: `VOL_DATA_${index}_${payload.type}${payload.ext}`,
                     value: payload.val,
@@ -118,7 +132,7 @@ export async function seedData(db) {
                     last_read_ts: new Date().toISOString(),
                     last_update_ts: new Date().toISOString(),
                     last_execute_ts: new Date().toISOString(),
-                    user_tags: [userTagPool[index % userTagPool.length], "AUTO_GEN"],
+                    user_tags: [userTagPool[index % userTagPool.length], "AUTO_GEN", protectionTag],
                     access_control: accessControl,
                     white_list_read: wlRead,
                     white_list_update: wlUpdate,

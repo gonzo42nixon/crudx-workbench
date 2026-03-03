@@ -121,6 +121,25 @@ document.addEventListener("DOMContentLoaded", async () => {
                     const key = card ? card.querySelector('.pill-key')?.textContent : '';
                     let url = `https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977?action=${action}&key=${encodeURIComponent(key)}`;
                     
+                    // --- Protection & Authorization Check ---
+                    const style = window.getComputedStyle(btn);
+                    const bgColor = style.backgroundColor;
+
+                    // Case 1: Protected & Not Authorized (Red Button)
+                    // Note: rgb(255, 23, 68) is #ff1744
+                    if (bgColor === 'rgb(255, 23, 68)') {
+                        alert("You are not authorized to perform this protected action!");
+                        return;
+                    }
+
+                    // Case 2: Protected & Authorized (Yellow Button)
+                    // Note: rgb(255, 215, 0) is #ffd700
+                    if (bgColor === 'rgb(255, 215, 0)') {
+                        if (!confirm("Do you really want to perform this action?")) {
+                            return;
+                        }
+                    }
+
                     // --- ACTION: READ (Open New Tab) ---
                     if (action === 'R') {
                         // Shift+Click: Copy Share Link (GET Request) for external use
