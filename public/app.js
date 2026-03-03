@@ -69,11 +69,31 @@ document.addEventListener("DOMContentLoaded", async () => {
         };
 
         // --- SEARCH LISTENER ---
+        const searchInput = document.getElementById('main-search');
+        const clearBtn = document.getElementById('btn-clear-search');
+
+        const toggleClearBtn = () => {
+            if (clearBtn && searchInput) clearBtn.style.display = searchInput.value.trim() ? 'block' : 'none';
+        };
+
         bind('main-search', 'keydown', (e) => {
             if (e.key === 'Enter') {
                 fetchRealData();
             }
         });
+        bind('main-search', 'input', toggleClearBtn);
+
+        bind('btn-clear-search', 'click', () => {
+            if (searchInput) {
+                searchInput.value = '';
+                toggleClearBtn();
+                searchInput.focus();
+                fetchRealData();
+            }
+        });
+
+        // Initial check
+        toggleClearBtn();
 
         // --- THEME CONFIG ---
         const settingsBlock = document.getElementById('crudx-settings');

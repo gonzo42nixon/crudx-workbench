@@ -109,6 +109,9 @@ export async function fetchRealData() {
     const filterOwnerOnly = document.getElementById('filter-owner-only')?.checked;
     const searchTerm = document.getElementById('main-search')?.value.trim();
 
+    const clearBtn = document.getElementById('btn-clear-search');
+    if (clearBtn) clearBtn.style.display = searchTerm ? 'block' : 'none';
+
     // URL Update bei jedem Fetch
     updateUrlParams();
 

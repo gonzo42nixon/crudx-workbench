@@ -211,7 +211,7 @@ header {
     border: none !important;
     color: var(--search-text) !important;
     font-size: 1em;
-    padding: 12px 20px 12px 35px;  /* Rechts 20px, links 35px für den Griff */
+    padding: 12px 40px 12px 35px;  /* Rechts 40px für Clear-Button, links 35px für den Griff */
     border-radius: 50px !important;
     width: 100%;
     height: 100%;
@@ -251,6 +251,20 @@ header {
 #search-drag-handle:hover {
     opacity: 1;
     transform: scale(1.2);    /* Feedback beim Drüberfahren */
+}
+
+.search-clear {
+    position: absolute;
+    right: 15px;
+    cursor: pointer;
+    color: var(--search-text);
+    opacity: 0.5;
+    font-size: 1.1em;
+    user-select: none;
+}
+.search-clear:hover {
+    opacity: 1;
+    color: var(--burger-text);
 }
 
 .app-actions {
