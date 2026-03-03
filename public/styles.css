@@ -548,6 +548,7 @@ header {
     background: var(--key-glass) !important;
     color: var(--key-text) !important;
     border-color: var(--key-border) !important;
+    cursor: pointer;
 }
 
 .pill-label {
