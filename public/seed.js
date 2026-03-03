@@ -66,17 +66,6 @@ export async function seedData(db) {
     ];
     const allCandidates = [...realUsers, ...genericPool];
 
-    // Generate all valid CRUDX subsequences for equal distribution
-    const protectionOptions = ["-"];
-    const baseChars = ['C', 'R', 'U', 'D', 'X'];
-    for (let i = 1; i < 32; i++) {
-        let combo = "";
-        for (let j = 0; j < 5; j++) {
-            if ((i >> j) & 1) combo += baseChars[j];
-        }
-        protectionOptions.push(combo);
-    }
-
     try {
         console.log(`🚀 Starte Injection von ${totalRecords} Dokumenten...`);
         
@@ -92,33 +81,67 @@ export async function seedData(db) {
                 const payload = payloads[index % payloads.length];
                 const owner = realUsers[index % realUsers.length];
 
-                // Helper für Whitelist-Generierung (max 50% gefüllt, Mix aus 1 oder mehreren Einträgen)
-                const getWhitelist = (currentOwner) => {
-                    if (Math.random() > 0.5) return []; // 50% leer (Count 0)
-                    
+                // Helper to get random users for whitelist (excluding owner)
+                const getRandomWhitelist = (currentOwner) => {
                     const pool = allCandidates.filter(u => u !== currentOwner);
-                    let selection = [];
-
-                    if (Math.random() < 0.3) {
-                        const count = Math.floor(Math.random() * 2) + 2;
-                        for(let k=0; k<count; k++) selection.push(pool[Math.floor(Math.random() * pool.length)]);
-                    } else {
-                        selection = [pool[Math.floor(Math.random() * pool.length)]];
-                    }
-                    
-                    const unique = [...new Set(selection)];
-                    unique.forEach(validateGenericEmail);
-                    return unique;
+                    const count = Math.floor(Math.random() * 2) + 1; // 1 to 2 users
+                    const selection = [];
+                    for(let k=0; k<count; k++) selection.push(pool[Math.floor(Math.random() * pool.length)]);
+                    return [...new Set(selection)];
                 };
 
-                const wlRead = getWhitelist(owner);
-                const wlUpdate = getWhitelist(owner);
-                const wlDelete = getWhitelist(owner);
-                const wlExecute = getWhitelist(owner);
+                let protectionChars = [];
+                const generatedWhitelists = {};
+
+                // Helper to determine protection and whitelist status based on percentages
+                const getActionState = (isHeavilyProtected) => {
+                    const rand = Math.random() * 100;
+                    let isProtected, hasWhitelist;
+
+                    if (isHeavilyProtected) { // For UPDATE, DELETE (92% protected)
+                        if (rand < 80)      { isProtected = true;  hasWhitelist = false; } // 80% protected by Login
+                        else if (rand < 92) { isProtected = true;  hasWhitelist = true;  } // 12% protected by Whitelist
+                        else if (rand < 97) { isProtected = false; hasWhitelist = false; } // 5% unprotected by Login
+                        else                { isProtected = false; hasWhitelist = true;  } // 3% unprotected by Whitelist
+                    } else { // For CREATE, READ, EXECUTE (8% protected)
+                        if (rand < 80)      { isProtected = false; hasWhitelist = false; } // 80% unprotected by Login
+                        else if (rand < 92) { isProtected = false; hasWhitelist = true;  } // 12% unprotected by Whitelist
+                        else if (rand < 97) { isProtected = true;  hasWhitelist = false; } // 5% protected by Login
+                        else                { isProtected = true;  hasWhitelist = true;  } // 3% protected by Whitelist
+                    }
+                    return { isProtected, hasWhitelist };
+                };
+
+                // Process each action based on the requested distribution
+                const actions = [
+                    { char: 'C', key: null,                 heavilyProtected: false }, // CREATE: 8% protected
+                    { char: 'R', key: 'white_list_read',    heavilyProtected: false }, // READ: 8% protected
+                    { char: 'U', key: 'white_list_update',  heavilyProtected: true  }, // UPDATE: 92% protected
+                    { char: 'D', key: 'white_list_delete',  heavilyProtected: true  }, // DELETE: 92% protected
+                    { char: 'X', key: 'white_list_execute', heavilyProtected: false }  // EXECUTE: 8% protected
+                ];
+
+                actions.forEach(act => {
+                    const { isProtected, hasWhitelist } = getActionState(act.heavilyProtected);
+                    if (isProtected) {
+                        protectionChars.push(act.char);
+                    }
+                    // CREATE has no whitelist, so its key is null
+                    if (act.key) {
+                        generatedWhitelists[act.key] = hasWhitelist ? getRandomWhitelist(owner) : [];
+                    }
+                });
+
+                const wlRead = generatedWhitelists['white_list_read'];
+                const wlUpdate = generatedWhitelists['white_list_update'];
+                const wlDelete = generatedWhitelists['white_list_delete'];
+                const wlExecute = generatedWhitelists['white_list_execute'];
                 const accessControl = [...new Set([owner, ...wlRead, ...wlUpdate, ...wlDelete, ...wlExecute])];
 
-                // Protection Tag Logic (Equally distributed)
-                const protectionTag = "🛡️ " + protectionOptions[index % protectionOptions.length];
+                // Sort and Build Tag
+                const order = ['C', 'R', 'U', 'D', 'X'];
+                protectionChars.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+                const protectionTag = protectionChars.length > 0 ? "🛡️ " + protectionChars.join('') : "🛡️ -";
 
                 // Generate consistent counters and timestamps
                 const reads = Math.floor(Math.random() * 20); // 0-19
