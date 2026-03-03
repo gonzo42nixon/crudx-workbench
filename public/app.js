@@ -191,6 +191,37 @@ document.addEventListener("DOMContentLoaded", async () => {
                         openUpdateModal(key, currentValue, label, card);
                         return;
                     }
+
+                    // --- ACTION: DELETE (Confirm & Fetch) ---
+                    if (action === 'D' && !e.shiftKey) {
+                        if (confirm(`⚠️ Really delete document "${key}"?`)) {
+                            const urlParams = new URLSearchParams(window.location.search);
+                            const forceProd = urlParams.get('mode') === 'live';
+                            const isEmulator = !forceProd && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+                            if (isEmulator) {
+                                console.log(`🔧 Emulator Mode: Deleting "${key}" via SDK.`);
+                                deleteDoc(doc(db, "kv-store", key))
+                                    .then(() => {
+                                        console.log(`✅ Document "${key}" deleted.`);
+                                        fetchRealData();
+                                    })
+                                    .catch(err => alert("Delete failed: " + err.message));
+                            } else {
+                                fetch(url)
+                                    .then(res => {
+                                        if (res.ok) {
+                                            console.log(`✅ Document "${key}" deleted via Webhook.`);
+                                            setTimeout(() => fetchRealData(), 1000);
+                                        } else {
+                                            alert("Delete failed: " + res.statusText);
+                                        }
+                                    })
+                                    .catch(err => alert("Error: " + err.message));
+                            }
+                        }
+                        return;
+                    }
                     
                     if (e.shiftKey) {
                         navigator.clipboard.writeText(url).then(() => {
