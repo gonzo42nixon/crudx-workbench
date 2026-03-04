@@ -915,6 +915,25 @@ document.addEventListener("DOMContentLoaded", async () => {
         function openUpdateModal(key, value, label, cardElement) {
             if (!updateModal) return;
             currentUpdateKey = key;
+            
+            // Initiale Werte setzen & Daten nachladen, damit beim Speichern nichts überschrieben wird
+            currentLabel = label || "";
+            currentTags = []; // Reset, bis Daten geladen sind
+            currentWhitelists = { read: [], update: [], delete: [], execute: [] }; // Reset Whitelists
+            
+            getDoc(doc(db, "kv-store", key)).then(snap => {
+                if (snap.exists()) {
+                    const d = snap.data();
+                    currentTags = d.user_tags || [];
+                    currentOwner = d.owner || "";
+                    currentWhitelists = {
+                        read: d.white_list_read || [],
+                        update: d.white_list_update || [],
+                        delete: d.white_list_delete || [],
+                        execute: d.white_list_execute || []
+                    };
+                }
+            });
 
             // Highlight Origin Card
             if (currentHighlightedCard) currentHighlightedCard.classList.remove('card-highlight');
@@ -1459,6 +1478,14 @@ document.addEventListener("DOMContentLoaded", async () => {
                     console.log("🔧 Emulator Mode: Updating via SDK directly.");
                     await updateDoc(doc(db, "kv-store", key), {
                         value: newValue,
+                        // Hinzugefügt, um Label und Owner aus dem Tag-Editor mit zu speichern
+                        label: currentLabel,
+                        owner: currentOwner,
+                        user_tags: currentTags, // Für Emulator direkt als Array
+                        white_list_read: currentWhitelists.read,
+                        white_list_update: currentWhitelists.update,
+                        white_list_delete: currentWhitelists.delete,
+                        white_list_execute: currentWhitelists.execute,
                         updates: increment(1),
                         last_update_ts: new Date().toISOString()
                     });
@@ -1473,7 +1500,20 @@ document.addEventListener("DOMContentLoaded", async () => {
                         body: JSON.stringify({
                             action: "U",
                             key: key,
-                            value: safeValue
+                            value: safeValue,
+                            // Hinzugefügt, um Label und Owner aus dem Tag-Editor mit zu speichern
+                            label: currentLabel,
+                            owner: currentOwner,
+                            // User Tags ebenfalls mitsenden (Firestore JSON Format für Make.com)
+                            user_tags: {
+                                arrayValue: {
+                                    values: (currentTags || []).map(t => ({ stringValue: t }))
+                                }
+                            },
+                            white_list_read: { arrayValue: { values: (currentWhitelists.read || []).map(v => ({ stringValue: v })) } },
+                            white_list_update: { arrayValue: { values: (currentWhitelists.update || []).map(v => ({ stringValue: v })) } },
+                            white_list_delete: { arrayValue: { values: (currentWhitelists.delete || []).map(v => ({ stringValue: v })) } },
+                            white_list_execute: { arrayValue: { values: (currentWhitelists.execute || []).map(v => ({ stringValue: v })) } }
                         })
                     });
 
