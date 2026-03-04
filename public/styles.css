@@ -201,7 +201,8 @@ header {
     height: 45px;
     display: flex;
     align-items: center;
-    width: 600px;                     /* Testweise feste Breite */
+    width: 100%;                      /* Responsive width */
+    max-width: 600px;                 /* Max width constraint */
     min-width: unset;                  /* Alte min-width aufheben */
     margin: 0 auto;
 }

@@ -94,6 +94,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         // Initial check
         toggleClearBtn();
+        
+        // Safety check for IFrame/Pop-Out: Check URL params immediately
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('search') && searchInput) {
+            searchInput.value = urlParams.get('search');
+            toggleClearBtn();
+        }
 
         // --- THEME CONFIG ---
         const settingsBlock = document.getElementById('crudx-settings');
@@ -1007,6 +1014,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             const keyPill = document.createElement('span');
             keyPill.className = 'pill pill-key';
             keyPill.textContent = currentUpdateKey;
+            keyPill.title = "Key";
             keyPill.style.cssText = "padding: 4px 8px; font-size: 0.85em; cursor: default;";
             tagListContainer.appendChild(keyPill);
 
@@ -1064,7 +1072,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const textSpan = document.createElement('span');
                 textSpan.textContent = tag;
                 textSpan.style.cursor = 'text';
-                textSpan.title = 'Click to edit';
+                textSpan.title = 'Click to edit User Memo';
                 textSpan.onclick = (e) => {
                     e.stopPropagation();
                     const input = document.createElement('input');
@@ -1124,25 +1132,25 @@ document.addEventListener("DOMContentLoaded", async () => {
             // --- 3. WHITELIST PILLS (Summarized: Icon + Count) ---
             // READ (Green)
             const styleGreen = "border: 1px solid #00e676; color: #00e676; background: rgba(0, 230, 118, 0.1);";
-            createSysPill(`R: ${currentWhitelists.read.length}`, styleGreen, "Manage Whitelist READ", () => {
+            createSysPill(`R: ${currentWhitelists.read.length}`, styleGreen, "Click to edit Whitelist READ", () => {
                 openWhitelistModalForTagEditor('read');
             });
 
             // UPDATE (Orange)
             const styleOrange = "border: 1px solid #ff9100; color: #ff9100; background: rgba(255, 145, 0, 0.1);";
-            createSysPill(`U: ${currentWhitelists.update.length}`, styleOrange, "Manage Whitelist UPDATE", () => {
+            createSysPill(`U: ${currentWhitelists.update.length}`, styleOrange, "Click to edit Whitelist UPDATE", () => {
                 openWhitelistModalForTagEditor('update');
             });
 
             // DELETE (Red)
             const styleRed = "border: 1px solid #ff1744; color: #ff1744; background: rgba(255, 23, 68, 0.1);";
-            createSysPill(`D: ${currentWhitelists.delete.length}`, styleRed, "Manage Whitelist DELETE", () => {
+            createSysPill(`D: ${currentWhitelists.delete.length}`, styleRed, "Click to edit Whitelist DELETE", () => {
                 openWhitelistModalForTagEditor('delete');
             });
 
             // EXECUTE (Black)
             const styleBlack = "border: 1px solid #555; color: #eee; background: #000;";
-            createSysPill(`X: ${currentWhitelists.execute.length}`, styleBlack, "Manage Whitelist EXECUTE", () => {
+            createSysPill(`X: ${currentWhitelists.execute.length}`, styleBlack, "Click to edit Whitelist EXECUTE", () => {
                 openWhitelistModalForTagEditor('execute');
             });
 
@@ -1153,7 +1161,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             mimePill.style.cssText = `padding: 4px 8px; font-size: 0.85em; cursor: default; background-color: ${mime.color}; color: ${['TXT','BASE64'].includes(mime.type)?'#000':'#fff'};`;
             if(['JSON','JS','SVG'].includes(mime.type)) mimePill.style.color = '#000';
             mimePill.textContent = mime.type;
-            mimePill.title = `MIME Score: ${mime.score}`;
+            mimePill.title = "Mime Type";
             tagListContainer.appendChild(mimePill);
 
             // --- OWNER PILL (Editable, No Delete, Valid Email) ---
@@ -1165,12 +1173,12 @@ document.addEventListener("DOMContentLoaded", async () => {
                     ownerPill.className = 'pill';
                     ownerPill.style.cssText = "padding: 4px 8px; font-size: 0.85em; cursor: pointer; background: #ffd700; color: #000; border: 1px solid #e6c200; font-weight: bold;";
                     ownerPill.textContent = "You";
-                    ownerPill.title = `Owner: ${currentOwner}`;
+                    ownerPill.title = `Click to edit Owner: ${currentOwner}`;
                 } else {
                     ownerPill.className = 'pill pill-sys';
                     ownerPill.style.cssText = "padding: 4px 8px; font-size: 0.85em; cursor: pointer;";
                     ownerPill.textContent = currentOwner;
-                    ownerPill.title = "Click to edit Owner";
+                    ownerPill.title = `Click to edit Owner: ${currentOwner}`;
                 }
 
                 ownerPill.onclick = (e) => {
@@ -1239,9 +1247,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             tagListContainer.appendChild(sizePill);
 
             // --- 5. COUNTERS (Reads, Updates, Executes) ---
-            createSysPill(`R: ${currentSystemInfo.reads || 0}`, styleGreen, `Total Reads: ${currentSystemInfo.reads}`);
-            createSysPill(`U: ${currentSystemInfo.updates || 0}`, styleOrange, `Total Updates: ${currentSystemInfo.updates}`);
-            createSysPill(`X: ${currentSystemInfo.executes || 0}`, styleBlack, `Total Executes: ${currentSystemInfo.executes}`);
+            createSysPill(`R: ${currentSystemInfo.reads || 0}`, styleGreen, `Reads: ${currentSystemInfo.reads}`);
+            createSysPill(`U: ${currentSystemInfo.updates || 0}`, styleOrange, `Updates: ${currentSystemInfo.updates}`);
+            createSysPill(`X: ${currentSystemInfo.executes || 0}`, styleBlack, `Executes: ${currentSystemInfo.executes}`);
 
             // --- 6. TIMESTAMPS ---
             const styleBlue = "border: 1px solid #2979ff; color: #2979ff; background: rgba(41, 121, 255, 0.1);";
