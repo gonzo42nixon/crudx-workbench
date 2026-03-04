@@ -201,7 +201,15 @@ export async function fetchRealData() {
         }
         
         if (searchTerm) {
-            constraints.push(where("__name__", "==", searchTerm));
+            if (searchTerm.startsWith('tag:')) {
+                const tag = searchTerm.substring(4);
+                constraints.push(where("user_tags", "array-contains", tag));
+            } else if (searchTerm.startsWith('owner:')) {
+                const owner = searchTerm.substring(6);
+                constraints.push(where("owner", "==", owner));
+            } else {
+                constraints.push(where("__name__", "==", searchTerm));
+            }
         } else {
             constraints.push(orderBy("label", sortDirection));
         }

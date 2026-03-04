@@ -4,6 +4,7 @@ import { themeState, applyTheme, syncModalUI, initThemeEditor, initThemeControls
 import { db, auth } from './modules/firebase.js';
 import { applyLayout, initPaginationControls, fetchRealData, fetchLastPageData, loadStateFromUrl } from './modules/pagination.js';
 import { renderDataFromDocs, escapeHtml } from './modules/ui.js';
+import { initTagCloud, refreshTagCloud } from './modules/tagscanner.js';
 import { initAuth } from './modules/auth.js';
 import { 
     collection, query, limit, getDocs, getCountFromServer, orderBy, startAfter, deleteDoc, doc, 
@@ -62,6 +63,129 @@ document.addEventListener("DOMContentLoaded", async () => {
         let currentWhitelistItems = [];
         let editingOrigin = null;
         let currentDocData = null; // Store for JSON Modal
+        let iframeTransLevel = 0; // State for IFrame Transparency
+
+        // --- MULTI-WINDOW EXECUTION LOGIC ---
+        let executionWindowZIndex = 3500;
+        let executionWindowOffset = 0;
+
+        function createExecutionWindow(targetUrl, contentValue) {
+            executionWindowZIndex++;
+            executionWindowOffset += 30;
+            // Reset offset if it gets too far down/right
+            if (executionWindowOffset > 150) executionWindowOffset = 30;
+
+            const div = document.createElement('div');
+            // KEIN Wrapper mehr, direkt das Fenster erstellen
+            div.className = 'modal-content execution-window'; 
+            div.style.zIndex = executionWindowZIndex;
+            
+            // Default dimensions
+            let width = '90vw';
+            let height = '90vh';
+            
+            // Parse dimensions from content
+            if (contentValue && typeof contentValue === 'string') {
+                const wMatch = contentValue.match(/width=["']?(\d+)(?:px)?["']?/i);
+                const hMatch = contentValue.match(/height=["']?(\d+)(?:px)?["']?/i);
+                if (wMatch && hMatch) {
+                    width = `${parseInt(wMatch[1])}px`;
+                    height = `${parseInt(hMatch[1]) + 55}px`; // +55px for Header
+                }
+            }
+
+            // Styles direkt auf das Fenster anwenden
+            div.style.width = width;
+            div.style.height = height;
+            div.style.position = 'absolute';
+            div.style.top = `calc(50% + ${executionWindowOffset}px)`;
+            div.style.left = `calc(50% + ${executionWindowOffset}px)`;
+            div.style.transform = 'translate(-50%, -50%)';
+            div.style.display = 'flex';
+            div.style.flexDirection = 'column';
+            div.style.padding = '0';
+            div.style.overflow = 'hidden';
+            div.style.resize = 'both';
+            div.style.minWidth = '400px';
+            div.style.minHeight = '300px';
+
+            div.innerHTML = `
+                    <div class="modal-drag-handle" style="padding: 10px; background: rgba(255,255,255,0.05); border-bottom: 1px solid var(--editor-border); display: flex; justify-content: space-between; align-items: center; gap: 15px; cursor: move;">
+                        <span style="font-size: 1.2rem;">🚀</span>
+                        <input type="text" readonly value="${targetUrl}" style="flex: 1; background: #000; border: 1px solid #333; color: #00ff00; padding: 6px 10px; font-family: 'JetBrains Mono', monospace; font-size: 0.85em; border-radius: 4px; outline: none;">
+                        <span class="btn-transparency" title="Toggle Transparency" style="cursor: pointer; font-size: 1.2rem; opacity: 0.8;">👁️</span>
+                        <span class="btn-close" title="Close" style="cursor: pointer; font-size: 1.2rem;">✕</span>
+                    </div>
+                    <iframe src="${targetUrl}" style="flex: 1; border: none; width: 100%; height: 100%; background: var(--canvas-bg);"></iframe>
+            `;
+
+            document.body.appendChild(div);
+
+            const content = div; // Das div IST jetzt der Content
+            const handle = div.querySelector('.modal-drag-handle');
+            const btnClose = div.querySelector('.btn-close');
+            const btnTrans = div.querySelector('.btn-transparency');
+
+            // Bring to front on click
+            content.addEventListener('mousedown', () => {
+                executionWindowZIndex++;
+                div.style.zIndex = executionWindowZIndex;
+            });
+
+            // Close
+            btnClose.addEventListener('click', () => {
+                document.body.removeChild(div);
+            });
+
+            // Transparency
+            let transLevel = 0;
+            btnTrans.addEventListener('click', () => {
+                transLevel = (transLevel + 1) % 3;
+                content.classList.remove('iframe-trans-1', 'iframe-trans-2');
+                if (transLevel === 1) {
+                    content.classList.add('iframe-trans-1');
+                    btnTrans.style.opacity = "1";
+                } else if (transLevel === 2) {
+                    content.classList.add('iframe-trans-2');
+                    btnTrans.style.opacity = "0.5";
+                } else {
+                    btnTrans.style.opacity = "0.8";
+                }
+            });
+
+            // Drag Logic (Specific to this instance)
+            let isDragging = false;
+            let startX, startY, startTransX, startTransY;
+
+            handle.addEventListener('mousedown', (e) => {
+                if (e.target.closest('.btn-close') || e.target.closest('.btn-transparency') || e.target.tagName === 'INPUT') return;
+                e.preventDefault();
+                isDragging = true;
+                startX = e.clientX;
+                startY = e.clientY;
+
+                const style = window.getComputedStyle(content);
+                const matrix = new WebKitCSSMatrix(style.transform);
+                startTransX = matrix.m41;
+                startTransY = matrix.m42;
+
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+            });
+
+            function onMouseMove(e) {
+                if (!isDragging) return;
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                content.style.transform = `translate(${startTransX + dx}px, ${startTransY + dy}px)`;
+            }
+
+            function onMouseUp() {
+                isDragging = false;
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+            }
+        }
 
         const bind = (id, event, fn) => {
             const el = document.getElementById(id);
@@ -252,6 +376,71 @@ document.addEventListener("DOMContentLoaded", async () => {
                         return;
                     }
 
+                    // --- ACTION: EXECUTE (Webapp Launcher) ---
+                    if (action === 'X' && !e.shiftKey) {
+                        const btn = e.target.closest('.btn-crudx');
+                        const originalText = btn.textContent;
+                        
+                        // Visual Feedback
+                        btn.textContent = "🚀";
+                        btn.style.cursor = "wait";
+
+                        try {
+                            // 1. Fetch latest tags to ensure logic is based on current state
+                            const docSnap = await getDoc(doc(db, "kv-store", key));
+                            if (!docSnap.exists()) throw new Error("Document not found");
+                            
+                            const d = docSnap.data();
+                            const tags = d.user_tags || [];
+                            
+                            // 2. Build Params
+                            const params = new URLSearchParams();
+                            params.append("action", "X"); // Base param
+                            params.append("key", key);    // Origin key
+
+                            // Rule 1: Tag "app" -> app=<This Key>
+                            if (tags.includes("app")) {
+                                params.set("app", key);
+                            }
+
+                            // Rule 2: Tag "data" -> data=<This Key>, app=<from x:tag>
+                            if (tags.includes("data")) {
+                                params.set("data", key);
+                                const xTag = tags.find(t => t.startsWith("x:"));
+                                if (xTag) params.set("app", xTag.substring(2));
+                            }
+
+                            // Rule 3: Aux Tags (s:, d1:, d2:, d3:)
+                            tags.forEach(t => {
+                                if (t.startsWith("s:")) params.set("settings", t.substring(2));
+                                if (t.startsWith("d1:")) params.set("data-1", t.substring(3));
+                                if (t.startsWith("d2:")) params.set("data-2", t.substring(3));
+                                if (t.startsWith("d3:")) params.set("data-3", t.substring(3));
+                            });
+
+                            // 3. Validation (App is mandatory)
+                            if (!params.has("app")) {
+                                alert("⚠️ Launcher Error: Missing 'app' parameter.\n\nTo execute this document, it must have:\n1. The tag 'app' (if it is an app)\n2. OR the tag 'data' AND a tag 'x:<AppKey>' (to launch it with an app)");
+                                return;
+                            }
+
+                            // 4. Launch
+                            const baseUrl = "https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977";
+                            const targetUrl = `${baseUrl}?${params.toString()}`;
+                            
+                            // Create a NEW window instance for every execution
+                            createExecutionWindow(targetUrl, d.value);
+
+                        } catch (err) {
+                            console.error("Launcher Error:", err);
+                            alert("Launcher failed: " + err.message);
+                        } finally {
+                            btn.textContent = originalText;
+                            btn.style.cursor = "pointer";
+                        }
+                        return;
+                    }
+
                     // --- ACTION: DELETE (Confirm & Fetch) ---
                     if (action === 'D' && !e.shiftKey) {
                         if (confirm(`⚠️ Really delete document "${key}"?`)) {
@@ -383,6 +572,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         bind('btn-burger', 'click', () => document.getElementById('drawer').classList.toggle('open'));
         bind('btn-close-drawer', 'click', () => document.getElementById('drawer').classList.remove('open'));
 
+        // Listener für den Tag Cloud Button (jetzt im Header)
+        bind('btn-show-tag-cloud', 'click', () => {
+            // Öffnet UND aktualisiert die Cloud sofort
+            refreshTagCloud(db);
+        });
+
         // --- THEME MODAL (verschiebbar + schließen bei Klick außen) ---
         const themeModal = document.getElementById('theme-modal');
         const modalContent = document.querySelector('.modal-content');
@@ -469,6 +664,25 @@ document.addEventListener("DOMContentLoaded", async () => {
             const iframe = document.getElementById('doc-frame');
             if (iframeModal) iframeModal.classList.remove('active');
             if (iframe) iframe.src = 'about:blank';
+        });
+
+        // IFrame Transparency Toggle
+        bind('btn-toggle-iframe-transparency', 'click', () => {
+            iframeTransLevel = (iframeTransLevel + 1) % 3;
+            const content = document.querySelector('#iframe-modal .modal-content');
+            const btn = document.getElementById('btn-toggle-iframe-transparency');
+            
+            content.classList.remove('iframe-trans-1', 'iframe-trans-2');
+            
+            if (iframeTransLevel === 1) {
+                content.classList.add('iframe-trans-1');
+                btn.style.opacity = "1";
+            } else if (iframeTransLevel === 2) {
+                content.classList.add('iframe-trans-2');
+                btn.style.opacity = "0.5";
+            } else {
+                btn.style.opacity = "0.8";
+            }
         });
 
         // --- EXPORT MODAL ---
@@ -1704,6 +1918,9 @@ document.addEventListener("DOMContentLoaded", async () => {
                 }
             }
         });
+
+        // Initialisiert die Floating Tag Cloud
+        initTagCloud(db);
 
     } catch (e) {
         console.error("🔥 FATAL:", e);

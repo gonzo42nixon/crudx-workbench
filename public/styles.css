@@ -1358,5 +1358,238 @@ header {
     display: flex;
     flex-direction: column;
 }
+
+/* ========== FLOATING MODALS (Tag Cloud, etc.) ========== */
+.floating-modal {
+    position: fixed;
+    top: 100px;
+    right: 20px;
+    width: 320px;
+    max-width: 90vw;
+    z-index: 2500;
+    display: none; /* Hidden by default */
+    
+    background: var(--editor-glass);
+    backdrop-filter: var(--editor-blur);
+    color: var(--editor-text);
+    border-radius: 12px;
+    border: 1px solid var(--editor-border);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+    
+    display: none; /* Flex wird durch .active gesetzt */
+    flex-direction: column;
+    max-height: 70vh;
+    
+    /* Resizeable */
+    resize: both;
+    overflow: hidden; /* Nötig für resize */
+}
+
+.floating-modal.active {
+    display: flex;
+}
+
+.floating-modal .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    border-bottom: 1px solid var(--editor-border);
+    cursor: grab;
+    user-select: none;
+}
+
+.floating-modal .modal-header h3 {
+    margin: 0;
+    font-size: 1em;
+    font-weight: 500;
+    color: var(--user-text);
+}
+
+.floating-modal .modal-body {
+    padding: 15px;
+    padding: 0; /* Sektoren übernehmen das Padding */
+    overflow-y: auto;
+    display: flex;
+    flex-direction: row;
+    flex-grow: 1; /* Wichtig, damit die Sektoren die Höhe füllen */
+    min-height: 0;
+}
+
+/* Scrollbar for modal body */
+.floating-modal .modal-body::-webkit-scrollbar { width: 6px; }
+.floating-modal .modal-body::-webkit-scrollbar-track { background: transparent; }
+.floating-modal .modal-body::-webkit-scrollbar-thumb { background: var(--sys-bg); border-radius: 3px; }
+
+/* ========== TAG CLOUD SECTORS ========== */
+.tag-sector {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--editor-border);
+    min-width: 80px;
+    transition: opacity 0.3s ease-in-out;
+}
+.tag-sector:last-child {
+    border-right: none;
+}
+.sector-header {
+    padding: 4px 8px;
+    font-size: 0.7em;
+    text-transform: uppercase;
+    text-align: center;
+    opacity: 0.5;
+    background: rgba(0,0,0,0.2);
+    user-select: none;
+}
+.sector-content {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: 6px;
+}
+.sector-content::-webkit-scrollbar { width: 4px; }
+.sector-content::-webkit-scrollbar-track { background: transparent; }
+.sector-content::-webkit-scrollbar-thumb { background: var(--sys-bg); border-radius: 2px; }
+
+/* Alignment per sector */
+.sector-folder .sector-content { justify-content: flex-start; }
+.sector-hidden .sector-content { justify-content: center; }
+.sector-cloud .sector-content { justify-content: flex-end; }
+
+/* Drag & Drop Feedback */
+.tag-sector.drag-over .sector-content {
+    background: rgba(0, 255, 0, 0.1);
+    box-shadow: inset 0 0 10px rgba(0, 255, 0, 0.2);
+}
+.pill-user[draggable="true"] {
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.pill-user[draggable="true"]:hover {
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+
+/* ========== TAG CLOUD TRANSPARENCY LEVELS ========== */
+
+/* Level 1: Cloud Transparent (No Blur), Tag 66% (No Blur) */
+.cloud-level-1 {
+    background: transparent !important;
+    backdrop-filter: none !important;
+    border: 1px solid rgba(255,255,255,0.1) !important; /* Minimal border to see edges */
+    box-shadow: none !important;
+}
+.cloud-level-1 .pill-user {
+    background: color-mix(in srgb, var(--user-bg), transparent 34%) !important; /* 66% deckend */
+    backdrop-filter: none !important;
+}
+
+/* Level 2: Cloud 50% (No Blur), Tag 66% (Blur) */
+.cloud-level-2 {
+    background: color-mix(in srgb, var(--editor-bg), transparent 50%) !important;
+    backdrop-filter: none !important;
+}
+.cloud-level-2 .pill-user {
+    background: color-mix(in srgb, var(--user-bg), transparent 34%) !important; /* 66% deckend */
+    backdrop-filter: blur(5px) !important;
+}
+
+/* Level 3: Cloud 50% (Blur), Tag 85% (Blur) */
+.cloud-level-3 {
+    background: color-mix(in srgb, var(--editor-bg), transparent 50%) !important;
+    backdrop-filter: blur(12px) !important;
+}
+.cloud-level-3 .pill-user {
+    background: color-mix(in srgb, var(--user-bg), transparent 15%) !important; /* 85% deckend */
+    backdrop-filter: blur(5px) !important;
+}
+
+/* ========== TAG CLOUD SNAPPING & FADING ========== */
+
+/* Snapped Left Fading */
+.floating-modal.snapped-left.cloud-level-1 .sector-hidden,
+.floating-modal.snapped-left.cloud-level-1 .sector-cloud {
+    opacity: 0;
+    pointer-events: none;
+}
+.floating-modal.snapped-left.cloud-level-2 .sector-hidden,
+.floating-modal.snapped-left.cloud-level-2 .sector-cloud {
+    opacity: 0.3;
+}
+.floating-modal.snapped-left.cloud-level-3 .sector-hidden,
+.floating-modal.snapped-left.cloud-level-3 .sector-cloud {
+    opacity: 0.6;
+}
+
+/* Snapped Right Fading */
+.floating-modal.snapped-right.cloud-level-1 .sector-folder,
+.floating-modal.snapped-right.cloud-level-1 .sector-hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+.floating-modal.snapped-right.cloud-level-2 .sector-folder,
+.floating-modal.snapped-right.cloud-level-2 .sector-hidden {
+    opacity: 0.3;
+}
+.floating-modal.snapped-right.cloud-level-3 .sector-folder,
+.floating-modal.snapped-right.cloud-level-3 .sector-hidden {
+    opacity: 0.6;
+}
+
+/* Custom Resize Handles (Left & Right) */
+.resize-handle {
+    position: absolute;
+    top: 0;
+    width: 16px; /* Etwas breiter für bessere Greifbarkeit */
+    height: 100%;
+    cursor: ew-resize;
+    z-index: 9999; /* Maximaler Z-Index, über Header und allem anderen */
+    transition: background 0.2s;
+}
+
+.resize-handle-left {
+    left: 0;
+    /* Visuelle Indikation: Linie links */
+    border-left: 4px solid var(--burger-text) !important; 
+    background: linear-gradient(to right, rgba(0,0,0,0.5), transparent);
+    display: none; /* Standardmäßig aus */
+}
+.resize-handle-right {
+    right: 0;
+    /* Visuelle Indikation: Linie rechts */
+    border-right: 4px solid var(--burger-text) !important;
+    background: linear-gradient(to left, rgba(0,0,0,0.5), transparent);
+    display: none; /* Standardmäßig aus */
+}
+
+/* Hover-Effekt verstärken */
+.resize-handle:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    opacity: 1;
+}
+
+/* Wenn angedockt, natives horizontales Resize deaktivieren */
+.floating-modal.snapped-left,
+.floating-modal.snapped-right {
+    resize: vertical !important;
+}
+
 .tag-modal-trans-1 { background: rgba(30, 34, 40, 0.7) !important; }
 .tag-modal-trans-2 { background: rgba(30, 34, 40, 0.3) !important; }
+
+/* IFrame Modal: Non-blocking & Transparency */
+#iframe-modal {
+    background: transparent !important;
+    pointer-events: none !important; /* Klicks gehen durch den Hintergrund */
+}
+#iframe-modal .modal-content, .execution-window {
+    pointer-events: auto !important; /* Inhalt bleibt klickbar */
+    background: var(--editor-bg) !important; /* Startet 100% deckend (kein Glass-Effekt) */
+    opacity: 1;
+}
+
+.iframe-trans-1 { opacity: 0.9 !important; }
+.iframe-trans-2 { opacity: 0.66 !important; }

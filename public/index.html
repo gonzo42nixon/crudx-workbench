@@ -34,6 +34,7 @@
             <div id="btn-clear-search" class="search-clear" title="Clear Search" style="display: none;">✕</div>
         </div>
         <div class="app-actions">
+            <span id="btn-show-tag-cloud" title="Tag Cloud">☁️</span>
             <span id="btn-theme" title="Toggle Theme">🌗</span>
             <span id="btn-share" title="Share">🔗</span>
             <span id="btn-fullscreen" title="Fullscreen">🔲</span>
@@ -284,6 +285,7 @@
             <div class="modal-drag-handle" style="padding: 10px; background: rgba(255,255,255,0.05); border-bottom: 1px solid var(--editor-border); display: flex; justify-content: space-between; align-items: center; gap: 15px;">
                 <span style="font-size: 1.2rem;">📄</span>
                 <input type="text" id="iframe-url" readonly style="flex: 1; background: #000; border: 1px solid #333; color: #00ff00; padding: 6px 10px; font-family: 'JetBrains Mono', monospace; font-size: 0.85em; border-radius: 4px; outline: none;">
+                <span id="btn-toggle-iframe-transparency" title="Toggle Transparency" style="cursor: pointer; font-size: 1.2rem; opacity: 0.8;">👁️</span>
                 <span id="btn-close-iframe" class="close-x" title="Close" style="cursor: pointer; font-size: 1.2rem;">✕</span>
             </div>
             <iframe id="doc-frame" style="flex: 1; border: none; width: 100%; height: 100%; background: var(--canvas-bg);" src=""></iframe>
