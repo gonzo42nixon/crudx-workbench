@@ -189,12 +189,20 @@ export async function seedData(db) {
                 // User Tags Logic
                 const tags = ["AUTO_GEN", protectionTag, folderTag];
 
+                // Generate random dates for Read/Update based on Created
+                let lastReadDate = null;
+                let lastUpdateDate = null;
+
                 // Add Last Read / Last Updated Folder Tags
                 if (reads > 0) {
-                    tags.push(fmtDateTag("Last Read", new Date())); // Simulating read now
+                    // Random date between createdDate and createdDate + 60 days
+                    lastReadDate = new Date(createdDate.getTime() + Math.floor(Math.random() * 60 * 24 * 3600 * 1000));
+                    tags.push(fmtDateTag("Last Read", lastReadDate));
                 }
                 if (updates > 0) {
-                    tags.push(fmtDateTag("Last Updated", new Date())); // Simulating update now
+                    // Random date between createdDate and createdDate + 60 days
+                    lastUpdateDate = new Date(createdDate.getTime() + Math.floor(Math.random() * 60 * 24 * 3600 * 1000));
+                    tags.push(fmtDateTag("Last Updated", lastUpdateDate));
                 }
                 
                 // Add tags for specific embed types
@@ -244,8 +252,8 @@ export async function seedData(db) {
                     updates: updates,
                     executes: executes,
                     created_at: createdDate.toISOString(),
-                    last_read_ts: reads > 0 ? new Date().toISOString() : null,
-                    last_update_ts: updates > 0 ? new Date().toISOString() : null,
+                    last_read_ts: lastReadDate ? lastReadDate.toISOString() : null,
+                    last_update_ts: lastUpdateDate ? lastUpdateDate.toISOString() : null,
                     last_execute_ts: executes > 0 ? new Date().toISOString() : null,
                     user_tags: [...new Set(tags)],
                     access_control: accessControl,
