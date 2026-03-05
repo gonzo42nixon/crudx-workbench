@@ -19,8 +19,20 @@
         <div class="drawer-item" id="btn-delete-by-tag">🏷️ Delete by Tag</div>
         
         <h3>Links</h3>
-        <a href="http://127.0.0.1:5000/" target="_blank" title="Emulator" class="drawer-item" style="text-decoration: none; color: inherit; font-size: 0.85em;">http://127.0.0.1:5000/</a>
-        <a href="https://crudx-e0599.web.app" target="_blank" title="Production" class="drawer-item" style="text-decoration: none; color: inherit; font-size: 0.85em;">https://crudx-e0599.web.app</a>
+        <details>
+            <summary class="drawer-item" style="outline: none;">DEV</summary>
+            <div style="padding-left: 15px;">
+                <a href="http://127.0.0.1:5000/" target="_blank" title="CRUDX powered by local Firebase Emulation: 127.0.0.1:5000" class="drawer-item" style="display: block; text-decoration: none; color: inherit; font-size: 0.85em; padding: 5px 0;">App: CRUDX</a>
+                <a href="http://127.0.0.1:4000/firestore/default/data/CRUDX-CCCCC-3CCCC-CCCCU/CRUDX-APP00-00000-00001" target="_blank" title="CRUDX powered by local Store Emulation" class="drawer-item" style="display: block; text-decoration: none; color: inherit; font-size: 0.85em; padding: 5px 0;">Store: CRUDX</a>
+            </div>
+        </details>
+        <details>
+            <summary class="drawer-item" style="outline: none;">PROD</summary>
+            <div style="padding-left: 15px;">
+                <a href="https://crudx-e0599.web.app" target="_blank" title="CRUDX powered by Cloud Run Hosting: https://crudx-e0599.web.app" class="drawer-item" style="display: block; text-decoration: none; color: inherit; font-size: 0.85em; padding: 5px 0;">App: CRUDX</a>
+                <a href="https://console.firebase.google.com/u/0/project/crudx-e0599/firestore/databases/-default-/data/~2Fkv-store~2FCRUDX-APP00-00000-00001" target="_blank" title="CRUDX powered by Cloud Run Store: http://127.0.0.1:4000/firestore/default/data/CRUDX-CCCCC-3CCCC-CCCCU/CRUDX-APP00-00000-00001" class="drawer-item" style="display: block; text-decoration: none; color: inherit; font-size: 0.85em; padding: 5px 0;">Store: CRUDX</a>
+            </div>
+        </details>
         
         <h3>Settings</h3>
         <div class="drawer-item" id="btn-drawer-theme">🎨 Theme</div>

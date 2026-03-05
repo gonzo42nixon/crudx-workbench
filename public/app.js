@@ -307,38 +307,50 @@ document.addEventListener("DOMContentLoaded", async () => {
 
                     // --- ACTION: READ (Open New Tab) ---
                     if (action === 'R') {
-                        // Shift+Click: Copy Share Link (GET Request) for external use
                         if (e.shiftKey) {
+                            // Shift+Click: Copy Share Link (GET Request) for external use
                             navigator.clipboard.writeText(url).then(() => {
                                 console.log(`📋 Webhook Link copied: ${url}`);
                                 const originalText = btn.textContent;
                                 btn.textContent = "📋 Link";
                                 setTimeout(() => btn.textContent = originalText, 1000);
                             }).catch(err => console.error("Copy failed:", err));
-                            return;
+                        } else {
+                            // Normal Click: Open Pop-Out Window
+                            const width = 800;
+                            const height = 600;
+                            const left = (window.screen.width - width) / 2;
+                            const top = (window.screen.height - height) / 2;
+                            const windowFeatures = `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes,location=yes`;
+
+                            const urlParams = new URLSearchParams(window.location.search);
+                            const forceProd = urlParams.get('mode') === 'live';
+                            const isEmulator = !forceProd && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+                            if (isEmulator && key) {
+                                // --- EMULATOR SDK PATH ---
+                                try {
+                                    const docSnap = await getDoc(doc(db, "kv-store", key));
+                                    if (!docSnap.exists()) throw new Error(`Document with key "${key}" not found.`);
+                                    
+                                    const content = docSnap.data().value || "[No value field]";
+                                    const newWindow = window.open('', '_blank', windowFeatures);
+                                    newWindow.document.write(`<html><head><title>DEV: ${key}</title><style>body { background-color: #111; color: #eee; font-family: monospace; white-space: pre; }</style></head><body>${escapeHtml(content)}</body></html>`);
+                                    newWindow.document.close();
+
+                                    // Update read stats (fire and forget)
+                                    updateDoc(docSnap.ref, {
+                                        reads: increment(1),
+                                        last_read_ts: new Date().toISOString()
+                                    }).catch(err => console.error("Emulator Read-Stat Update Error:", err));
+                                } catch (err) {
+                                    alert("Emulator Read Error: " + err.message);
+                                }
+                            } else {
+                                // --- PRODUCTION WEBHOOK PATH ---
+                                window.open(url, '_blank', windowFeatures);
+                            }
                         }
-
-                        // Normal Click: Open Pop-Out Window with Address Bar
-                        let targetUrl = url; // Default to Webhook
-
-                        // EMULATOR FIX: Simulate Webhook-Update locally
-                        // Since Make.com updates Production DB, the Emulator DB (Localhost) would never update.
-                        const urlParams = new URLSearchParams(window.location.search);
-                        const forceProd = urlParams.get('mode') === 'live';
-                        const isEmulator = !forceProd && ['localhost', '127.0.0.1'].includes(window.location.hostname);
-
-                        if (isEmulator && key) {
-                            updateDoc(doc(db, "kv-store", key), {
-                                reads: increment(1),
-                                last_read_ts: new Date().toISOString()
-                            }).catch(err => console.error("Emulator Update Error:", err));
-                        }
-
-                        const width = 800;
-                        const height = 600;
-                        const left = (window.screen.width - width) / 2;
-                        const top = (window.screen.height - height) / 2;
-                        window.open(targetUrl, '_blank', `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes,location=yes`);
                         return;
                     }
 
@@ -425,11 +437,41 @@ document.addEventListener("DOMContentLoaded", async () => {
                             }
 
                             // 4. Launch
-                            const baseUrl = "https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977";
-                            const targetUrl = `${baseUrl}?${params.toString()}`;
-                            
-                            // Create a NEW window instance for every execution
-                            createExecutionWindow(targetUrl, d.value);
+                            const urlParams = new URLSearchParams(window.location.search);
+                            const forceProd = urlParams.get('mode') === 'live';
+                            const isEmulator = !forceProd && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+                            if (isEmulator) {
+                                // --- DEV: SDK Logic (Simulate Execution by showing App Content) ---
+                                const appKey = params.get("app");
+                                let appContent = "";
+
+                                if (appKey === key) {
+                                    appContent = d.value;
+                                } else {
+                                    try {
+                                        const appDocSnap = await getDoc(doc(db, "kv-store", appKey));
+                                        if (appDocSnap.exists()) {
+                                            appContent = appDocSnap.data().value;
+                                        } else {
+                                            appContent = `<h3>⚠️ Error: App Document "${appKey}" not found.</h3>`;
+                                        }
+                                    } catch (err) {
+                                        appContent = `<h3>⚠️ Error fetching App: ${err.message}</h3>`;
+                                    }
+                                }
+
+                                const blob = new Blob([appContent], { type: 'text/html' });
+                                const blobUrl = URL.createObjectURL(blob);
+                                createExecutionWindow(blobUrl, d.value);
+
+                                updateDoc(doc(db, "kv-store", key), { executes: increment(1), last_execute_ts: new Date().toISOString() }).catch(console.error);
+                            } else {
+                                // --- PROD: Webhook Logic ---
+                                const baseUrl = "https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977";
+                                const targetUrl = `${baseUrl}?${params.toString()}`;
+                                createExecutionWindow(targetUrl, d.value);
+                            }
 
                         } catch (err) {
                             console.error("Launcher Error:", err);
