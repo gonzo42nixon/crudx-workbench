@@ -150,11 +150,27 @@ header {
 /* CRUDX Action Buttons in Card */
 .tr-group {
     position: absolute;
-    top: 5px;
-    right: 5px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.95);
+    right: auto !important;
+    bottom: auto !important;
     display: flex;
-    gap: 0px;
+    gap: 8px;
     z-index: 200; /* Über allen Elementen */
+    
+    /* Floating Menu Style */
+    background: rgba(0, 0, 0, 0.85);
+    padding: 8px 16px;
+    border-radius: 50px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 5px 20px rgba(0,0,0,0.6);
+    backdrop-filter: blur(4px);
+    cursor: default;
+    
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .btn-crudx {
@@ -175,6 +191,12 @@ header {
     opacity: 0.9;
     text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
 }
+.card-kv:hover .tr-group {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate(-50%, -50%) scale(1);
+}
+
 .btn-crudx:hover {
     background: transparent;
     transform: scale(1.2);
@@ -406,12 +428,15 @@ header {
     
     /* FIX 3: Ensure text color is inherited from the theme */
     color: var(--card-text) !important;
+    overflow: visible !important; /* Allow floating menu to pop out */
 }
 
 /* Optional: Add a hover effect so users see it's interactive */
 #data-container.list .card-kv:hover {
     filter: brightness(1.2);
     cursor: pointer;
+    z-index: 100; /* Bring row to front so menu overlaps neighbors */
+    position: relative;
 }
 
 /* Pills wieder sichtbar machen */
@@ -448,19 +473,32 @@ header {
 
 /* List View: Action Buttons Proximity & Layout */
 #data-container.list .tr-group {
-    top: 0 !important;
-    right: 0 !important;
+    /* Force centered floating position also for list view */
+    top: 50% !important;
+    left: 50% !important;
+    right: auto !important;
+    bottom: auto !important;
+    transform: translate(-50%, -50%) scale(0.95) !important;
+    
+    /* Reset dimensions and background to match floating pill */
+    height: auto !important;
+    width: auto !important;
+    padding: 6px 14px !important; /* Slightly smaller padding for list view */
+    background: rgba(0, 0, 0, 0.9) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    border-radius: 50px !important;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.8) !important;
+    gap: 8px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    
     opacity: 0;
-    transition: opacity 0.2s;
-    height: 100%;
-    align-items: flex-start;
-    padding-top: 2px;
-    padding-right: 4px;
-    padding-left: 20px;
-    background: linear-gradient(to right, transparent, var(--card-bg) 20px);
+    pointer-events: none;
 }
 #data-container.list .card-kv:hover .tr-group {
     opacity: 1;
+    pointer-events: auto;
+    transform: translate(-50%, -50%) scale(1) !important;
 }
 
 /* ========== KARTEN (CARDS) ========== */
@@ -1593,3 +1631,28 @@ header {
 
 .iframe-trans-1 { opacity: 0.9 !important; }
 .iframe-trans-2 { opacity: 0.66 !important; }
+
+/* ========== TAG DROPDOWN MENU ========== */
+.tag-dropdown-menu {
+    position: absolute;
+    background: var(--editor-bg);
+    border: 1px solid var(--editor-border);
+    border-radius: 6px;
+    padding: 5px;
+    z-index: 250;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.tag-dropdown-menu .pill-user {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.tag-dropdown-menu .pill-user:hover {
+    filter: brightness(1.2);
+}

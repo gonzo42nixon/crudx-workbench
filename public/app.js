@@ -532,6 +532,60 @@ document.addEventListener("DOMContentLoaded", async () => {
                 if (pill) {
                     e.stopPropagation();
 
+                    // --- NEW: CLICK ON SUMMARY PILL: Show Dropdown ---
+                    if (pill.classList.contains('summary-pill')) {
+                        // Close any existing dropdown
+                        const existingDropdown = document.querySelector('.tag-dropdown-menu');
+                        if (existingDropdown) existingDropdown.remove();
+
+                        // Don't do anything on shift-click for summary pills
+                        if (e.shiftKey) return;
+
+                        const tagsJson = pill.dataset.tags;
+                        if (!tagsJson) return;
+
+                        const tags = JSON.parse(tagsJson);
+                        if (tags.length === 0) return;
+
+                        // Create dropdown menu
+                        const menu = document.createElement('div');
+                        menu.className = 'tag-dropdown-menu';
+                        
+                        tags.forEach(tag => {
+                            const item = document.createElement('div');
+                            
+                            if (typeof tag === 'object' && tag !== null) {
+                                // System Tag (Object)
+                                item.className = 'pill pill-sys';
+                                item.textContent = tag.text;
+                                if (tag.title) item.title = tag.title;
+                                if (tag.style) item.style.cssText = tag.style;
+                                item.style.cursor = 'default';
+                            } else {
+                                // User Tag (String)
+                                item.className = 'pill pill-user';
+                                item.textContent = tag;
+                                item.style.cursor = 'pointer';
+                                item.onclick = () => {
+                                    const searchInput = document.getElementById('main-search');
+                                    if (searchInput) {
+                                        searchInput.value = `tag:${tag}`;
+                                        fetchRealData();
+                                    }
+                                    menu.remove();
+                                };
+                            }
+                            menu.appendChild(item);
+                        });
+
+                        document.body.appendChild(menu);
+
+                        const pillRect = pill.getBoundingClientRect();
+                        menu.style.top = `${pillRect.bottom + 5}px`;
+                        menu.style.left = `${pillRect.left}px`;
+                        return; // IMPORTANT: Stop further execution for summary pills
+                    }
+
                     // --- CLICK ON KEY: Jump to 1x1 & Filter ---
                     if (pill.classList.contains('pill-key') && !e.shiftKey) {
                         const key = pill.textContent.trim();
@@ -609,6 +663,20 @@ document.addEventListener("DOMContentLoaded", async () => {
                 }
             });
         }
+
+        // Listener to close tag dropdown on outside click
+        document.addEventListener('click', (e) => {
+            const existingDropdown = document.querySelector('.tag-dropdown-menu');
+            if (!existingDropdown) return;
+
+            // Check if the click was on a summary pill (which would open a new one)
+            const isSummaryPill = e.target.closest('.summary-pill');
+            
+            // Close if the click is outside the dropdown AND not on a summary pill
+            if (!existingDropdown.contains(e.target) && !isSummaryPill) {
+                existingDropdown.remove();
+            }
+        });
 
         // --- NAVIGATION (BURGER, DRAWER) ---
         bind('btn-burger', 'click', () => document.getElementById('drawer').classList.toggle('open'));

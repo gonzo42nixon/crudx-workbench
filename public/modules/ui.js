@@ -13,6 +13,7 @@ export function escapeHtml(unsafe) {
 
 export function renderDataFromDocs(docs, container) {
     const isNano = container.classList.contains('grid-9');
+    const isGrid1 = container.classList.contains('grid-1');
     const currentUserEmail = auth.currentUser?.email;
     
     const tokens = currentUserEmail ? [
@@ -34,6 +35,9 @@ export function renderDataFromDocs(docs, container) {
     const fT = (label, ts) => { const s = toIso(ts); return s ? `${label}: ${s.replace('T', ' ').substring(0, 19)}` : label; };
     let htmlBuffer = "";
 
+    // Load tag state once before the loop
+    const savedTagState = JSON.parse(localStorage.getItem('crudx_tag_state') || '{}');
+
     docs.forEach(doc => {
         const d = doc.data();
         const foundMime = detectMimetype(d.value);
@@ -43,15 +47,56 @@ export function renderDataFromDocs(docs, container) {
                 ${foundMime.type}
             </div>` : '';
 
-        let userTags = [];
-        let protectionLetters = "";
+        // --- NEW TAG GROUPING LOGIC ---
+        const folderTags = [];
+        const hiddenTags = [];
+        const cloudTags = [];
+        let protectionTag = "";
+
         if (Array.isArray(d.user_tags)) {
-            d.user_tags.forEach(t => {
-                userTags.push(`<div class="pill pill-user" title="Memo: User">${t}</div>`);
-                if (t.includes("🛡️")) protectionLetters = t;
+            d.user_tags.forEach(tag => {
+                if (tag.startsWith('🛡️')) {
+                    protectionTag = tag; // Isolate protection tag
+                    return;
+                }
+
+                let targetSector = 'cloud';
+                if (!isGrid1) { // Gruppierung nur wenn NICHT 1x1
+                    if (savedTagState[tag]) {
+                        targetSector = savedTagState[tag];
+                    } else {
+                        if (tag.includes('>')) targetSector = 'folder';
+                        else if (tag.includes(':')) targetSector = 'hidden';
+                    }
+                }
+
+                if (targetSector === 'folder') folderTags.push(tag);
+                else if (targetSector === 'hidden') hiddenTags.push(tag);
+                else cloudTags.push(tag);
             });
         }
+        
+        let userTagsHtml = '';
+        
+        cloudTags.forEach(tag => {
+            userTagsHtml += `<div class="pill pill-user" title="Memo: User">${escapeHtml(tag)}</div>`;
+        });
 
+        if (folderTags.length > 0) {
+            const folderTitle = `Folder Tags:\n- ${folderTags.join('\n- ')}`;
+            userTagsHtml += `<div class="pill pill-user summary-pill" data-tags='${escapeHtml(JSON.stringify(folderTags))}' title="${escapeHtml(folderTitle)}" style="background-color: #8d6e63 !important; color: #fff !important; border-color: #5d4037 !important; cursor: pointer;">📁 ${folderTags.length}</div>`;
+        }
+
+        if (hiddenTags.length > 0) {
+            const hiddenTitle = `Hidden Tags:\n- ${hiddenTags.join('\n- ')}`;
+            userTagsHtml += `<div class="pill pill-user summary-pill" data-tags='${escapeHtml(JSON.stringify(hiddenTags))}' title="${escapeHtml(hiddenTitle)}" style="background-color: #616161 !important; color: #fff !important; border-color: #424242 !important; cursor: pointer;">🕶️ ${hiddenTags.length}</div>`;
+        }
+        
+        if (protectionTag) {
+            userTagsHtml += `<div class="pill pill-user" title="Memo: User">${escapeHtml(protectionTag)}</div>`;
+        }
+
+        let whitelistPills = [];
         ['execute','delete','update','read'].forEach(m => {
             const list = d[`white_list_${m}`] || [];
             if (list.length > 0) {
@@ -67,7 +112,7 @@ export function renderDataFromDocs(docs, container) {
 
                 let icon = '📋';
 
-                userTags.push(`<div class="pill pill-user" style="${style}" title="Whitelist ${m.toUpperCase()}: ${list.join(', ')}">${icon} ${list.length}</div>`);
+                whitelistPills.push(`<div class="pill pill-user" style="${style}" title="Whitelist ${m.toUpperCase()}: ${list.join(', ')}">${icon} ${list.length}</div>`);
             }
         });
 
@@ -79,17 +124,32 @@ export function renderDataFromDocs(docs, container) {
             ownerText = '👤 YOU';
         }
 
-        const sysTagsHtml = `
-            <div class="pill pill-sys" style="background-color: #000000 !important; color: #ffffff !important; border-color: #333333 !important;" title="${fT('Last Execute', d.last_execute_ts)}">x:${fD(d.last_execute_ts)}</div>
-            <div class="pill pill-sys" style="background-color: #fb8c00 !important; color: #fff !important; border-color: #ef6c00 !important;" title="${fT('Last Update', d.last_update_ts)}">U:${fD(d.last_update_ts)}</div>
-            <div class="pill pill-sys" style="background-color: #43a047 !important; color: #fff !important; border-color: #2e7d32 !important;" title="${fT('Last Read', d.last_read_ts)}">R:${fD(d.last_read_ts)}</div>
-            <div class="pill pill-sys" style="background-color: #1e88e5 !important; color: #fff !important; border-color: #1565c0 !important;" title="${fT('Created', d.created_at)}">C:${fD(d.created_at)}</div>
-            <div class="pill pill-sys" style="background-color: #000000 !important; color: #ffffff !important; border-color: #333333 !important;" title="Executes">X:${d.executes || 0}</div>
-            <div class="pill pill-sys" style="background-color: #fb8c00 !important; color: #fff !important; border-color: #ef6c00 !important;" title="Updates">U:${d.updates || 0}</div>
-            <div class="pill pill-sys" style="background-color: #43a047 !important; color: #fff !important; border-color: #2e7d32 !important;" title="Reads">R:${d.reads || 0}</div>
-            <div class="pill pill-sys" title="Size">${d.size || '0KB'}</div>
-            <div class="pill pill-sys" style="${ownerStyle}" title="Owner: ${d.owner || 'Sys'}">${ownerText}</div>
-        `;
+        // System Tags Data Collection
+        const sysTagsData = [];
+        sysTagsData.push({ text: `x:${fD(d.last_execute_ts)}`, title: fT('Last Execute', d.last_execute_ts), style: "background-color: #000000 !important; color: #ffffff !important; border-color: #333333 !important;" });
+        sysTagsData.push({ text: `U:${fD(d.last_update_ts)}`, title: fT('Last Update', d.last_update_ts), style: "background-color: #fb8c00 !important; color: #fff !important; border-color: #ef6c00 !important;" });
+        sysTagsData.push({ text: `R:${fD(d.last_read_ts)}`, title: fT('Last Read', d.last_read_ts), style: "background-color: #43a047 !important; color: #fff !important; border-color: #2e7d32 !important;" });
+        sysTagsData.push({ text: `C:${fD(d.created_at)}`, title: fT('Created', d.created_at), style: "background-color: #1e88e5 !important; color: #fff !important; border-color: #1565c0 !important;" });
+        
+        sysTagsData.push({ text: `X:${d.executes || 0}`, title: "Executes", style: "background-color: #000000 !important; color: #ffffff !important; border-color: #333333 !important;" });
+        sysTagsData.push({ text: `U:${d.updates || 0}`, title: "Updates", style: "background-color: #fb8c00 !important; color: #fff !important; border-color: #ef6c00 !important;" });
+        sysTagsData.push({ text: `R:${d.reads || 0}`, title: "Reads", style: "background-color: #43a047 !important; color: #fff !important; border-color: #2e7d32 !important;" });
+        
+        sysTagsData.push({ text: d.size || '0KB', title: "Size" });
+        sysTagsData.push({ text: ownerText, title: `Owner: ${d.owner || 'Sys'}`, style: ownerStyle });
+
+        let sysTagsHtml = '';
+        if (isGrid1) {
+            // 1x1: Alle einzeln anzeigen
+            sysTagsData.forEach(t => {
+                sysTagsHtml += `<div class="pill pill-sys" style="${t.style || ''}" title="${t.title || ''}">${t.text}</div>`;
+            });
+        } else {
+            // Andere Grids: Zusammenfassung
+            const sysTitle = `System Tags:\n- ${sysTagsData.map(t => t.text).join('\n- ')}`;
+            // Wir übergeben die Objekte als JSON im data-tags Attribut
+            sysTagsHtml = `<div class="pill pill-sys summary-pill" data-tags='${escapeHtml(JSON.stringify(sysTagsData))}' title="${escapeHtml(sysTitle)}" style="cursor: pointer;">⚙️ Sys</div>`;
+        }
 
         const checkAuth = (listName) => {
             if (isOwner) return true;
@@ -99,7 +159,7 @@ export function renderDataFromDocs(docs, container) {
         };
 
         const getBtnState = (char, listName, actionName) => {
-            const isProtected = protectionLetters.includes(char);
+            const isProtected = protectionTag.includes(char);
             const isAuthorized = checkAuth(listName);
             const actionUpper = actionName.toUpperCase();
             
@@ -142,7 +202,8 @@ export function renderDataFromDocs(docs, container) {
                 <div class="br-group">
                     ${sysTagsHtml}
                     ${mimePill}
-                    ${userTags.join('')}
+                    ${whitelistPills.join('')}
+                    ${userTagsHtml}
                 </div>
             </div>`;
     });
