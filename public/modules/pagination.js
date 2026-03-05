@@ -6,7 +6,7 @@ import { renderDataFromDocs } from './ui.js';
 // ---------- Zustand ----------
 export let currentPage = 1;
 
-function getAccessTokens(email) {
+export function getAccessTokens(email) {
     if (!email) return [];
     const [local, domain] = email.split('@');
     return [
@@ -108,6 +108,7 @@ export async function fetchRealData() {
     const user = auth.currentUser;
     const filterOwnerOnly = document.getElementById('filter-owner-only')?.checked;
     const searchTerm = document.getElementById('main-search')?.value.trim();
+    const isTagSearch = searchTerm && searchTerm.startsWith('tag:');
 
     const clearBtn = document.getElementById('btn-clear-search');
     if (clearBtn) clearBtn.style.display = searchTerm ? 'block' : 'none';
@@ -196,7 +197,11 @@ export async function fetchRealData() {
                 constraints.push(where("owner", "==", user.email));
             } else {
                 const tokens = getAccessTokens(user.email);
-                constraints.push(where("access_control", "array-contains-any", tokens));
+                // FIX: Firestore erlaubt nur ein "array-contains" pro Query.
+                // Wenn wir nach Tags suchen, müssen wir die Access-Control client-seitig filtern.
+                if (!isTagSearch) {
+                    constraints.push(where("access_control", "array-contains-any", tokens));
+                }
             }
         }
         
@@ -224,11 +229,24 @@ export async function fetchRealData() {
         if (currentUnsubscribe) currentUnsubscribe();
 
         currentUnsubscribe = onSnapshot(q, (snap) => {
-            if (snap.empty) {
+            let docs = snap.docs;
+
+            // FIX: Client-seitige Filterung für Access Control bei Tag-Suche
+            if (user && !filterOwnerOnly && isTagSearch) {
+                const tokens = getAccessTokens(user.email);
+                docs = docs.filter(doc => {
+                    const d = doc.data();
+                    const ac = d.access_control || [];
+                    return ac.some(t => tokens.includes(t));
+                });
+            }
+
+            if (docs.length === 0) {
                 container.innerHTML = `<div class="pill pill-sys" style="margin:20px;">No documents.</div>`;
             } else {
+                // Cursor muss auf dem originalen Snapshot basieren für korrekte Paginierung
                 pageCursors[currentPage - 1] = snap.docs[snap.docs.length - 1];
-                renderDataFromDocs(snap.docs, container);
+                renderDataFromDocs(docs, container);
             }
 
             // Buttons deaktivieren / aktivieren

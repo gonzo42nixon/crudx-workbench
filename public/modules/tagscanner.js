@@ -1,8 +1,10 @@
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { fetchRealData } from './pagination.js';
+import { fetchRealData, getAccessTokens } from './pagination.js';
+import { auth } from './firebase.js';
 
 let isDraggable = false;
 let offsetX, offsetY;
+let isFolderTreeMode = true; // Default: Tree View
 
 function updateHandleVisibility(container) {
     if (!container) return;
@@ -22,6 +24,58 @@ function updateHandleVisibility(container) {
         // Modal is on the left side -> Show right handle
         if (leftHandle) leftHandle.style.display = 'none';
         if (rightHandle) rightHandle.style.display = 'block';
+    }
+}
+
+function updateSectorVisibility(container) {
+    if (!container) return;
+    
+    const rect = container.getBoundingClientRect();
+    const windowWidth = window.innerWidth;
+    
+    // Berechne Position relativ zum möglichen Verschiebebereich (0 = Linksanschlag, 1 = Rechtsanschlag)
+    const maxLeft = windowWidth - rect.width;
+    let ratio = 0.5;
+    if (maxLeft > 0) ratio = rect.left / maxLeft;
+    ratio = Math.max(0, Math.min(1, ratio)); // Clamp 0-1
+
+    const folder = container.querySelector('.sector-folder');
+    const hidden = container.querySelector('.sector-hidden');
+    const cloud = container.querySelector('.sector-cloud');
+
+    const setDisplay = (el, show) => {
+        if (el) el.style.display = show ? 'flex' : 'none';
+    };
+
+    // 1. Links (0-15%): Nur Folder
+    if (ratio < 0.15) {
+        setDisplay(folder, true);
+        setDisplay(hidden, false);
+        setDisplay(cloud, false);
+    }
+    // 2. Links-Mitte (15-40%): Folder + Hidden
+    else if (ratio < 0.40) {
+        setDisplay(folder, true);
+        setDisplay(hidden, true);
+        setDisplay(cloud, false);
+    }
+    // 3. Mitte (40-60%): Alle
+    else if (ratio < 0.60) {
+        setDisplay(folder, true);
+        setDisplay(hidden, true);
+        setDisplay(cloud, true);
+    }
+    // 4. Mitte-Rechts (60-85%): Hidden + Cloud
+    else if (ratio < 0.85) {
+        setDisplay(folder, false);
+        setDisplay(hidden, true);
+        setDisplay(cloud, true);
+    }
+    // 5. Rechts (85-100%): Nur Cloud
+    else {
+        setDisplay(folder, false);
+        setDisplay(hidden, false);
+        setDisplay(cloud, true);
     }
 }
 
@@ -51,6 +105,7 @@ function makeDraggable(container, handle) {
         if (!isDraggable) return;
         container.style.left = `${e.clientX - offsetX}px`;
         container.style.top = `${e.clientY - offsetY}px`;
+        updateSectorVisibility(container);
     });
     
     document.addEventListener('mouseup', () => {
@@ -78,12 +133,78 @@ function makeDraggable(container, handle) {
     });
 }
 
+// Helper: Baut eine verschachtelte Struktur aus Tags mit ">"
+function buildTagTree(tagsWithCounts) {
+    const root = {};
+    
+    tagsWithCounts.forEach(({ tag, count, element }) => {
+        const parts = tag.split('>');
+        let current = root;
+        
+        parts.forEach((part, index) => {
+            if (!current[part]) {
+                current[part] = { _children: {}, _items: [] };
+            }
+            
+            // Wenn es das letzte Element ist, speichern wir das Tag-Element
+            if (index === parts.length - 1) {
+                current[part]._items.push(element);
+            }
+            
+            current = current[part]._children;
+        });
+    });
+    return root;
+}
+
+// Helper: Rendert den Baum rekursiv
+function renderTreeRecursive(node, container) {
+    for (const key in node) {
+        const entry = node[key];
+        const hasChildren = Object.keys(entry._children).length > 0;
+        const hasItems = entry._items.length > 0;
+
+        if (hasChildren || hasItems) {
+            const details = document.createElement('details');
+            details.open = false; // Standardmäßig zugeklappt
+            details.style.marginLeft = '10px';
+            details.style.marginBottom = '2px';
+
+            const summary = document.createElement('summary');
+            summary.textContent = key;
+            summary.style.cursor = 'pointer';
+            summary.style.fontSize = '0.8em';
+            summary.style.opacity = '0.8';
+            summary.style.userSelect = 'none';
+            summary.style.color = 'var(--user-text)';
+            
+            details.appendChild(summary);
+
+            // Erst Items (Blätter) rendern
+            entry._items.forEach(el => {
+                const wrapper = document.createElement('div');
+                wrapper.style.marginLeft = '15px';
+                wrapper.style.marginTop = '2px';
+                wrapper.appendChild(el);
+                details.appendChild(wrapper);
+            });
+
+            // Dann Unterordner rendern
+            renderTreeRecursive(entry._children, details);
+            container.appendChild(details);
+        }
+    }
+}
+
 async function scanAndRenderTags(db, contentContainer) {
     // Struktur wiederherstellen, falls sie durch vorherige Fehler gelöscht wurde
     if (!contentContainer.querySelector('.tag-sector')) {
         contentContainer.innerHTML = `
             <div class="tag-sector sector-folder" data-sector="folder">
-                <div class="sector-header">Folder</div>
+                <div class="sector-header" style="display:flex; justify-content:space-between; align-items:center;">
+                    <span>Folder</span>
+                    <span id="btn-toggle-folder-view" title="Toggle List/Tree View" style="cursor:pointer; font-size:1.2em;">📂</span>
+                </div>
                 <div class="sector-content"></div>
             </div>
             <div class="tag-sector sector-hidden" data-sector="hidden">
@@ -96,6 +217,17 @@ async function scanAndRenderTags(db, contentContainer) {
             </div>
         `;
     }
+    
+    // Toggle Button Listener erneuern (da HTML ggf. neu gesetzt wurde)
+    const toggleBtn = contentContainer.querySelector('#btn-toggle-folder-view');
+    if (toggleBtn) {
+        toggleBtn.textContent = isFolderTreeMode ? '📂' : '📝';
+        toggleBtn.onclick = (e) => {
+            e.stopPropagation();
+            isFolderTreeMode = !isFolderTreeMode;
+            scanAndRenderTags(db, contentContainer); // Re-Render
+        };
+    }
 
     const loadingTarget = contentContainer.querySelector('.sector-cloud .sector-content');
     if (loadingTarget) loadingTarget.innerHTML = '<div class="pill pill-sys" style="margin: 10px;">Scanning...</div>';
@@ -106,9 +238,21 @@ async function scanAndRenderTags(db, contentContainer) {
         // HINWEIS: Dies lädt ALLE Dokumente aus der Collection, was bei großen Datenbanken
         // zu hohen Kosten und langer Ladezeit führen kann. Für eine Produktionsanwendung
         // sollte eine serverseitige Aggregation (z.B. via Cloud Functions) in Betracht gezogen werden.
+        
+        const user = auth.currentUser;
+        const tokens = user ? getAccessTokens(user.email) : [];
+
         const querySnapshot = await getDocs(collection(db, "kv-store"));
         querySnapshot.forEach(doc => {
-            const tags = doc.data().user_tags;
+            const d = doc.data();
+            
+            // Access Control Filter: Zähle nur, was der User auch sehen darf
+            if (user) {
+                const ac = d.access_control || [];
+                if (!ac.some(t => tokens.includes(t))) return;
+            }
+
+            const tags = d.user_tags;
             if (Array.isArray(tags)) {
                 tags.forEach(tag => {
                     if (tag.startsWith('🛡️')) return; // System-Tags ignorieren
@@ -121,9 +265,14 @@ async function scanAndRenderTags(db, contentContainer) {
         
         // Sektoren leeren, bevor sie neu befüllt werden
         const sectors = contentContainer.querySelectorAll('.sector-content');
-        sectors.forEach(s => s.innerHTML = '');
+        sectors.forEach(s => {
+            s.innerHTML = '';
+            s.style.display = ''; // Reset display (falls vorher block gesetzt wurde)
+        });
         
-        // Alle Tags initial in den "Cloud"-Sektor rendern
+        // Referenzen auf die Sektoren holen
+        const folderContent = contentContainer.querySelector('.sector-folder .sector-content');
+        const hiddenContent = contentContainer.querySelector('.sector-hidden .sector-content');
         const cloudContent = contentContainer.querySelector('.sector-cloud .sector-content');
 
         if (sortedTags.length === 0) {
@@ -135,12 +284,15 @@ async function scanAndRenderTags(db, contentContainer) {
             return;
         }
 
+        const folderItems = []; // Sammelt Items für den Folder-Sektor für spätere Baum-Verarbeitung
+
         sortedTags.forEach(([tag, count]) => {
             const item = document.createElement('div');
             item.className = 'pill pill-user';
             item.textContent = `${tag} (${count})`;
             item.style.cursor = 'pointer';
             item.id = `tag-pill-${tag.replace(/[^a-zA-Z0-9]/g, '-')}`;
+            item.dataset.tagName = tag; // Wichtig für State-Tracking
             item.draggable = true;
             item.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', e.target.id));
             
@@ -151,8 +303,38 @@ async function scanAndRenderTags(db, contentContainer) {
                     fetchRealData();
                 }
             });
-            if (cloudContent) cloudContent.appendChild(item);
+
+            // State laden
+            const savedState = JSON.parse(localStorage.getItem('crudx_tag_state') || '{}');
+            let targetSector = 'cloud';
+
+            if (savedState[tag]) {
+                // Manuelle Zuweisung hat Vorrang
+                targetSector = savedState[tag];
+            } else {
+                // Standard-Logik: Folder (>) besiegt Hidden (:)
+                if (tag.includes('>')) targetSector = 'folder';
+                else if (tag.includes(':')) targetSector = 'hidden';
+                else targetSector = 'cloud';
+            }
+
+            // In den entsprechenden Sektor einfügen
+            if (targetSector === 'folder' && folderContent) {
+                if (isFolderTreeMode) {
+                    folderItems.push({ tag, count, element: item });
+                } else {
+                    folderContent.appendChild(item);
+                }
+            }
+            else if (targetSector === 'hidden' && hiddenContent) hiddenContent.appendChild(item);
+            else if (targetSector === 'cloud' && cloudContent) cloudContent.appendChild(item);
         });
+
+        if (isFolderTreeMode && folderItems.length > 0 && folderContent) {
+            folderContent.style.display = 'block'; // Top-Level Folder untereinander anordnen
+            const treeRoot = buildTagTree(folderItems);
+            renderTreeRecursive(treeRoot, folderContent);
+        }
 
     } catch (error) {
         console.error("Error scanning tags:", error);
@@ -166,6 +348,8 @@ export function refreshTagCloud(db) {
     if (container && contentContainer) {
         if (!container.classList.contains('active')) {
             container.classList.add('active');
+            updateHandleVisibility(container);
+            updateSectorVisibility(container);
         }
         scanAndRenderTags(db, contentContainer);
     }
@@ -190,7 +374,10 @@ export function initTagCloud(db) {
             </div>
             <div id="tag-cloud-content" class="modal-body">
                 <div class="tag-sector sector-folder" data-sector="folder">
-                    <div class="sector-header">Folder</div>
+                    <div class="sector-header" style="display:flex; justify-content:space-between; align-items:center;">
+                        <span>Folder</span>
+                        <span id="btn-toggle-folder-view" title="Toggle List/Tree View" style="cursor:pointer; font-size:1.2em;">📂</span>
+                    </div>
                     <div class="sector-content"></div>
                 </div>
                 <div class="tag-sector sector-hidden" data-sector="hidden">
@@ -247,6 +434,15 @@ export function initTagCloud(db) {
             const dropzone = sector.querySelector('.sector-content');
             if (draggableElement && dropzone) {
                 dropzone.appendChild(draggableElement);
+                
+                // State speichern
+                const tagName = draggableElement.dataset.tagName;
+                const sectorType = sector.dataset.sector; // 'folder', 'hidden', 'cloud'
+                if (tagName && sectorType) {
+                    const savedState = JSON.parse(localStorage.getItem('crudx_tag_state') || '{}');
+                    savedState[tagName] = sectorType;
+                    localStorage.setItem('crudx_tag_state', JSON.stringify(savedState));
+                }
             }
         });
     });
@@ -279,6 +475,7 @@ export function initTagCloud(db) {
                         }
                     }
                 }
+                updateSectorVisibility(container);
             }
             
             function stopResize() {
@@ -296,4 +493,5 @@ export function initTagCloud(db) {
     if (resizeHandleRight) setupResizeHandle(resizeHandleRight, true);
     
     updateHandleVisibility(container);
+    updateSectorVisibility(container);
 }
