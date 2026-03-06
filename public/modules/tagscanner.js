@@ -1,11 +1,19 @@
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { fetchRealData, getAccessTokens } from './pagination.js';
+import { fetchRealData, getAccessTokens, applyLayout } from './pagination.js';
 import { auth } from './firebase.js';
 import { getTagSector, setManualTagState } from './tag-state.js';
 
 let isDraggable = false;
 let offsetX, offsetY;
 let isFolderTreeMode = true; // Default: Tree View
+
+// State für Docking
+let preDockState = {
+    width: '320px',
+    height: '',
+    top: '100px',
+    left: '20px'
+};
 
 function updateHandleVisibility(container) {
     if (!container) return;
@@ -80,30 +88,140 @@ function updateSectorVisibility(container) {
     }
 }
 
+function dockTagCloud(container) {
+    if (container.classList.contains('docked')) return;
+
+    // Save state before docking
+    preDockState.width = container.style.width;
+    preDockState.height = container.style.height;
+    preDockState.top = container.style.top;
+    // If top is auto (initial state), calculate it
+    if (!container.style.top || container.style.top === 'auto') {
+        preDockState.top = container.getBoundingClientRect().top + 'px';
+    }
+    preDockState.left = container.style.left;
+    
+    // Fix current dimensions for smooth transition
+    const rect = container.getBoundingClientRect();
+    container.style.width = `${rect.width}px`;
+    container.style.height = `${rect.height}px`;
+
+    container.classList.add('docked');
+    document.body.classList.add('ftc-docked');
+    
+    // Capture current selection (First Doc in Grid)
+    const firstCardKey = document.querySelector('#data-container .card-kv .pill-key');
+    let selectedDocId = null;
+    if (firstCardKey) {
+        selectedDocId = firstCardKey.textContent.trim();
+    }
+
+    // Animation Sequence: Wait for dock transition, then transform content & layout
+    setTimeout(async () => {
+        const db = window.currentDbInstance;
+        if (db) {
+            // Set search to specific doc ID if found, so tree expands correctly
+            const searchInput = document.getElementById('main-search');
+            if (selectedDocId && searchInput) {
+                searchInput.value = selectedDocId;
+                // Note: fetchRealData will be triggered by applyLayout or refreshTagCloud logic
+            }
+
+            // 1. Refresh Cloud first (Transforms Pills to Doc List & Expands Tree to selected Doc)
+            await refreshTagCloud(db);
+            
+            // 2. Then Switch Main Grid to 1x1 (showing the selected doc)
+            applyLayout('1');
+        }
+    }, 400); // Wait slightly longer than CSS transition (0.3s)
+}
+
+function undockTagCloud(container, mouseX, mouseY) {
+    if (!container.classList.contains('docked')) return;
+
+    container.classList.remove('docked');
+    document.body.classList.remove('ftc-docked');
+
+    // Restore dimensions
+    container.style.width = preDockState.width;
+    container.style.bottom = ''; // Clear bottom if it was set
+    container.style.height = preDockState.height || '';
+    
+    if (mouseX !== undefined && mouseY !== undefined) {
+        // Drag undock
+        container.style.top = `${mouseY - 20}px`; 
+        container.style.left = `${mouseX - 160}px`;
+    } else {
+        // Manual undock
+        container.style.top = preDockState.top || '100px';
+        container.style.left = preDockState.left || '20px';
+    }
+
+    // Restore Layout (Optional: Switch back to 3x3 or keep 1x1? User said "back to original FTC")
+    applyLayout('3');
+
+    // Trigger Re-Render to restore groups and folder state
+    const db = window.currentDbInstance;
+    if (db) refreshTagCloud(db);
+}
+
 function makeDraggable(container, handle) {
     handle.addEventListener('mousedown', (e) => {
         // Dragging nicht starten, wenn auf Buttons im Header geklickt wird
         if (e.target.closest('.close-x, #btn-refresh-tags')) return;
         
+        const isDocked = container.classList.contains('docked');
+
         // Snap-Klassen entfernen, um freies Bewegen zu ermöglichen
         if (container.id === 'tag-cloud-container') {
             // Position fixieren (Left/Top), bevor Snap-Klassen entfernt werden
             // Wichtig, falls es rechts angedockt war (right: 0)
-            const rect = container.getBoundingClientRect();
-            container.style.left = `${rect.left}px`;
-            container.style.right = 'auto';
-            container.classList.remove('snapped-left', 'snapped-right');
+            if (!isDocked) {
+                const rect = container.getBoundingClientRect();
+                container.style.left = `${rect.left}px`;
+                container.style.right = 'auto';
+                container.classList.remove('snapped-left', 'snapped-right');
+            }
         }
 
+        // Fix position if it was bottom-aligned (initial state)
+        if (container.style.top === '' || container.style.top === 'auto') {
+             const rect = container.getBoundingClientRect();
+             container.style.top = `${rect.top}px`;
+             container.style.bottom = 'auto';
+             container.style.right = 'auto'; // Switch from right-aligned to absolute left/top
+        }
+
+        container.style.transition = 'none'; // Disable transition during drag
         isDraggable = true;
-        offsetX = e.clientX - container.getBoundingClientRect().left;
-        offsetY = e.clientY - container.getBoundingClientRect().top;
+        
+        if (isDocked) {
+            // Beim Docked-State ist der Offset relativ einfach, da left=0
+            offsetX = e.clientX; 
+            offsetY = e.clientY; 
+        } else {
+            offsetX = e.clientX - container.getBoundingClientRect().left;
+            offsetY = e.clientY - container.getBoundingClientRect().top;
+        }
+        
         handle.style.cursor = 'grabbing';
         document.body.style.userSelect = 'none';
     });
     
     document.addEventListener('mousemove', (e) => {
         if (!isDraggable) return;
+
+        // Check Undock Condition: Dragging right while docked
+        if (container.classList.contains('docked')) {
+            if (e.clientX > 100) { // Threshold to undock
+                undockTagCloud(container, e.clientX, e.clientY);
+                // Recalculate offset for smooth continuation
+                offsetX = e.clientX - container.getBoundingClientRect().left;
+                offsetY = e.clientY - container.getBoundingClientRect().top;
+            }
+            return; // Don't move via style if docked
+        }
+
         container.style.left = `${e.clientX - offsetX}px`;
         container.style.top = `${e.clientY - offsetY}px`;
         updateSectorVisibility(container);
@@ -112,18 +230,19 @@ function makeDraggable(container, handle) {
     document.addEventListener('mouseup', () => {
         if (!isDraggable) return;
         isDraggable = false;
+        container.style.transition = ''; // Re-enable transition
         handle.style.cursor = 'grab';
         document.body.style.userSelect = '';
 
         // Snap-Logik nur für die Tag-Cloud
         if (container.id === 'tag-cloud-container') {
             const finalRect = container.getBoundingClientRect();
-            const snapThreshold = 20;
-            if (finalRect.left < snapThreshold) {
-                container.style.left = '0px';
-                container.style.right = 'auto';
-                container.classList.add('snapped-left');
+            
+            // DOCKING LOGIC: Left Edge
+            if (finalRect.left <= 0) {
+                dockTagCloud(container);
             } else if (finalRect.right > window.innerWidth - snapThreshold) {
+                // Normal Snap Right
                 container.style.left = 'auto';
                 container.style.right = '0px';
                 container.classList.add('snapped-right');
@@ -135,10 +254,10 @@ function makeDraggable(container, handle) {
 }
 
 // Helper: Baut eine verschachtelte Struktur aus Tags mit ">"
-function buildTagTree(tagsWithCounts) {
+function buildTagTree(items) {
     const root = {};
     
-    tagsWithCounts.forEach(({ tag, count, element }) => {
+    items.forEach(({ tag, count, element, isDoc, docData }) => {
         const parts = tag.split('>');
         let current = root;
         
@@ -149,7 +268,11 @@ function buildTagTree(tagsWithCounts) {
             
             // Wenn es das letzte Element ist, speichern wir das Tag-Element
             if (index === parts.length - 1) {
-                current[part]._items.push(element);
+                if (isDoc) {
+                    current[part]._items.push({ element, isDoc: true, docData });
+                } else {
+                    current[part]._items.push({ element, isDoc: false });
+                }
             }
             
             current = current[part]._children;
@@ -159,7 +282,7 @@ function buildTagTree(tagsWithCounts) {
 }
 
 // Helper: Rendert den Baum rekursiv
-function renderTreeRecursive(node, container) {
+function renderTreeRecursive(node, container, isDocked = false, activeTagPath = null, currentPathPrefix = '') {
     const keys = Object.keys(node).sort((a, b) => a.localeCompare(b, 'de', { sensitivity: 'base', numeric: true }));
 
     for (const key of keys) {
@@ -167,9 +290,20 @@ function renderTreeRecursive(node, container) {
         const hasChildren = Object.keys(entry._children).length > 0;
         const hasItems = entry._items.length > 0;
 
+        const fullPath = currentPathPrefix ? `${currentPathPrefix}>${key}` : key;
+
         if (hasChildren || hasItems) {
+            let shouldExpand = false;
+            
+            // Only expand if we are on the path to the active document
+            if (isDocked && activeTagPath) {
+                if (activeTagPath === fullPath || activeTagPath.startsWith(fullPath + '>')) {
+                    shouldExpand = true;
+                }
+            }
+
             const details = document.createElement('details');
-            details.open = false; // Standardmäßig zugeklappt
+            details.open = shouldExpand; 
             details.style.marginLeft = '10px';
             details.style.marginBottom = '2px';
 
@@ -183,17 +317,22 @@ function renderTreeRecursive(node, container) {
             
             details.appendChild(summary);
 
-            // Erst Items (Blätter) rendern
-            entry._items.forEach(el => {
+            // Erst Items (Blätter/Dokumente) rendern
+            entry._items.forEach(itemObj => {
                 const wrapper = document.createElement('div');
-                wrapper.style.marginLeft = '15px';
-                wrapper.style.marginTop = '2px';
-                wrapper.appendChild(el);
+                if (itemObj.isDoc) {
+                    // Document Item styling is handled in element creation
+                    wrapper.style.marginLeft = '10px';
+                } else {
+                    wrapper.style.marginLeft = '15px';
+                    wrapper.style.marginTop = '2px';
+                }
+                wrapper.appendChild(itemObj.element);
                 details.appendChild(wrapper);
             });
 
             // Dann Unterordner rendern
-            renderTreeRecursive(entry._children, details);
+            renderTreeRecursive(entry._children, details, isDocked, activeTagPath, fullPath);
             container.appendChild(details);
         }
     }
@@ -298,6 +437,8 @@ function initHiddenGroupRulesEvents() {
 }
 
 async function scanAndRenderTags(db, contentContainer) {
+    const isDocked = document.getElementById('tag-cloud-container')?.classList.contains('docked');
+
     // Struktur wiederherstellen, falls sie durch vorherige Fehler gelöscht wurde
     if (!contentContainer.querySelector('.tag-sector')) {
         contentContainer.innerHTML = `
@@ -336,6 +477,7 @@ async function scanAndRenderTags(db, contentContainer) {
     const loadingTarget = contentContainer.querySelector('.sector-cloud .sector-content');
     if (loadingTarget) loadingTarget.innerHTML = '<div class="pill pill-sys" style="margin: 10px;">Scanning...</div>';
 
+    const docsByTag = new Map(); // Tag -> Array of Docs
     const tagCounts = new Map();
     
     try {
@@ -358,6 +500,8 @@ async function scanAndRenderTags(db, contentContainer) {
             if (Array.isArray(tags)) {
                 tags.forEach(tag => {
                     tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
+                    if (!docsByTag.has(tag)) docsByTag.set(tag, []);
+                    docsByTag.get(tag).push({ id: doc.id, ...d });
                 });
             }
         });
@@ -389,49 +533,63 @@ async function scanAndRenderTags(db, contentContainer) {
         const hiddenItems = []; // Sammelt Items für den Hidden-Sektor
         const hiddenGroupRules = getHiddenGroupRules();
 
-        sortedTags.forEach(([tag, count]) => {
-            const item = document.createElement('div');
-            item.className = 'pill pill-user';
-            item.textContent = `${tag} (${count})`;
-            item.style.cursor = 'pointer';
-            item.id = `tag-pill-${tag.replace(/[^a-zA-Z0-9]/g, '-')}`;
-            item.dataset.tagName = tag; // Wichtig für State-Tracking
-            item.draggable = true;
-            item.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', e.target.id));
-            
-            item.addEventListener('click', () => {
-                const searchInput = document.getElementById('main-search');
-                if (searchInput) {
-                    const currentSearch = searchInput.value.trim();
-                    if (currentSearch === `tag:${tag}`) {
-                        searchInput.value = ''; // Abwählen
-                    } else {
-                        searchInput.value = `tag:${tag}`; // Auswählen
-                    }
-                    fetchRealData(true);
-                    updateCloudSelectionState(contentContainer);
-                }
-            });
+        // --- DOCKED MODE: PREPARE DOCUMENT TREE ---
+        let firstDocId = null;
 
+        sortedTags.forEach(([tag, count]) => {
             // State laden
             const targetSector = getTagSector(tag);
 
-            // In den entsprechenden Sektor einfügen
             if (targetSector === 'folder' && folderContent) {
-                if (isFolderTreeMode) {
+                if (isDocked) {
+                    // DOCKED: Create Document Items for this folder tag
+                    const docs = docsByTag.get(tag) || [];
+                    docs.forEach(doc => {
+                        if (!firstDocId) firstDocId = doc.id; // Capture first doc
+
+                        const docItem = document.createElement('div');
+                        docItem.className = 'doc-item';
+                        docItem.textContent = doc.label || doc.id;
+                        docItem.title = doc.id;
+                        
+                        docItem.onclick = () => {
+                            // Select Document
+                            const searchInput = document.getElementById('main-search');
+                            if (searchInput) {
+                                searchInput.value = doc.id;
+                                fetchRealData(true);
+                                // Highlight active
+                                contentContainer.querySelectorAll('.doc-item').forEach(el => el.classList.remove('active'));
+                                docItem.classList.add('active');
+                            }
+                        };
+                        
+                        folderItems.push({ tag, count: 1, element: docItem, isDoc: true, docData: doc });
+                    });
+                } else if (isFolderTreeMode) {
+                    // NORMAL TREE: Tag Pills
+                    const item = createTagPill(tag, count, contentContainer);
                     folderItems.push({ tag, count, element: item });
                 } else {
+                    // FLAT LIST
+                    const item = createTagPill(tag, count, contentContainer);
                     folderContent.appendChild(item);
                 }
             }
             else if (targetSector === 'hidden' && hiddenContent) {
+                if (isDocked) return; // Hide hidden sector in docked mode? Or render flat?
+                const item = createTagPill(tag, count, contentContainer);
                 hiddenItems.push({ tag, count, element: item });
             }
-            else if (targetSector === 'cloud' && cloudContent) cloudContent.appendChild(item);
+            else if (targetSector === 'cloud' && cloudContent) {
+                if (isDocked) return; // Hide cloud sector in docked mode
+                const item = createTagPill(tag, count, contentContainer);
+                cloudContent.appendChild(item);
+            }
         });
 
         // --- Hidden Sector Grouping ---
-        if (hiddenContent) {
+        if (hiddenContent && !isDocked) {
             const groups = {};
             const looseItems = [];
 
@@ -522,7 +680,46 @@ async function scanAndRenderTags(db, contentContainer) {
         if (isFolderTreeMode && folderItems.length > 0 && folderContent) {
             folderContent.style.display = 'block'; // Top-Level Folder untereinander anordnen
             const treeRoot = buildTagTree(folderItems);
-            renderTreeRecursive(treeRoot, folderContent);
+            
+            // Determine active document ID from search input (if it's a direct ID)
+            const searchInput = document.getElementById('main-search');
+            let activeDocId = null;
+            if (searchInput && searchInput.value.trim() && !searchInput.value.startsWith('tag:') && !searchInput.value.startsWith('mime:') && !searchInput.value.startsWith('owner:')) {
+                activeDocId = searchInput.value.trim();
+            }
+
+            // Fallback: If docked but no active doc selected, pick the first one found in tree
+            if (isDocked && !activeDocId && firstDocId) {
+                activeDocId = firstDocId;
+                if (searchInput) {
+                    searchInput.value = activeDocId;
+                    fetchRealData(true);
+                }
+            }
+
+            // Mark active in UI & Scroll to it
+            if (activeDocId) {
+                setTimeout(() => {
+                    const activeItem = Array.from(contentContainer.querySelectorAll('.doc-item')).find(el => el.title === activeDocId);
+                    if (activeItem) {
+                        activeItem.classList.add('active');
+                        activeItem.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                    }
+                }, 50);
+            }
+
+            // Determine the primary tag path for the active document
+            let activeTagPath = null;
+            if (activeDocId) {
+                // Find the first occurrence of this doc in the folder items
+                // folderItems is populated based on sortedTags, so this is deterministic (alphabetical first tag)
+                const foundItem = folderItems.find(item => item.isDoc && item.docData.id === activeDocId);
+                if (foundItem) {
+                    activeTagPath = foundItem.tag;
+                }
+            }
+
+            renderTreeRecursive(treeRoot, folderContent, isDocked, activeTagPath);
         }
 
         // Initialen Selektionsstatus anwenden
@@ -534,7 +731,29 @@ async function scanAndRenderTags(db, contentContainer) {
     }
 }
 
-export function refreshTagCloud(db) {
+function createTagPill(tag, count, contentContainer) {
+    const item = document.createElement('div');
+    item.className = 'pill pill-user';
+    item.textContent = `${tag} (${count})`;
+    item.style.cursor = 'pointer';
+    item.id = `tag-pill-${tag.replace(/[^a-zA-Z0-9]/g, '-')}`;
+    item.dataset.tagName = tag;
+    item.draggable = true;
+    item.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', e.target.id));
+    
+    item.addEventListener('click', () => {
+        const searchInput = document.getElementById('main-search');
+        if (searchInput) {
+            const currentSearch = searchInput.value.trim();
+            searchInput.value = (currentSearch === `tag:${tag}`) ? '' : `tag:${tag}`;
+            fetchRealData(true);
+            updateCloudSelectionState(contentContainer);
+        }
+    });
+    return item;
+}
+
+export async function refreshTagCloud(db) {
     const container = document.getElementById('tag-cloud-container');
     const contentContainer = document.getElementById('tag-cloud-content');
     if (container && contentContainer) {
@@ -543,7 +762,7 @@ export function refreshTagCloud(db) {
             updateHandleVisibility(container);
             updateSectorVisibility(container);
         }
-        scanAndRenderTags(db, contentContainer);
+        return scanAndRenderTags(db, contentContainer);
     }
 }
 
@@ -561,6 +780,7 @@ export function initTagCloud(db) {
                 <div style="display: flex; align-items: center; gap: 5px;">
                     <span id="btn-clear-tag-filter" title="Unselect / Clear Filter" style="cursor: pointer; font-size: 1.1em; opacity: 0.7; display: none;">🚫</span>
                     <span id="btn-open-tag-rules" title="Configure Tag Rules (Regex)" style="cursor: pointer; font-size: 1.1em; opacity: 0.7;">📏</span>
+                    <span id="btn-dock-cloud" title="Dock / Undock" style="cursor: pointer; font-size: 1.1em; opacity: 0.7;">⚓</span>
                     <span id="btn-toggle-cloud-transparency" title="Toggle Transparency (3 Levels)" style="cursor: pointer; font-size: 1.1em; opacity: 0.7;">👁️</span>
                     <span id="btn-refresh-tags" title="Refresh Tags" style="cursor: pointer; font-size: 1.1em; opacity: 0.7;">🔄</span>
                     <span id="btn-close-tag-cloud" class="close-x" title="Close">✕</span>
@@ -599,13 +819,42 @@ export function initTagCloud(db) {
     const transBtn = document.getElementById('btn-toggle-cloud-transparency');
     const clearFilterBtn = document.getElementById('btn-clear-tag-filter');
     const rulesBtn = document.getElementById('btn-open-tag-rules');
+    const dockBtn = document.getElementById('btn-dock-cloud');
 
     makeDraggable(container, handle);
-    closeBtn.addEventListener('click', () => container.classList.remove('active'));
+    
+    // Double-Click to Dock/Undock
+    handle.addEventListener('dblclick', (e) => {
+        // Ignore clicks on buttons inside header
+        if (e.target.closest('span') || e.target.closest('.close-x')) return;
+
+        if (container.classList.contains('docked')) {
+            undockTagCloud(container);
+        } else {
+            dockTagCloud(container);
+        }
+    });
+
+    closeBtn.addEventListener('click', () => {
+        container.classList.remove('active');
+        // Reset Docking State on Close
+        if (container.classList.contains('docked')) {
+            container.classList.remove('docked');
+            document.body.classList.remove('ftc-docked');
+        }
+    });
     refreshBtn.addEventListener('click', () => scanAndRenderTags(db, contentContainer));
     
     rulesBtn.addEventListener('click', () => {
         document.dispatchEvent(new CustomEvent('open-tag-rules'));
+    });
+
+    dockBtn.addEventListener('click', () => {
+        if (container.classList.contains('docked')) {
+            undockTagCloud(container);
+        } else {
+            dockTagCloud(container);
+        }
     });
 
     clearFilterBtn.addEventListener('click', () => {
@@ -668,6 +917,7 @@ export function initTagCloud(db) {
             const startX = e.clientX;
             const startWidth = container.offsetWidth;
             const startLeft = container.getBoundingClientRect().left;
+            container.style.transition = 'none'; // Disable transition during resize
             
             function doResize(mouseEvent) {
                 const dx = mouseEvent.clientX - startX;
@@ -690,6 +940,7 @@ export function initTagCloud(db) {
             function stopResize() {
                 document.removeEventListener('mousemove', doResize);
                 document.removeEventListener('mouseup', stopResize);
+                container.style.transition = ''; // Re-enable transition
                 updateHandleVisibility(container);
             }
             
