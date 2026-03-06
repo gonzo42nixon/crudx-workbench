@@ -1,6 +1,7 @@
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { fetchRealData, getAccessTokens } from './pagination.js';
 import { auth } from './firebase.js';
+import { getTagSector, setManualTagState } from './tag-state.js';
 
 let isDraggable = false;
 let offsetX, offsetY;
@@ -159,7 +160,9 @@ function buildTagTree(tagsWithCounts) {
 
 // Helper: Rendert den Baum rekursiv
 function renderTreeRecursive(node, container) {
-    for (const key in node) {
+    const keys = Object.keys(node).sort((a, b) => a.localeCompare(b, 'de', { sensitivity: 'base', numeric: true }));
+
+    for (const key of keys) {
         const entry = node[key];
         const hasChildren = Object.keys(entry._children).length > 0;
         const hasItems = entry._items.length > 0;
@@ -196,6 +199,104 @@ function renderTreeRecursive(node, container) {
     }
 }
 
+function updateCloudSelectionState(contentContainer) {
+    if (!contentContainer) return;
+    const searchInput = document.getElementById('main-search');
+    const searchTerm = searchInput ? searchInput.value.trim() : '';
+    const activeTag = searchTerm.startsWith('tag:') ? searchTerm.substring(4) : null;
+
+    const clearBtn = document.getElementById('btn-clear-tag-filter');
+    if (clearBtn) {
+        clearBtn.style.display = activeTag ? 'inline' : 'none';
+        clearBtn.style.color = activeTag ? '#ff5252' : '';
+    }
+
+    const pills = contentContainer.querySelectorAll('.pill-user');
+    pills.forEach(pill => {
+        const tag = pill.dataset.tagName;
+        if (activeTag && tag !== activeTag) {
+            pill.classList.add('pill-inactive');
+        } else {
+            pill.classList.remove('pill-inactive');
+        }
+    });
+}
+
+export function updateTagCloudSelection() {
+    const contentContainer = document.getElementById('tag-cloud-content');
+    updateCloudSelectionState(contentContainer);
+}
+
+// ---------- Hidden Grouping Logic ----------
+function getHiddenGroupRules() {
+    try {
+        return JSON.parse(localStorage.getItem('crudx_hidden_group_rules') || '[]');
+    } catch { return []; }
+}
+
+function saveHiddenGroupRules(rules) {
+    localStorage.setItem('crudx_hidden_group_rules', JSON.stringify(rules));
+}
+
+function renderHiddenGroupRulesUI() {
+    const container = document.getElementById('hidden-group-rules-list');
+    if (!container) return;
+    container.innerHTML = '';
+    const rules = getHiddenGroupRules();
+
+    rules.forEach((rule, index) => {
+        const div = document.createElement('div');
+        div.style.display = 'flex';
+        div.style.gap = '10px';
+        div.innerHTML = `
+            <input type="text" value="${rule}" class="rule-input" style="flex: 1; background: #222; border: 1px solid #444; color: #ccc; padding: 4px;">
+            <button class="btn-remove-rule" style="background: #500; color: #fff; border: none; cursor: pointer; padding: 0 8px;">×</button>
+        `;
+        div.querySelector('.btn-remove-rule').onclick = () => {
+            rules.splice(index, 1);
+            saveHiddenGroupRules(rules);
+            renderHiddenGroupRulesUI();
+        };
+        div.querySelector('input').onchange = (e) => {
+            rules[index] = e.target.value;
+            saveHiddenGroupRules(rules);
+        };
+        container.appendChild(div);
+    });
+}
+
+function initHiddenGroupRulesEvents() {
+    const addBtn = document.getElementById('btn-add-hidden-group-rule');
+    if (addBtn) {
+        // Event-Listener nur einmal hinzufügen (Check via Attribut)
+        if (!addBtn.dataset.hasListener) {
+            addBtn.addEventListener('click', () => {
+                const rules = getHiddenGroupRules();
+                rules.push('');
+                saveHiddenGroupRules(rules);
+                renderHiddenGroupRulesUI();
+            });
+            addBtn.dataset.hasListener = 'true';
+        }
+    }
+
+    // Hook in den Save-Button des Modals (existiert bereits für andere Regeln)
+    const saveBtn = document.getElementById('btn-save-rules');
+    if (saveBtn && !saveBtn.dataset.hasHiddenGroupListener) {
+        saveBtn.addEventListener('click', () => {
+            // Speichern passiert bereits onchange, aber hier könnte man Feedback geben oder Reload triggern
+            const db = window.currentDbInstance; // Hack: DB-Instanz global verfügbar machen oder neu holen
+            if (db) refreshTagCloud(db);
+        });
+        saveBtn.dataset.hasHiddenGroupListener = 'true';
+    }
+
+    // Beim Öffnen des Modals UI rendern
+    document.addEventListener('open-tag-rules', () => {
+        renderHiddenGroupRulesUI();
+    });
+}
+
 async function scanAndRenderTags(db, contentContainer) {
     // Struktur wiederherstellen, falls sie durch vorherige Fehler gelöscht wurde
     if (!contentContainer.querySelector('.tag-sector')) {
@@ -228,6 +329,9 @@ async function scanAndRenderTags(db, contentContainer) {
             scanAndRenderTags(db, contentContainer); // Re-Render
         };
     }
+    
+    // DB Instanz für Reload speichern
+    window.currentDbInstance = db;
 
     const loadingTarget = contentContainer.querySelector('.sector-cloud .sector-content');
     if (loadingTarget) loadingTarget.innerHTML = '<div class="pill pill-sys" style="margin: 10px;">Scanning...</div>';
@@ -240,28 +344,25 @@ async function scanAndRenderTags(db, contentContainer) {
         // sollte eine serverseitige Aggregation (z.B. via Cloud Functions) in Betracht gezogen werden.
         
         const user = auth.currentUser;
-        const tokens = user ? getAccessTokens(user.email) : [];
+        const tokens = user ? getAccessTokens(user.email) : ['*@*'];
 
         const querySnapshot = await getDocs(collection(db, "kv-store"));
         querySnapshot.forEach(doc => {
             const d = doc.data();
             
             // Access Control Filter: Zähle nur, was der User auch sehen darf
-            if (user) {
-                const ac = d.access_control || [];
-                if (!ac.some(t => tokens.includes(t))) return;
-            }
+            const ac = d.access_control || [];
+            if (!ac.some(t => tokens.includes(t))) return;
 
             const tags = d.user_tags;
             if (Array.isArray(tags)) {
                 tags.forEach(tag => {
-                    if (tag.startsWith('🛡️')) return; // System-Tags ignorieren
                     tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
                 });
             }
         });
 
-        const sortedTags = Array.from(tagCounts.entries()).sort((a, b) => a[0].localeCompare(b[0], 'de', { sensitivity: 'base' }));
+        const sortedTags = Array.from(tagCounts.entries()).sort((a, b) => a[0].localeCompare(b[0], 'de', { sensitivity: 'base', numeric: true }));
         
         // Sektoren leeren, bevor sie neu befüllt werden
         const sectors = contentContainer.querySelectorAll('.sector-content');
@@ -285,6 +386,8 @@ async function scanAndRenderTags(db, contentContainer) {
         }
 
         const folderItems = []; // Sammelt Items für den Folder-Sektor für spätere Baum-Verarbeitung
+        const hiddenItems = []; // Sammelt Items für den Hidden-Sektor
+        const hiddenGroupRules = getHiddenGroupRules();
 
         sortedTags.forEach(([tag, count]) => {
             const item = document.createElement('div');
@@ -299,24 +402,19 @@ async function scanAndRenderTags(db, contentContainer) {
             item.addEventListener('click', () => {
                 const searchInput = document.getElementById('main-search');
                 if (searchInput) {
-                    searchInput.value = `tag:${tag}`;
-                    fetchRealData();
+                    const currentSearch = searchInput.value.trim();
+                    if (currentSearch === `tag:${tag}`) {
+                        searchInput.value = ''; // Abwählen
+                    } else {
+                        searchInput.value = `tag:${tag}`; // Auswählen
+                    }
+                    fetchRealData(true);
+                    updateCloudSelectionState(contentContainer);
                 }
             });
 
             // State laden
-            const savedState = JSON.parse(localStorage.getItem('crudx_tag_state') || '{}');
-            let targetSector = 'cloud';
-
-            if (savedState[tag]) {
-                // Manuelle Zuweisung hat Vorrang
-                targetSector = savedState[tag];
-            } else {
-                // Standard-Logik: Folder (>) besiegt Hidden (:)
-                if (tag.includes('>')) targetSector = 'folder';
-                else if (tag.includes(':')) targetSector = 'hidden';
-                else targetSector = 'cloud';
-            }
+            const targetSector = getTagSector(tag);
 
             // In den entsprechenden Sektor einfügen
             if (targetSector === 'folder' && folderContent) {
@@ -326,15 +424,109 @@ async function scanAndRenderTags(db, contentContainer) {
                     folderContent.appendChild(item);
                 }
             }
-            else if (targetSector === 'hidden' && hiddenContent) hiddenContent.appendChild(item);
+            else if (targetSector === 'hidden' && hiddenContent) {
+                hiddenItems.push({ tag, count, element: item });
+            }
             else if (targetSector === 'cloud' && cloudContent) cloudContent.appendChild(item);
         });
+
+        // --- Hidden Sector Grouping ---
+        if (hiddenContent) {
+            const groups = {};
+            const looseItems = [];
+
+            hiddenItems.forEach(entry => {
+                let matchedRule = null;
+                for (const rule of hiddenGroupRules) {
+                    if (rule && new RegExp(rule).test(entry.tag)) {
+                        matchedRule = rule;
+                        break;
+                    }
+                }
+
+                if (matchedRule) {
+                    if (!groups[matchedRule]) groups[matchedRule] = [];
+                    groups[matchedRule].push(entry);
+                } else {
+                    looseItems.push(entry);
+                }
+            });
+
+            // Render Groups
+            for (const [rule, items] of Object.entries(groups)) {
+                const groupPill = document.createElement('div');
+                groupPill.className = 'pill pill-sys';
+                groupPill.style.cursor = 'pointer';
+                groupPill.style.border = '1px solid var(--sys-border)';
+                groupPill.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                groupPill.textContent = `${rule} (${items.length})`;
+                
+                // Tooltip listing elements
+                groupPill.title = `Group: ${rule}\n` + items.map(i => `- ${i.tag}`).join('\n');
+
+                groupPill.onclick = (e) => {
+                    e.stopPropagation();
+                    
+                    // Close any existing dropdown
+                    const existing = document.querySelector('.tag-dropdown-menu');
+                    if (existing) existing.remove();
+
+                    const menu = document.createElement('div');
+                    menu.className = 'tag-dropdown-menu';
+                    
+                    items.forEach(itemObj => {
+                        const tag = itemObj.tag;
+                        const item = document.createElement('div');
+                        item.className = 'pill pill-user';
+                        item.textContent = `${tag} (${itemObj.count})`;
+                        item.style.cursor = 'pointer';
+                        
+                        // Highlight active state in dropdown
+                        const searchInput = document.getElementById('main-search');
+                        const currentSearch = searchInput ? searchInput.value.trim() : '';
+                        const activeTag = currentSearch.startsWith('tag:') ? currentSearch.substring(4) : null;
+                        if (activeTag) {
+                            if (activeTag === tag) item.style.border = '1px solid #00ff00';
+                            else item.style.opacity = '0.5';
+                        }
+
+                        item.onclick = (ev) => {
+                            ev.stopPropagation();
+                            if (searchInput) {
+                                searchInput.value = (searchInput.value.trim() === `tag:${tag}`) ? '' : `tag:${tag}`;
+                                fetchRealData(true);
+                                updateCloudSelectionState(contentContainer);
+                            }
+                            menu.remove();
+                        };
+                        menu.appendChild(item);
+                    });
+
+                    document.body.appendChild(menu);
+
+                    const rect = groupPill.getBoundingClientRect();
+                    const menuRect = menu.getBoundingClientRect();
+                    const spaceBelow = window.innerHeight - rect.bottom;
+                    const topPos = (spaceBelow < menuRect.height && rect.top > menuRect.height) ? rect.top - menuRect.height - 5 : rect.bottom + 5;
+                    menu.style.top = `${topPos}px`;
+                    menu.style.left = `${Math.min(rect.left, window.innerWidth - menuRect.width - 10)}px`;
+                };
+
+                hiddenContent.appendChild(groupPill);
+            }
+
+            // Render Loose Items
+            looseItems.forEach(i => hiddenContent.appendChild(i.element));
+        }
 
         if (isFolderTreeMode && folderItems.length > 0 && folderContent) {
             folderContent.style.display = 'block'; // Top-Level Folder untereinander anordnen
             const treeRoot = buildTagTree(folderItems);
             renderTreeRecursive(treeRoot, folderContent);
         }
+
+        // Initialen Selektionsstatus anwenden
+        updateCloudSelectionState(contentContainer);
 
     } catch (error) {
         console.error("Error scanning tags:", error);
@@ -367,6 +559,8 @@ export function initTagCloud(db) {
             <div class="modal-header modal-drag-handle">
                 <h3>☁️ Floating Tag Cloud</h3>
                 <div style="display: flex; align-items: center; gap: 5px;">
+                    <span id="btn-clear-tag-filter" title="Unselect / Clear Filter" style="cursor: pointer; font-size: 1.1em; opacity: 0.7; display: none;">🚫</span>
+                    <span id="btn-open-tag-rules" title="Configure Tag Rules (Regex)" style="cursor: pointer; font-size: 1.1em; opacity: 0.7;">📏</span>
                     <span id="btn-toggle-cloud-transparency" title="Toggle Transparency (3 Levels)" style="cursor: pointer; font-size: 1.1em; opacity: 0.7;">👁️</span>
                     <span id="btn-refresh-tags" title="Refresh Tags" style="cursor: pointer; font-size: 1.1em; opacity: 0.7;">🔄</span>
                     <span id="btn-close-tag-cloud" class="close-x" title="Close">✕</span>
@@ -395,16 +589,33 @@ export function initTagCloud(db) {
     `;
     document.body.insertAdjacentHTML('beforeend', cloudHTML);
 
+    initHiddenGroupRulesEvents();
+
     const container = document.getElementById('tag-cloud-container');
     const contentContainer = document.getElementById('tag-cloud-content');
     const handle = container.querySelector('.modal-drag-handle');
     const closeBtn = document.getElementById('btn-close-tag-cloud');
     const refreshBtn = document.getElementById('btn-refresh-tags');
     const transBtn = document.getElementById('btn-toggle-cloud-transparency');
+    const clearFilterBtn = document.getElementById('btn-clear-tag-filter');
+    const rulesBtn = document.getElementById('btn-open-tag-rules');
 
     makeDraggable(container, handle);
     closeBtn.addEventListener('click', () => container.classList.remove('active'));
     refreshBtn.addEventListener('click', () => scanAndRenderTags(db, contentContainer));
+    
+    rulesBtn.addEventListener('click', () => {
+        document.dispatchEvent(new CustomEvent('open-tag-rules'));
+    });
+
+    clearFilterBtn.addEventListener('click', () => {
+        const searchInput = document.getElementById('main-search');
+        if (searchInput) {
+            searchInput.value = '';
+            fetchRealData(true);
+            updateCloudSelectionState(contentContainer);
+        }
+    });
 
     // Transparency Toggle Logic (1 -> 2 -> 3)
     let currentLevel = 3;
@@ -439,9 +650,7 @@ export function initTagCloud(db) {
                 const tagName = draggableElement.dataset.tagName;
                 const sectorType = sector.dataset.sector; // 'folder', 'hidden', 'cloud'
                 if (tagName && sectorType) {
-                    const savedState = JSON.parse(localStorage.getItem('crudx_tag_state') || '{}');
-                    savedState[tagName] = sectorType;
-                    localStorage.setItem('crudx_tag_state', JSON.stringify(savedState));
+                    setManualTagState(tagName, sectorType);
                 }
             }
         });

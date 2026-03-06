@@ -61,17 +61,18 @@ export function detectMimetype(value) {
 
     // XML: Prüfe auf wohlgeformte Tags (vereinfacht)
     const xmlTagPattern = /<([a-z][a-z0-9]*)[^>]*>.*<\/\1>/is;
-    if (xmlTagPattern.test(trimmed) && trimmed.includes('<?xml')) {
+    if (trimmed.includes('<?xml') && xmlTagPattern.test(trimmed)) {
         scores.XML += 80;
-    } else if (xmlTagPattern.test(trimmed)) {
-        scores.XML += 40; // vielleicht HTML
     }
 
     // HTML: Doctype oder typische Tags
+    // This list is expanded based on your feedback to correctly identify HTML fragments like iframes.
+    const commonHtmlTags = /<\/?(html|body|head|div|span|p|a|img|table|ul|ol|li|form|input|button|textarea|select|header|nav|main|section|article|aside|footer|h[1-6]|iframe|video|audio|canvas|script|style|link|meta|title)\b/i;
     if (lower.includes('<!doctype html>') || /<html\s*>/i.test(trimmed)) {
         scores.HTML += 90;
-    } else if (/<(div|span|h1|p|a|img|table|ul|ol|li|form|input)/i.test(trimmed)) {
-        scores.HTML += 30;
+    } else if (commonHtmlTags.test(trimmed)) {
+        // A snippet containing common HTML tags gets a high score.
+        scores.HTML += 50;
     }
 
     // SVG: spezifischer Start

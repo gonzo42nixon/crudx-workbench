@@ -4,7 +4,8 @@ import { themeState, applyTheme, syncModalUI, initThemeEditor, initThemeControls
 import { db, auth } from './modules/firebase.js';
 import { applyLayout, initPaginationControls, fetchRealData, fetchLastPageData, loadStateFromUrl } from './modules/pagination.js';
 import { renderDataFromDocs, escapeHtml } from './modules/ui.js';
-import { initTagCloud, refreshTagCloud } from './modules/tagscanner.js';
+import { initTagCloud, refreshTagCloud, updateTagCloudSelection } from './modules/tagscanner.js';
+import { loadTagConfigFromUrl, getTagConfigForUrl, getTagRules, setTagRules } from './modules/tag-state.js';
 import { initAuth } from './modules/auth.js';
 import { 
     collection, query, limit, getDocs, getCountFromServer, orderBy, startAfter, deleteDoc, doc, 
@@ -89,8 +90,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const wMatch = contentValue.match(/width=["']?(\d+)(?:px)?["']?/i);
                 const hMatch = contentValue.match(/height=["']?(\d+)(?:px)?["']?/i);
                 if (wMatch && hMatch) {
-                    width = `${parseInt(wMatch[1])}px`;
-                    height = `${parseInt(hMatch[1]) + 55}px`; // +55px for Header
+                    width = `${parseInt(wMatch[1]) + 40}px`; // +40px buffer for borders/padding
+                    height = `${parseInt(hMatch[1]) + 80}px`; // +80px for Header + padding
                 }
             }
 
@@ -202,7 +203,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         bind('main-search', 'keydown', (e) => {
             if (e.key === 'Enter') {
-                fetchRealData();
+                fetchRealData(true);
             }
         });
         bind('main-search', 'input', toggleClearBtn);
@@ -212,7 +213,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                 searchInput.value = '';
                 toggleClearBtn();
                 searchInput.focus();
-                fetchRealData();
+                fetchRealData(true);
+                updateTagCloudSelection();
             }
         });
 
@@ -243,6 +245,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         // Auth initialisieren
         initAuth();
 
+        // Tag Config aus URL laden
+        loadTagConfigFromUrl();
+
         // Paginierung initialisieren
         initPaginationControls();
 
@@ -251,7 +256,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (navigator.share) {
                 navigator.share({ title: 'CRUDX Data View', url: window.location.href });
             } else {
-                navigator.clipboard.writeText(window.location.href);
+                const shareUrl = `${window.location.href.split('?')[0]}?${new URLSearchParams(window.location.search).toString()}&tagConfig=${getTagConfigForUrl()}`;
+                navigator.clipboard.writeText(shareUrl);
                 alert("Link copied to clipboard!");
             }
         });
@@ -569,8 +575,14 @@ document.addEventListener("DOMContentLoaded", async () => {
                                 item.onclick = () => {
                                     const searchInput = document.getElementById('main-search');
                                     if (searchInput) {
-                                        searchInput.value = `tag:${tag}`;
-                                        fetchRealData();
+                                        const currentSearch = searchInput.value.trim();
+                                        if (currentSearch === `tag:${tag}`) {
+                                            searchInput.value = ''; // Abwählen
+                                        } else {
+                                            searchInput.value = `tag:${tag}`; // Auswählen
+                                        }
+                                        fetchRealData(true);
+                                        updateTagCloudSelection();
                                     }
                                     menu.remove();
                                 };
@@ -635,10 +647,21 @@ document.addEventListener("DOMContentLoaded", async () => {
                             }, 500);
                         }).catch(err => console.error("Copy failed:", err));
                     } else {
-                        // Normal Click: Open Webhook with action=pill&pill=<content>
-                        const value = pill.textContent.trim();
-                        const url = `https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977?action=pill&pill=${encodeURIComponent(value)}`;
-                        window.open(url, '_blank');
+                        // Normal Click: Filter by this tag
+                        if (pill.classList.contains('pill-user')) { // Nur User-Tags sind filterbar
+                            const value = pill.textContent.trim();
+                            const searchInput = document.getElementById('main-search');
+                            if (searchInput) {
+                                const currentSearch = searchInput.value.trim();
+                                if (currentSearch === `tag:${value}`) {
+                                    searchInput.value = ''; // Abwählen
+                                } else {
+                                    searchInput.value = `tag:${value}`; // Auswählen
+                                }
+                                fetchRealData(true);
+                                updateTagCloudSelection();
+                            }
+                        }
                     }
                 }
 
@@ -1980,6 +2003,101 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
         }
 
+        // --- TAG RULES MODAL LOGIC ---
+        const rulesModal = document.getElementById('tag-rules-modal');
+        const rulesContent = rulesModal ? rulesModal.querySelector('.modal-content') : null;
+        
+        document.addEventListener('open-tag-rules', () => {
+            if (rulesModal) {
+                rulesModal.classList.add('active');
+                renderRulesEditor();
+            }
+        });
+
+        bind('btn-close-rules-x', 'click', () => rulesModal.classList.remove('active'));
+
+        function renderRulesEditor() {
+            const rules = getTagRules();
+            const renderList = (listId, items) => {
+                const container = document.getElementById(listId);
+                container.innerHTML = '';
+                items.forEach((rule, idx) => {
+                    const row = document.createElement('div');
+                    row.style.display = 'flex';
+                    row.style.gap = '10px';
+                    
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.value = rule;
+                    input.style.cssText = "flex: 1; background: rgba(0,0,0,0.3); border: 1px solid #444; color: #eee; padding: 4px; font-family: monospace;";
+                    
+                    const delBtn = document.createElement('button');
+                    delBtn.textContent = '✕';
+                    delBtn.style.cssText = "background: #442222; border: 1px solid #663333; color: #ffaaaa; cursor: pointer;";
+                    delBtn.onclick = () => {
+                        items.splice(idx, 1);
+                        renderRulesEditor(); // Re-render to update indices
+                    };
+                    
+                    row.appendChild(input);
+                    row.appendChild(delBtn);
+                    container.appendChild(row);
+                });
+            };
+            
+            renderList('folder-rules-list', rules.folder || []);
+            renderList('hidden-rules-list', rules.hidden || []);
+        }
+
+        bind('btn-add-folder-rule', 'click', () => {
+            const rules = getTagRules();
+            if (!rules.folder) rules.folder = [];
+            rules.folder.push("");
+            renderRulesEditor();
+        });
+
+        bind('btn-add-hidden-rule', 'click', () => {
+            const rules = getTagRules();
+            if (!rules.hidden) rules.hidden = [];
+            rules.hidden.push("");
+            renderRulesEditor();
+        });
+
+        bind('btn-save-rules', 'click', () => {
+            const getValues = (listId) => {
+                const inputs = document.querySelectorAll(`#${listId} input`);
+                return Array.from(inputs).map(i => i.value).filter(v => v.trim() !== "");
+            };
+            
+            const newRules = {
+                folder: getValues('folder-rules-list'),
+                hidden: getValues('hidden-rules-list')
+            };
+            
+            setTagRules(newRules);
+            rulesModal.classList.remove('active');
+            fetchRealData(); // Refresh UI to apply new rules
+            refreshTagCloud(db); // Refresh Cloud
+        });
+
+        // Rules Modal Transparency
+        let rulesTransLevel = 0;
+        bind('btn-toggle-rules-transparency', 'click', () => {
+            rulesTransLevel = (rulesTransLevel + 1) % 3;
+            rulesContent.classList.remove('tag-modal-trans-1', 'tag-modal-trans-2');
+            const btn = document.getElementById('btn-toggle-rules-transparency');
+            
+            if (rulesTransLevel === 1) {
+                rulesContent.classList.add('tag-modal-trans-1');
+                btn.style.opacity = "1";
+            } else if (rulesTransLevel === 2) {
+                rulesContent.classList.add('tag-modal-trans-2');
+                btn.style.opacity = "0.5";
+            } else {
+                btn.style.opacity = "0.8";
+            }
+        });
+
         // --- DRAG LOGIC FOR WHITELIST MODAL ---
         if (wlContent) {
             const handle = wlContent.querySelector('.modal-drag-handle');
@@ -2004,6 +2122,29 @@ document.addEventListener("DOMContentLoaded", async () => {
                     wlModal.style.top = `${startTop + (e.clientY - startY)}px`;
                 }
                 function onMouseUpWl() { isDraggingWl = false; document.removeEventListener('mousemove', onMouseMoveWl); document.removeEventListener('mouseup', onMouseUpWl); }
+            }
+        }
+
+        // --- DRAG LOGIC FOR RULES MODAL ---
+        if (rulesContent) {
+            const handle = rulesContent.querySelector('.modal-drag-handle');
+            if (handle) {
+                handle.style.cursor = 'move';
+                let isDraggingRules = false;
+                let startX, startY, startTransX, startTransY;
+                handle.addEventListener('mousedown', (e) => {
+                    if (e.target.closest('.close-x') || e.target.closest('#btn-toggle-rules-transparency')) return;
+                    e.preventDefault(); isDraggingRules = true; startX = e.clientX; startY = e.clientY;
+                    const style = window.getComputedStyle(rulesContent); const matrix = new WebKitCSSMatrix(style.transform);
+                    startTransX = matrix.m41; startTransY = matrix.m42;
+                    document.addEventListener('mousemove', onMouseMoveRules); document.addEventListener('mouseup', onMouseUpRules);
+                });
+                function onMouseMoveRules(e) {
+                    if (!isDraggingRules) return;
+                    const dx = e.clientX - startX; const dy = e.clientY - startY;
+                    rulesContent.style.transform = `translate(${startTransX + dx}px, ${startTransY + dy}px)`;
+                }
+                function onMouseUpRules() { isDraggingRules = false; document.removeEventListener('mousemove', onMouseMoveRules); document.removeEventListener('mouseup', onMouseUpRules); }
             }
         }
 

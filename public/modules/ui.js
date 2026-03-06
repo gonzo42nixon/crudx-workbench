@@ -1,6 +1,7 @@
 // public/modules/ui.js
 import { detectMimetype } from './mime.js';
 import { auth } from './firebase.js';
+import { getTagSector } from './tag-state.js';
 
 export function escapeHtml(unsafe) {
     if (!unsafe) return '';
@@ -15,6 +16,10 @@ export function renderDataFromDocs(docs, container) {
     const isNano = container.classList.contains('grid-9');
     const isGrid1 = container.classList.contains('grid-1');
     const currentUserEmail = auth.currentUser?.email;
+    
+    const searchInput = document.getElementById('main-search');
+    const searchTerm = searchInput ? searchInput.value.trim() : '';
+    const activeTag = searchTerm.startsWith('tag:') ? searchTerm.substring(4) : null;
     
     const tokens = currentUserEmail ? [
         currentUserEmail,
@@ -35,9 +40,6 @@ export function renderDataFromDocs(docs, container) {
     const fT = (label, ts) => { const s = toIso(ts); return s ? `${label}: ${s.replace('T', ' ').substring(0, 19)}` : label; };
     let htmlBuffer = "";
 
-    // Load tag state once before the loop
-    const savedTagState = JSON.parse(localStorage.getItem('crudx_tag_state') || '{}');
-
     docs.forEach(doc => {
         const d = doc.data();
         const foundMime = detectMimetype(d.value);
@@ -51,23 +53,12 @@ export function renderDataFromDocs(docs, container) {
         const folderTags = [];
         const hiddenTags = [];
         const cloudTags = [];
-        let protectionTag = "";
 
         if (Array.isArray(d.user_tags)) {
             d.user_tags.forEach(tag => {
-                if (tag.startsWith('🛡️')) {
-                    protectionTag = tag; // Isolate protection tag
-                    return;
-                }
-
                 let targetSector = 'cloud';
                 if (!isGrid1) { // Gruppierung nur wenn NICHT 1x1
-                    if (savedTagState[tag]) {
-                        targetSector = savedTagState[tag];
-                    } else {
-                        if (tag.includes('>')) targetSector = 'folder';
-                        else if (tag.includes(':')) targetSector = 'hidden';
-                    }
+                    targetSector = getTagSector(tag);
                 }
 
                 if (targetSector === 'folder') folderTags.push(tag);
@@ -79,21 +70,15 @@ export function renderDataFromDocs(docs, container) {
         let userTagsHtml = '';
         
         cloudTags.forEach(tag => {
-            userTagsHtml += `<div class="pill pill-user" title="Memo: User">${escapeHtml(tag)}</div>`;
+            const inactiveClass = (activeTag && tag !== activeTag) ? 'pill-inactive' : '';
+            userTagsHtml += `<div class="pill pill-user ${inactiveClass}" title="Memo: User">${escapeHtml(tag)}</div>`;
         });
 
         if (folderTags.length > 0) {
+            const isInactive = activeTag && !folderTags.includes(activeTag);
+            const inactiveClass = isInactive ? 'pill-inactive' : '';
             const folderTitle = `Folder Tags:\n- ${folderTags.join('\n- ')}`;
-            userTagsHtml += `<div class="pill pill-user summary-pill" data-tags='${escapeHtml(JSON.stringify(folderTags))}' title="${escapeHtml(folderTitle)}" style="background-color: #8d6e63 !important; color: #fff !important; border-color: #5d4037 !important; cursor: pointer;">📁 ${folderTags.length}</div>`;
-        }
-
-        if (hiddenTags.length > 0) {
-            const hiddenTitle = `Hidden Tags:\n- ${hiddenTags.join('\n- ')}`;
-            userTagsHtml += `<div class="pill pill-user summary-pill" data-tags='${escapeHtml(JSON.stringify(hiddenTags))}' title="${escapeHtml(hiddenTitle)}" style="background-color: #616161 !important; color: #fff !important; border-color: #424242 !important; cursor: pointer;">🕶️ ${hiddenTags.length}</div>`;
-        }
-        
-        if (protectionTag) {
-            userTagsHtml += `<div class="pill pill-user" title="Memo: User">${escapeHtml(protectionTag)}</div>`;
+            userTagsHtml += `<div class="pill pill-user summary-pill ${inactiveClass}" data-tags='${escapeHtml(JSON.stringify(folderTags))}' title="${escapeHtml(folderTitle)}" style="background-color: #8d6e63 !important; color: #fff !important; border-color: #5d4037 !important; cursor: pointer;">📁 ${folderTags.length}</div>`;
         }
 
         let whitelistPills = [];
@@ -159,7 +144,8 @@ export function renderDataFromDocs(docs, container) {
         };
 
         const getBtnState = (char, listName, actionName) => {
-            const isProtected = protectionTag.includes(char);
+            // Protection Tag suchen (beginnt mit 🛡️), falls vorhanden
+            const isProtected = d.user_tags && d.user_tags.some(t => t.startsWith('🛡️') && t.includes(char));
             const isAuthorized = checkAuth(listName);
             const actionUpper = actionName.toUpperCase();
             

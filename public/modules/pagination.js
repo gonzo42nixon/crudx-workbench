@@ -101,7 +101,7 @@ export function applyLayout(val, initialLoad = false) {
 }
 
 // ---------- Daten laden (aktuelle Seite) ----------
-export async function fetchRealData() {
+export async function fetchRealData(resetPage = false) {
     const container = document.getElementById('data-container');
     if (!container) return;
     const colRef = collection(db, "kv-store");
@@ -109,6 +109,12 @@ export async function fetchRealData() {
     const filterOwnerOnly = document.getElementById('filter-owner-only')?.checked;
     const searchTerm = document.getElementById('main-search')?.value.trim();
     const isTagSearch = searchTerm && searchTerm.startsWith('tag:');
+    const needsClientSideFiltering = user && !filterOwnerOnly && isTagSearch;
+
+    if (resetPage) {
+        currentPage = 1;
+        pageCursors = [];
+    }
 
     const clearBtn = document.getElementById('btn-clear-search');
     if (clearBtn) clearBtn.style.display = searchTerm ? 'block' : 'none';
@@ -172,6 +178,20 @@ export async function fetchRealData() {
         }
 
         let filteredCount = totalCount;
+        
+        // Calculate correct filtered count for server-side searches
+        if (searchTerm && !needsClientSideFiltering) {
+            let searchQuery = countQuery;
+            if (searchTerm.startsWith('tag:')) {
+                searchQuery = query(searchQuery, where("user_tags", "array-contains", searchTerm.substring(4)));
+            } else if (searchTerm.startsWith('owner:')) {
+                searchQuery = query(searchQuery, where("owner", "==", searchTerm.substring(6)));
+            } else {
+                searchQuery = query(searchQuery, where("__name__", "==", searchTerm));
+            }
+            const searchSnap = await getCountFromServer(searchQuery);
+            filteredCount = searchSnap.data().count;
+        }
 
         const gridValue = document.getElementById('grid-select')?.value || "3";
         let currentLimit, totalPages;
@@ -187,9 +207,15 @@ export async function fetchRealData() {
         }
 
         document.getElementById('total-count') && (document.getElementById('total-count').textContent = totalCount);
-        document.getElementById('result-count') && (document.getElementById('result-count').textContent = filteredCount);
         document.getElementById('current-page') && (document.getElementById('current-page').textContent = currentPage);
-        document.getElementById('total-pages') && (document.getElementById('total-pages').textContent = totalPages);
+
+        if (needsClientSideFiltering) {
+            document.getElementById('result-count') && (document.getElementById('result-count').textContent = "...");
+            document.getElementById('total-pages') && (document.getElementById('total-pages').textContent = "...");
+        } else {
+            document.getElementById('result-count') && (document.getElementById('result-count').textContent = filteredCount);
+            document.getElementById('total-pages') && (document.getElementById('total-pages').textContent = totalPages);
+        }
 
         let constraints = [];
         if (user) {
@@ -219,10 +245,14 @@ export async function fetchRealData() {
             constraints.push(orderBy("label", sortDirection));
         }
 
-        if (currentPage > 1 && pageCursors[currentPage - 2]) {
-            constraints.push(startAfter(pageCursors[currentPage - 2]));
+        // FIX: Bei Tag-Suche mit Client-Filterung KEIN Datenbank-Limit setzen,
+        // damit wir erst filtern und dann paginieren können.
+        if (!needsClientSideFiltering) {
+            if (currentPage > 1 && pageCursors[currentPage - 2]) {
+                constraints.push(startAfter(pageCursors[currentPage - 2]));
+            }
+            constraints.push(limit(currentLimit));
         }
-        constraints.push(limit(currentLimit));
         const q = query(colRef, ...constraints);
 
         // Realtime Listener statt einmaligem Fetch
@@ -231,14 +261,27 @@ export async function fetchRealData() {
         currentUnsubscribe = onSnapshot(q, (snap) => {
             let docs = snap.docs;
 
-            // FIX: Client-seitige Filterung für Access Control bei Tag-Suche
-            if (user && !filterOwnerOnly && isTagSearch) {
+            if (needsClientSideFiltering) {
                 const tokens = getAccessTokens(user.email);
                 docs = docs.filter(doc => {
                     const d = doc.data();
                     const ac = d.access_control || [];
                     return ac.some(t => tokens.includes(t));
                 });
+
+                // Update Result Count & Pages based on filtered set
+                const filteredTotal = docs.length;
+                const resultCountEl = document.getElementById('result-count');
+                if (resultCountEl) resultCountEl.textContent = filteredTotal;
+                
+                totalPages = Math.max(1, Math.ceil(filteredTotal / currentLimit));
+                const totalPagesEl = document.getElementById('total-pages');
+                if (totalPagesEl) totalPagesEl.textContent = totalPages;
+
+                // Client-Side Pagination
+                const startIndex = (currentPage - 1) * currentLimit;
+                const endIndex = startIndex + currentLimit;
+                docs = docs.slice(startIndex, endIndex);
             }
 
             if (docs.length === 0) {
@@ -360,9 +403,7 @@ export function initPaginationControls() {
         btnOrder.addEventListener('click', () => {
             sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
             btnOrder.textContent = sortDirection === 'asc' ? '↑' : '↓';
-            currentPage = 1;
-            pageCursors = [];
-            fetchRealData();
+            fetchRealData(true);
         });
     }
 
@@ -378,18 +419,14 @@ export function initPaginationControls() {
     const filterOwner = document.getElementById('filter-owner-only');
     if (filterOwner) {
         filterOwner.addEventListener('change', () => {
-            currentPage = 1;
-            pageCursors = [];
-            fetchRealData();
+            fetchRealData(true);
         });
     }
 
     // Erste Seite
     document.getElementById('btn-first')?.addEventListener('click', () => {
         if (currentPage === 1) return;
-        currentPage = 1;
-        pageCursors = [];
-        fetchRealData();
+        fetchRealData(true);
     });
 
     // Vorherige Seite
