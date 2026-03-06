@@ -58,7 +58,10 @@ export async function seedData(db) {
         { type: "MAPS_EMBED", ext: ".html", val: `<iframe src="https://www.google.com/maps/embed?pb=!3m2!1sde!2sde!4v1772641896298!5m2!1sde!2sde!6m8!1m7!1syY2bm29Cvb_db6HmWQ_wwQ!2m2!1d48.85304488059972!2d2.347925722385016!3f277.11682150822566!4f-13.49372677690097!5f0.7820865974627469" width="600" height="450" style="border:0;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>` },
         { type: "IMGUR_EMBED", ext: ".html", val: `<blockquote class="imgur-embed-pub" lang="en" data-id="a/uSl6VfH" data-context="false" ><a href="//imgur.com/a/uSl6VfH"></a></blockquote><script async src="//s.imgur.com/min/embed.js" charset="utf-8"></script>` },
         { type: "IMGUR_EMBED", ext: ".html", val: `<blockquote class="imgur-embed-pub" lang="en" data-id="a/wg94qrA"><a href="//imgur.com/wg94qrA"></a></blockquote><script async src="//s.imgur.com/min/embed.js" charset="utf-8"></script>` },
-        { type: "IMGUR_EMBED", ext: ".html", val: `<blockquote class="imgur-embed-pub" lang="en" data-id="a/iIMBdju"><a href="//imgur.com/iIMBdju"></a></blockquote><script async src="//s.imgur.com/min/embed.js" charset="utf-8"></script>` }
+        { type: "IMGUR_EMBED", ext: ".html", val: `<blockquote class="imgur-embed-pub" lang="en" data-id="a/iIMBdju"><a href="//imgur.com/iIMBdju"></a></blockquote><script async src="//s.imgur.com/min/embed.js" charset="utf-8"></script>` },
+        { type: "URL_LINK", ext: ".url", val: "https://www.fiverr.com/gonzo42nixon/buying?source=avatar_menu_profile" },
+        { type: "URL_LINK", ext: ".url", val: "https://mail.google.com/mail/u/0/#inbox" },
+        { type: "URL_LINK", ext: ".url", val: "https://www.youtube.com/" }
     ];
 
     // Pool an echten Ownern für Whitelist-Tests
@@ -157,6 +160,12 @@ export async function seedData(db) {
                 const wlUpdate = generatedWhitelists['white_list_update'];
                 const wlDelete = generatedWhitelists['white_list_delete'];
                 const wlExecute = generatedWhitelists['white_list_execute'];
+
+                // Damit die Test-URLs für jeden sichtbar sind (Public Read)
+                if (payload.type === 'URL_LINK' || payload.type === 'MAPS_LINK') {
+                    if (!wlRead.includes('*@*')) wlRead.push('*@*');
+                }
+
                 const accessControl = [...new Set([owner, ...wlRead, ...wlUpdate, ...wlDelete, ...wlExecute])];
 
                 // Sort and Build Tag
@@ -212,6 +221,8 @@ export async function seedData(db) {
                     tags.push("gmaps");
                 } else if (payload.type === 'IMGUR_EMBED') {
                     tags.push("imgur");
+                } else if (payload.type === 'URL_LINK' || payload.type === 'MAPS_LINK') {
+                    tags.push("bookmark");
                 }
 
                 if (Math.random() < 0.10) tags.push("backup");
@@ -223,10 +234,10 @@ export async function seedData(db) {
                 else if (vRand < 0.21) tags.push("v4");
                 else if (vRand < 0.23) tags.push("v5");
                 
-                const isEmbed = payload.type === 'YOUTUBE_EMBED' || payload.type === 'MAPS_EMBED' || payload.type === 'IMGUR_EMBED';
+                const isEmbed = payload.type === 'YOUTUBE_EMBED' || payload.type === 'MAPS_EMBED' || payload.type === 'IMGUR_EMBED' || payload.type === 'URL_LINK' || payload.type === 'MAPS_LINK';
 
                 if (isEmbed) {
-                    // Iframes sind immer app, nie data
+                    // Iframes und URLs sind immer app, nie data
                     tags.push("app");
                     tags.push(`x:${ocrId}`);
                 } else {

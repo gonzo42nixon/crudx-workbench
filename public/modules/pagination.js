@@ -2,6 +2,7 @@
 import { db, auth } from './firebase.js';
 import { collection, query, limit, getDocs, getCountFromServer, orderBy, startAfter, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { renderDataFromDocs } from './ui.js';
+import { detectMimetype } from './mime.js';
 
 // ---------- Zustand ----------
 export let currentPage = 1;
@@ -109,7 +110,8 @@ export async function fetchRealData(resetPage = false) {
     const filterOwnerOnly = document.getElementById('filter-owner-only')?.checked;
     const searchTerm = document.getElementById('main-search')?.value.trim();
     const isTagSearch = searchTerm && searchTerm.startsWith('tag:');
-    const needsClientSideFiltering = user && !filterOwnerOnly && isTagSearch;
+    const isMimeSearch = searchTerm && searchTerm.startsWith('mime:');
+    const needsClientSideFiltering = (user && !filterOwnerOnly && isTagSearch) || isMimeSearch;
 
     if (resetPage) {
         currentPage = 1;
@@ -235,6 +237,8 @@ export async function fetchRealData(resetPage = false) {
             if (searchTerm.startsWith('tag:')) {
                 const tag = searchTerm.substring(4);
                 constraints.push(where("user_tags", "array-contains", tag));
+            } else if (searchTerm.startsWith('mime:')) {
+                // Client-side filtering only, no server constraint
             } else if (searchTerm.startsWith('owner:')) {
                 const owner = searchTerm.substring(6);
                 constraints.push(where("owner", "==", owner));
@@ -265,8 +269,20 @@ export async function fetchRealData(resetPage = false) {
                 const tokens = getAccessTokens(user.email);
                 docs = docs.filter(doc => {
                     const d = doc.data();
-                    const ac = d.access_control || [];
-                    return ac.some(t => tokens.includes(t));
+                    
+                    // 1. Access Control Check (if user exists)
+                    if (user) {
+                        const ac = d.access_control || [];
+                        if (!ac.some(t => tokens.includes(t))) return false;
+                    }
+
+                    // 2. Mime Type Check
+                    if (isMimeSearch) {
+                        const mimeType = searchTerm.substring(5);
+                        if (detectMimetype(d.value).type !== mimeType) return false;
+                    }
+
+                    return true;
                 });
 
                 // Update Result Count & Pages based on filtered set

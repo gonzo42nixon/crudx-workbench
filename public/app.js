@@ -662,6 +662,16 @@ document.addEventListener("DOMContentLoaded", async () => {
                                 updateTagCloudSelection();
                             }
                         }
+                        // Filter by MIME Type
+                        else if (pill.classList.contains('pill-mime')) {
+                            const value = pill.textContent.trim();
+                            const searchInput = document.getElementById('main-search');
+                            if (searchInput) {
+                                const currentSearch = searchInput.value.trim();
+                                searchInput.value = (currentSearch === `mime:${value}`) ? '' : `mime:${value}`;
+                                fetchRealData(true);
+                            }
+                        }
                     }
                 }
 
