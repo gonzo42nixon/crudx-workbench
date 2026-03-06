@@ -114,10 +114,13 @@ document.addEventListener("DOMContentLoaded", async () => {
                     <div class="modal-drag-handle" style="padding: 10px; background: rgba(255,255,255,0.05); border-bottom: 1px solid var(--editor-border); display: flex; justify-content: space-between; align-items: center; gap: 15px; cursor: move;">
                         <span style="font-size: 1.2rem;">🚀</span>
                         <input type="text" readonly value="${targetUrl}" style="flex: 1; background: #000; border: 1px solid #333; color: #00ff00; padding: 6px 10px; font-family: 'JetBrains Mono', monospace; font-size: 0.85em; border-radius: 4px; outline: none;">
+                        <span class="btn-external" title="Open in New Tab" style="cursor: pointer; font-size: 1.2rem; opacity: 0.8;">🔗</span>
                         <span class="btn-transparency" title="Toggle Transparency" style="cursor: pointer; font-size: 1.2rem; opacity: 0.8;">👁️</span>
                         <span class="btn-close" title="Close" style="cursor: pointer; font-size: 1.2rem;">✕</span>
                     </div>
-                    <iframe src="${targetUrl}" style="flex: 1; border: none; width: 100%; height: 100%; background: var(--canvas-bg);"></iframe>
+                    <div class="execution-iframe-container" style="position: relative; flex: 1; overflow: hidden;">
+                        <iframe src="${targetUrl}" style="width: 100%; height: 100%; border: none; background: var(--canvas-bg);"></iframe>
+                    </div>
             `;
 
             document.body.appendChild(div);
@@ -126,11 +129,19 @@ document.addEventListener("DOMContentLoaded", async () => {
             const handle = div.querySelector('.modal-drag-handle');
             const btnClose = div.querySelector('.btn-close');
             const btnTrans = div.querySelector('.btn-transparency');
+            const btnExternal = div.querySelector('.btn-external');
+            const iframe = div.querySelector('iframe');
+            const iframeContainer = div.querySelector('.execution-iframe-container');
 
             // Bring to front on click
             content.addEventListener('mousedown', () => {
                 executionWindowZIndex++;
                 div.style.zIndex = executionWindowZIndex;
+            });
+
+            // Open External
+            btnExternal.addEventListener('click', () => {
+                window.open(targetUrl, '_blank');
             });
 
             // Close
@@ -411,6 +422,18 @@ document.addEventListener("DOMContentLoaded", async () => {
                             const d = docSnap.data();
                             const tags = d.user_tags || [];
                             
+                            // Special Case: Bookmark URL -> Open in IFrame directly
+                            const mime = detectMimetype(d.value);
+                            if (tags.includes("bookmark") && mime.type === 'URL') {
+                                createExecutionWindow(d.value, d.value);
+                                updateDoc(doc(db, "kv-store", key), { executes: increment(1), last_execute_ts: new Date().toISOString() }).catch(console.error);
+                                
+                                // Reset button state and stop further execution
+                                btn.textContent = originalText;
+                                btn.style.cursor = "pointer";
+                                return;
+                            }
+
                             // 2. Build Params
                             const params = new URLSearchParams();
                             params.append("action", "X"); // Base param

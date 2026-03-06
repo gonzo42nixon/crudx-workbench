@@ -61,7 +61,17 @@ export async function seedData(db) {
         { type: "IMGUR_EMBED", ext: ".html", val: `<blockquote class="imgur-embed-pub" lang="en" data-id="a/iIMBdju"><a href="//imgur.com/iIMBdju"></a></blockquote><script async src="//s.imgur.com/min/embed.js" charset="utf-8"></script>` },
         { type: "URL_LINK", ext: ".url", val: "https://www.fiverr.com/gonzo42nixon/buying?source=avatar_menu_profile" },
         { type: "URL_LINK", ext: ".url", val: "https://mail.google.com/mail/u/0/#inbox" },
-        { type: "URL_LINK", ext: ".url", val: "https://www.youtube.com/" }
+        { type: "URL_LINK", ext: ".url", val: "https://www.youtube.com/" },
+        { type: "URL_LINK", ext: ".url", val: "https://hook.eu1.make.com/r1hoz4qb1gorj6silab1hm6m74eqj1he?operator=GET&RecordID=pg-e7c30581-d0c0-4231-8b4e-b48f88d1d6ae" },
+        { type: "URL_LINK", ext: ".url", val: "https://de.wikipedia.org/wiki/Wikipedia:Hauptseite" },
+        { type: "URL_LINK", ext: ".url", val: "https://github.com/gonzo42nixon/crudx-workbench" },
+        { type: "URL_LINK", ext: ".url", val: "https://chatgpt.com/c/69aae532-46b8-8395-a91c-d612665ab05b" },
+        { type: "URL_LINK", ext: ".url", val: "https://archive.org/" },
+        { type: "URL_LINK", ext: ".url", val: "https://stackedit.io/app" },
+        { type: "URL_LINK", ext: ".url", val: "https://jsfiddle.net/" },
+        { type: "URL_LINK", ext: ".url", val: "https://ourworldindata.org/" },
+        { type: "URL_LINK", ext: ".url", val: "https://worldpopulationreview.com/" },
+        { type: "URL_LINK", ext: ".url", val: "https://motherfuckingwebsite.com/" }
     ];
 
     // Pool an echten Ownern für Whitelist-Tests
@@ -103,7 +113,10 @@ export async function seedData(db) {
                     payload = repeatablePayloads[offsetIndex % repeatablePayloads.length];
                 }
 
-                const owner = realUsers[index % realUsers.length];
+                let owner = realUsers[index % realUsers.length];
+                if (payload.type === 'URL_LINK' || payload.type === 'MAPS_LINK') {
+                    owner = "drueffler@gmail.com";
+                }
 
                 // Helper to get random users for whitelist (excluding owner)
                 const getRandomWhitelist = (currentOwner) => {
@@ -223,6 +236,7 @@ export async function seedData(db) {
                     tags.push("imgur");
                 } else if (payload.type === 'URL_LINK' || payload.type === 'MAPS_LINK') {
                     tags.push("bookmark");
+                    tags.push(`x:${ocrId}`);
                 }
 
                 if (Math.random() < 0.10) tags.push("backup");

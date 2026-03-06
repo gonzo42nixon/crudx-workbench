@@ -1632,6 +1632,53 @@ header {
 .iframe-trans-1 { opacity: 0.9 !important; }
 .iframe-trans-2 { opacity: 0.66 !important; }
 
+/* Fallback for blocked IFrames */
+.iframe-fallback-message {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(10, 10, 10, 0.85);
+    backdrop-filter: blur(4px);
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 20px;
+    font-size: 1.1em;
+    line-height: 1.6;
+    z-index: 1; /* Above the iframe itself */
+}
+
+.iframe-fallback-message p {
+    font-size: 0.8em;
+    opacity: 0.7;
+    max-width: 400px;
+}
+
+.iframe-fallback-message code {
+    background: rgba(255,255,255,0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.inline-fallback-open-btn {
+    margin-top: 20px;
+    background: var(--user-bg);
+    color: var(--user-text);
+    border: 1px solid var(--user-border);
+    padding: 10px 25px;
+    border-radius: 30px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.inline-fallback-open-btn:hover { transform: scale(1.05); filter: brightness(1.1); }
+
 /* ========== TAG DROPDOWN MENU ========== */
 .tag-dropdown-menu {
     position: absolute;
