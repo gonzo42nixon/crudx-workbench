@@ -3,6 +3,7 @@ import { fetchRealData, getAccessTokens, applyLayout } from './pagination.js';
 import { auth } from './firebase.js';
 import { getTagSector, setManualTagState, getTagRules, setTagRules } from './tag-state.js';
 
+let dockState = 0; // 0: floating, 1: left, 2: center, 3: right-bottom
 let isDraggable = false;
 let offsetX, offsetY;
 let isFolderTreeMode = true; // Default: Tree View
@@ -89,7 +90,40 @@ function updateSectorVisibility(container) {
     }
 }
 
-function dockTagCloud(container) {
+function updateSectorsForDockState(container) {
+    if (!container) return;
+
+    const folder = container.querySelector('.sector-folder');
+    const hidden = container.querySelector('.sector-hidden');
+    const cloud = container.querySelector('.sector-cloud');
+
+    const setDisplay = (el, show) => {
+        if (el) el.style.display = show ? 'flex' : 'none';
+    };
+
+    switch (dockState) {
+        case 1: // Left (Folder Explorer)
+            setDisplay(folder, true);
+            setDisplay(hidden, false);
+            setDisplay(cloud, false);
+            break;
+        case 2: // Center (Config)
+            setDisplay(folder, true);
+            setDisplay(hidden, true);
+            setDisplay(cloud, true);
+            break;
+        case 3: // Bottom-Right (Cloud Viewer)
+            setDisplay(folder, false);
+            setDisplay(hidden, false);
+            setDisplay(cloud, true);
+            break;
+        default: // 0: Floating
+            updateSectorVisibility(container); // Use the old logic based on position
+            break;
+    }
+}
+
+function dockTagCloudLeft(container) {
     if (container.classList.contains('docked')) return;
 
     // Save state before docking
@@ -97,16 +131,21 @@ function dockTagCloud(container) {
     preDockState.height = container.style.height;
     preDockState.top = container.style.top;
     // If top is auto (initial state), calculate it
-    if (!container.style.top || container.style.top === 'auto') {
-        preDockState.top = container.getBoundingClientRect().top + 'px';
-    }
+    const rect = container.getBoundingClientRect();
+    if (!container.style.top || container.style.top === 'auto') preDockState.top = rect.top + 'px';
     preDockState.left = container.style.left;
     
     // Fix current dimensions for smooth transition
-    const rect = container.getBoundingClientRect();
     container.style.width = `${rect.width}px`;
     container.style.height = `${rect.height}px`;
 
+    // Clean up other states
+    container.classList.remove('docked-center', 'docked-bottom-right', 'snapped-right');
+    container.style.transform = '';
+    container.style.bottom = 'auto';
+    container.style.right = 'auto';
+
+    dockState = 1;
     container.classList.add('docked');
     document.body.classList.add('ftc-docked');
     
@@ -137,16 +176,90 @@ function dockTagCloud(container) {
     }, 400); // Wait slightly longer than CSS transition (0.3s)
 }
 
-function undockTagCloud(container, mouseX, mouseY) {
-    if (!container.classList.contains('docked')) return;
+function dockTagCloudCenter(container) {
+    // Save state before docking, only if coming from floating
+    if (dockState === 0) {
+        const rect = container.getBoundingClientRect();
+        preDockState.width = `${rect.width}px`;
+        preDockState.height = `${rect.height}px`;
+        preDockState.top = `${rect.top}px`;
+        preDockState.left = `${rect.left}px`;
+    }
 
-    container.classList.remove('docked');
+    // Clean up other states
+    container.classList.remove('docked', 'docked-left', 'docked-bottom-right', 'snapped-right');
+    document.body.classList.remove('ftc-docked');
+
+    dockState = 2;
+    container.classList.add('docked-center');
+
+    // Apply styles for centered mode
+    container.style.width = window.innerWidth < 1000 ? '95vw' : '60vw';
+    container.style.height = window.innerHeight < 800 ? '95vh' : '70vh';
+    container.style.top = '50%';
+    container.style.left = '50%';
+    container.style.transform = 'translate(-50%, -50%)';
+    container.style.right = 'auto';
+    container.style.bottom = 'auto';
+
+    // Restore main layout to 3x3 if it was 1x1
+    const gridSelect = document.getElementById('grid-select');
+    if (gridSelect && gridSelect.value === '1') applyLayout('3');
+
+    // Re-render to show correct sectors
+    if (window.currentDbInstance) refreshTagCloud(window.currentDbInstance);
+}
+
+function dockTagCloudBottomRight(container) {
+    // Save state before docking, only if coming from floating
+    if (dockState === 0) {
+        const rect = container.getBoundingClientRect();
+        preDockState.width = `${rect.width}px`;
+        preDockState.height = `${rect.height}px`;
+        preDockState.top = `${rect.top}px`;
+        preDockState.left = `${rect.left}px`;
+    }
+
+    // Clean up other states
+    container.classList.remove('docked', 'docked-left', 'docked-center', 'snapped-right');
+    document.body.classList.remove('ftc-docked');
+
+    dockState = 3;
+    container.classList.add('docked-bottom-right');
+
+    // Apply styles
+    container.style.top = 'auto';
+    container.style.left = 'auto';
+    container.style.bottom = '20px';
+    container.style.right = '20px';
+    container.style.transform = '';
+    container.style.width = 'auto';
+    container.style.height = 'auto';
+    container.style.minWidth = '250px';
+    container.style.maxWidth = '40vw';
+    container.style.maxHeight = '50vh';
+
+    if (window.currentDbInstance) refreshTagCloud(window.currentDbInstance);
+}
+
+function undockTagCloud(container, mouseX, mouseY) {
+    if (dockState === 0) return; // Already floating
+
+    const wasLeftDocked = container.classList.contains('docked-left');
+    dockState = 0; // Set to floating state
+
+    container.classList.remove('docked', 'docked-left', 'docked-center', 'docked-bottom-right', 'snapped-right');
     document.body.classList.remove('ftc-docked');
 
     // Restore dimensions
     container.style.width = preDockState.width;
-    container.style.bottom = ''; // Clear bottom if it was set
     container.style.height = preDockState.height || '';
+    container.style.bottom = '';
+    container.style.right = 'auto';
+    container.style.transform = '';
+    container.style.minWidth = '';
+    container.style.maxWidth = '';
+    container.style.maxHeight = '';
     
     if (mouseX !== undefined && mouseY !== undefined) {
         // Drag undock
@@ -158,10 +271,9 @@ function undockTagCloud(container, mouseX, mouseY) {
         container.style.left = preDockState.left || '20px';
     }
 
-    // Restore Layout (Optional: Switch back to 3x3 or keep 1x1? User said "back to original FTC")
-    applyLayout('3');
+    // If we were left-docked, restore the main layout
+    if (wasLeftDocked) applyLayout('3');
 
-    // Trigger Re-Render to restore groups and folder state
     const db = window.currentDbInstance;
     if (db) refreshTagCloud(db);
 }
@@ -171,13 +283,12 @@ function makeDraggable(container, handle) {
         // Dragging nicht starten, wenn auf Buttons im Header geklickt wird
         if (e.target.closest('.close-x, #btn-refresh-tags')) return;
         
-        const isDocked = container.classList.contains('docked');
+        const isFixed = dockState !== 0;
 
         // Snap-Klassen entfernen, um freies Bewegen zu ermöglichen
         if (container.id === 'tag-cloud-container') {
             // Position fixieren (Left/Top), bevor Snap-Klassen entfernt werden
-            // Wichtig, falls es rechts angedockt war (right: 0)
-            if (!isDocked) {
+            if (!isFixed) {
                 const rect = container.getBoundingClientRect();
                 container.style.left = `${rect.left}px`;
                 container.style.right = 'auto';
@@ -196,10 +307,12 @@ function makeDraggable(container, handle) {
         container.style.transition = 'none'; // Disable transition during drag
         isDraggable = true;
         
-        if (isDocked) {
-            // Beim Docked-State ist der Offset relativ einfach, da left=0
-            offsetX = e.clientX; 
-            offsetY = e.clientY; 
+        if (isFixed) {
+            // For fixed states, calculate offset relative to the click,
+            // because we will be setting left/top on the element after undocking.
+            const rect = container.getBoundingClientRect();
+            offsetX = e.clientX - rect.left;
+            offsetY = e.clientY - rect.top;
         } else {
             offsetX = e.clientX - container.getBoundingClientRect().left;
             offsetY = e.clientY - container.getBoundingClientRect().top;
@@ -212,21 +325,21 @@ function makeDraggable(container, handle) {
     document.addEventListener('mousemove', (e) => {
         if (!isDraggable) return;
 
-        // Check Undock Condition: Dragging right while docked
-        if (container.classList.contains('docked')) {
-            if (e.clientX > 100) { // Threshold to undock
-                undockTagCloud(container, e.clientX, e.clientY);
-                // Recalculate offset for smooth continuation
-                offsetX = e.clientX - container.getBoundingClientRect().left;
-                offsetY = e.clientY - container.getBoundingClientRect().top;
-            }
-            return; // Don't move via style if docked
+        // Check Undock Condition: Dragging from a fixed state
+        if (dockState !== 0) {
+            undockTagCloud(container, e.clientX, e.clientY);
+            // After undocking, dockState is 0. Recalculate offset for smooth continuation.
+            offsetX = e.clientX - container.getBoundingClientRect().left;
+            offsetY = e.clientY - container.getBoundingClientRect().top;
         }
 
-        container.style.left = `${e.clientX - offsetX}px`;
-        container.style.top = `${e.clientY - offsetY}px`;
-        updateSectorVisibility(container);
-        updateHandleVisibility(container);
+        // Only move if floating
+        if (dockState === 0) {
+            container.style.left = `${e.clientX - offsetX}px`;
+            container.style.top = `${e.clientY - offsetY}px`;
+            updateSectorsForDockState(container);
+            updateHandleVisibility(container);
+        }
     });
     
     document.addEventListener('mouseup', () => {
@@ -242,7 +355,7 @@ function makeDraggable(container, handle) {
             
             // DOCKING LOGIC: Left Edge
             if (finalRect.left <= 0) {
-                dockTagCloud(container);
+                dockTagCloudLeft(container);
             } else if (finalRect.right > window.innerWidth - snapThreshold) {
                 // Normal Snap Right
                 container.style.left = 'auto';
@@ -468,7 +581,7 @@ function initGroupRulesEvents() {
 }
 
 async function scanAndRenderTags(db, contentContainer) {
-    const isDocked = document.getElementById('tag-cloud-container')?.classList.contains('docked');
+    const isLeftDocked = dockState === 1;
 
     // Struktur wiederherstellen, falls sie durch vorherige Fehler gelöscht wurde
     if (!contentContainer.querySelector('.tag-sector')) {
@@ -573,7 +686,7 @@ async function scanAndRenderTags(db, contentContainer) {
             const targetSector = getTagSector(tag);
 
             if (targetSector === 'folder' && folderContent) {
-                if (isDocked) {
+                if (isLeftDocked) {
                     // DOCKED: Create Document Items for this folder tag
                     const docs = docsByTag.get(tag) || [];
                     docs.forEach(doc => {
@@ -609,19 +722,19 @@ async function scanAndRenderTags(db, contentContainer) {
                 }
             }
             else if (targetSector === 'hidden' && hiddenContent) {
-                if (isDocked) return; // Hide hidden sector in docked mode? Or render flat?
+                if (isLeftDocked) return;
                 const item = createTagPill(tag, count, contentContainer);
                 hiddenItems.push({ tag, count, element: item });
             }
             else if (targetSector === 'cloud' && cloudContent) {
-                if (isDocked) return; // Hide cloud sector in docked mode
+                if (isLeftDocked) return;
                 const item = createTagPill(tag, count, contentContainer);
                 cloudContent.appendChild(item);
             }
         });
 
         // --- Hidden Sector Grouping ---
-        if (hiddenContent && !isDocked) {
+        if (hiddenContent && (dockState === 0 || dockState === 2)) {
             const groups = {};
             const looseItems = [];
 
@@ -715,6 +828,8 @@ async function scanAndRenderTags(db, contentContainer) {
 
             // Render Loose Items
             looseItems.forEach(i => hiddenContent.appendChild(i.element));
+        } else if (hiddenContent) {
+            hiddenItems.forEach(i => hiddenContent.appendChild(i.element));
         }
 
         // --- Folder Sector Grouping & Tree ---
@@ -725,7 +840,7 @@ async function scanAndRenderTags(db, contentContainer) {
             const folderLooseItems = [];
 
             // 1. Grouping Logic (ähnlich Hidden)
-            if (!isDocked) {
+            if (dockState === 0 || dockState === 2) {
                 folderItems.forEach(entry => {
                     let matchedRule = null;
                     for (const rule of folderGroupRules) {
@@ -805,7 +920,7 @@ async function scanAndRenderTags(db, contentContainer) {
                 // In Docked mode, we skip grouping for now or treat everything as loose
                 folderItems.forEach(i => folderLooseItems.push(i));
             }
-
+            
             // 2. Render Remaining Items as Tree or List
             if (isFolderTreeMode && folderLooseItems.length > 0) {
                 const treeRoot = buildTagTree(folderLooseItems);
@@ -818,7 +933,7 @@ async function scanAndRenderTags(db, contentContainer) {
                 }
 
                 // Fallback: If docked but no active doc selected, pick the first one found in tree
-                if (isDocked && !activeDocId && firstDocId) {
+                if (isLeftDocked && !activeDocId && firstDocId) {
                     activeDocId = firstDocId;
                     if (searchInput) {
                         searchInput.value = activeDocId;
@@ -847,7 +962,7 @@ async function scanAndRenderTags(db, contentContainer) {
                     }
                 }
 
-                renderTreeRecursive(treeRoot, folderContent, isDocked, activeTagPath);
+                renderTreeRecursive(treeRoot, folderContent, isLeftDocked, activeTagPath);
             } else if (!isFolderTreeMode && folderLooseItems.length > 0) {
                 // Flat List for loose items
                 folderLooseItems.forEach(i => folderContent.appendChild(i.element));
@@ -891,10 +1006,10 @@ export async function refreshTagCloud(db) {
     if (container && contentContainer) {
         if (!container.classList.contains('active')) {
             container.classList.add('active');
-            updateHandleVisibility(container);
-            updateSectorVisibility(container);
         }
-        return scanAndRenderTags(db, contentContainer);
+        await scanAndRenderTags(db, contentContainer);
+        updateHandleVisibility(container);
+        updateSectorsForDockState(container);
     }
 }
 
@@ -960,10 +1075,10 @@ export function initTagCloud(db) {
         // Ignore clicks on buttons inside header
         if (e.target.closest('span') || e.target.closest('.close-x')) return;
 
-        if (container.classList.contains('docked')) {
+        if (dockState !== 0) {
             undockTagCloud(container);
         } else {
-            dockTagCloud(container);
+            dockTagCloudLeft(container); // Default double-click action
         }
     });
 
@@ -982,10 +1097,20 @@ export function initTagCloud(db) {
     });
 
     dockBtn.addEventListener('click', () => {
-        if (container.classList.contains('docked')) {
-            undockTagCloud(container);
-        } else {
-            dockTagCloud(container);
+        // Cycle through states: 0->1, 1->2, 2->3, 3->1
+        if (dockState === 0) dockState = 1;
+        else dockState = (dockState % 3) + 1;
+
+        switch (dockState) {
+            case 1:
+                dockTagCloudLeft(container);
+                break;
+            case 2:
+                dockTagCloudCenter(container);
+                break;
+            case 3:
+                dockTagCloudBottomRight(container);
+                break;
         }
     });
 
@@ -1142,5 +1267,5 @@ export function initTagCloud(db) {
     if (resizeHandleRight) setupResizeHandle(resizeHandleRight, true);
     
     updateHandleVisibility(container);
-    updateSectorVisibility(container);
+    updateSectorsForDockState(container);
 }
