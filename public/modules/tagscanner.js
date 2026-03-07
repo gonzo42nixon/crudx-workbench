@@ -1,7 +1,7 @@
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { fetchRealData, getAccessTokens, applyLayout } from './pagination.js';
 import { auth } from './firebase.js';
-import { getTagSector, setManualTagState } from './tag-state.js';
+import { getTagSector, setManualTagState, getTagRules, setTagRules } from './tag-state.js';
 
 let isDraggable = false;
 let offsetX, offsetY;
@@ -379,34 +379,50 @@ function saveHiddenGroupRules(rules) {
     localStorage.setItem('crudx_hidden_group_rules', JSON.stringify(rules));
 }
 
-function renderHiddenGroupRulesUI() {
-    const container = document.getElementById('hidden-group-rules-list');
-    if (!container) return;
-    container.innerHTML = '';
-    const rules = getHiddenGroupRules();
+function getFolderGroupRules() {
+    try {
+        return JSON.parse(localStorage.getItem('crudx_folder_group_rules') || '["Created>", "Last Read>", "Last Updated>", "Last Executed>"]');
+    } catch { return []; }
+}
 
-    rules.forEach((rule, index) => {
+function saveFolderGroupRules(rules) {
+    localStorage.setItem('crudx_folder_group_rules', JSON.stringify(rules));
+}
+
+function renderGroupRulesUI() {
+    const renderList = (containerId, getRulesFn, saveRulesFn) => {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        container.innerHTML = '';
+        const rules = getRulesFn();
+
+        rules.forEach((rule, index) => {
         const div = document.createElement('div');
         div.style.display = 'flex';
         div.style.gap = '10px';
+        div.style.marginBottom = '5px';
         div.innerHTML = `
             <input type="text" value="${rule}" class="rule-input" style="flex: 1; background: #222; border: 1px solid #444; color: #ccc; padding: 4px;">
             <button class="btn-remove-rule" style="background: #500; color: #fff; border: none; cursor: pointer; padding: 0 8px;">×</button>
         `;
         div.querySelector('.btn-remove-rule').onclick = () => {
             rules.splice(index, 1);
-            saveHiddenGroupRules(rules);
-            renderHiddenGroupRulesUI();
+            saveRulesFn(rules);
+            renderGroupRulesUI();
         };
         div.querySelector('input').onchange = (e) => {
             rules[index] = e.target.value;
-            saveHiddenGroupRules(rules);
+            saveRulesFn(rules);
         };
         container.appendChild(div);
     });
+    };
+
+    renderList('hidden-group-rules-list', getHiddenGroupRules, saveHiddenGroupRules);
+    renderList('folder-group-rules-list', getFolderGroupRules, saveFolderGroupRules);
 }
 
-function initHiddenGroupRulesEvents() {
+function initGroupRulesEvents() {
     const addBtn = document.getElementById('btn-add-hidden-group-rule');
     if (addBtn) {
         // Event-Listener nur einmal hinzufügen (Check via Attribut)
@@ -415,9 +431,22 @@ function initHiddenGroupRulesEvents() {
                 const rules = getHiddenGroupRules();
                 rules.push('');
                 saveHiddenGroupRules(rules);
-                renderHiddenGroupRulesUI();
+                renderGroupRulesUI();
             });
             addBtn.dataset.hasListener = 'true';
+        }
+    }
+
+    const addFolderBtn = document.getElementById('btn-add-folder-group-rule');
+    if (addFolderBtn) {
+        if (!addFolderBtn.dataset.hasListener) {
+            addFolderBtn.addEventListener('click', () => {
+                const rules = getFolderGroupRules();
+                rules.push('');
+                saveFolderGroupRules(rules);
+                renderGroupRulesUI();
+            });
+            addFolderBtn.dataset.hasListener = 'true';
         }
     }
 
@@ -434,7 +463,7 @@ function initHiddenGroupRulesEvents() {
 
     // Beim Öffnen des Modals UI rendern
     document.addEventListener('open-tag-rules', () => {
-        renderHiddenGroupRulesUI();
+        renderGroupRulesUI();
     });
 }
 
@@ -534,6 +563,7 @@ async function scanAndRenderTags(db, contentContainer) {
         const folderItems = []; // Sammelt Items für den Folder-Sektor für spätere Baum-Verarbeitung
         const hiddenItems = []; // Sammelt Items für den Hidden-Sektor
         const hiddenGroupRules = getHiddenGroupRules();
+        const folderGroupRules = getFolderGroupRules();
 
         // --- DOCKED MODE: PREPARE DOCUMENT TREE ---
         let firstDocId = null;
@@ -621,6 +651,14 @@ async function scanAndRenderTags(db, contentContainer) {
                 groupPill.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
                 groupPill.textContent = `${rule} (${items.length})`;
                 
+                groupPill.draggable = true;
+                groupPill.dataset.groupRule = rule;
+                groupPill.dataset.groupType = 'hidden';
+                groupPill.id = `group-pill-hidden-${rule.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                groupPill.addEventListener('dragstart', e => {
+                    e.dataTransfer.setData('text/plain', e.target.id);
+                });
+                
                 // Tooltip listing elements
                 groupPill.title = `Group: ${rule}\n` + items.map(i => `- ${i.tag}`).join('\n');
 
@@ -679,49 +717,141 @@ async function scanAndRenderTags(db, contentContainer) {
             looseItems.forEach(i => hiddenContent.appendChild(i.element));
         }
 
-        if (isFolderTreeMode && folderItems.length > 0 && folderContent) {
+        // --- Folder Sector Grouping & Tree ---
+        if (folderContent) {
             folderContent.style.display = 'block'; // Top-Level Folder untereinander anordnen
-            const treeRoot = buildTagTree(folderItems);
             
-            // Determine active document ID from search input (if it's a direct ID)
-            const searchInput = document.getElementById('main-search');
-            let activeDocId = null;
-            if (searchInput && searchInput.value.trim() && !searchInput.value.startsWith('tag:') && !searchInput.value.startsWith('mime:') && !searchInput.value.startsWith('owner:')) {
-                activeDocId = searchInput.value.trim();
-            }
+            const folderGroups = {};
+            const folderLooseItems = [];
 
-            // Fallback: If docked but no active doc selected, pick the first one found in tree
-            if (isDocked && !activeDocId && firstDocId) {
-                activeDocId = firstDocId;
-                if (searchInput) {
-                    searchInput.value = activeDocId;
-                    fetchRealData(true);
-                }
-            }
-
-            // Mark active in UI & Scroll to it
-            if (activeDocId) {
-                setTimeout(() => {
-                    const activeItem = Array.from(contentContainer.querySelectorAll('.doc-item')).find(el => el.title === activeDocId);
-                    if (activeItem) {
-                        activeItem.classList.add('active');
-                        activeItem.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            // 1. Grouping Logic (ähnlich Hidden)
+            if (!isDocked) {
+                folderItems.forEach(entry => {
+                    let matchedRule = null;
+                    for (const rule of folderGroupRules) {
+                        if (rule && new RegExp(rule).test(entry.tag)) {
+                            matchedRule = rule;
+                            break;
+                        }
                     }
-                }, 50);
-            }
 
-            // Determine the primary tag path for the active document
-            let activeTagPath = null;
-            if (activeDocId) {
-                // Find the first occurrence of this doc in the folder items
-                // folderItems is populated based on sortedTags, so this is deterministic (alphabetical first tag)
-                const foundItem = folderItems.find(item => item.isDoc && item.docData.id === activeDocId);
-                if (foundItem) {
-                    activeTagPath = foundItem.tag;
+                    if (matchedRule) {
+                        if (!folderGroups[matchedRule]) folderGroups[matchedRule] = [];
+                        folderGroups[matchedRule].push(entry);
+                    } else {
+                        folderLooseItems.push(entry);
+                    }
+                });
+
+                // Render Folder Groups (Summary Pills)
+                for (const [rule, items] of Object.entries(folderGroups)) {
+                    const groupPill = document.createElement('div');
+                    groupPill.className = 'pill pill-user'; // User style for folders
+                    groupPill.style.cursor = 'pointer';
+                    groupPill.style.border = '1px solid var(--user-border)';
+                    groupPill.style.backgroundColor = 'rgba(64, 196, 255, 0.1)';
+                    groupPill.style.marginBottom = '4px';
+                    groupPill.textContent = `📁 ${rule} (${items.length})`;
+                    
+                    groupPill.draggable = true;
+                    groupPill.dataset.groupRule = rule;
+                    groupPill.dataset.groupType = 'folder';
+                    groupPill.id = `group-pill-folder-${rule.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                    groupPill.addEventListener('dragstart', e => {
+                        e.dataTransfer.setData('text/plain', e.target.id);
+                    });
+
+                    groupPill.title = `Group: ${rule}\n` + items.map(i => `- ${i.tag}`).join('\n');
+
+                    groupPill.onclick = (e) => {
+                        e.stopPropagation();
+                        // Dropdown Logic
+                        const existing = document.querySelector('.tag-dropdown-menu');
+                        if (existing) existing.remove();
+
+                        const menu = document.createElement('div');
+                        menu.className = 'tag-dropdown-menu';
+                        items.forEach(itemObj => {
+                            const tag = itemObj.tag;
+                            const dropItem = document.createElement('div');
+                            dropItem.className = 'pill pill-user';
+                            dropItem.textContent = `${tag} (${itemObj.count})`;
+                            dropItem.style.cursor = 'pointer';
+                            
+                            dropItem.onclick = (ev) => {
+                                ev.stopPropagation();
+                                const searchInput = document.getElementById('main-search');
+                                if (searchInput) {
+                                    searchInput.value = `tag:${tag}`;
+                                    fetchRealData(true);
+                                    updateCloudSelectionState(contentContainer);
+                                }
+                                menu.remove();
+                            };
+                            menu.appendChild(dropItem);
+                        });
+                        
+                        document.body.appendChild(menu);
+                        const rect = groupPill.getBoundingClientRect();
+                        const menuRect = menu.getBoundingClientRect();
+                        const spaceBelow = window.innerHeight - rect.bottom;
+                        const topPos = (spaceBelow < menuRect.height && rect.top > menuRect.height) ? rect.top - menuRect.height - 5 : rect.bottom + 5;
+                        menu.style.top = `${topPos}px`;
+                        menu.style.left = `${Math.min(rect.left, window.innerWidth - menuRect.width - 10)}px`;
+                    };
+                    folderContent.appendChild(groupPill);
                 }
+            } else {
+                // In Docked mode, we skip grouping for now or treat everything as loose
+                folderItems.forEach(i => folderLooseItems.push(i));
             }
 
-            renderTreeRecursive(treeRoot, folderContent, isDocked, activeTagPath);
+            // 2. Render Remaining Items as Tree or List
+            if (isFolderTreeMode && folderLooseItems.length > 0) {
+                const treeRoot = buildTagTree(folderLooseItems);
+                
+                // Determine active document ID from search input (if it's a direct ID)
+                const searchInput = document.getElementById('main-search');
+                let activeDocId = null;
+                if (searchInput && searchInput.value.trim() && !searchInput.value.startsWith('tag:') && !searchInput.value.startsWith('mime:') && !searchInput.value.startsWith('owner:')) {
+                    activeDocId = searchInput.value.trim();
+                }
+
+                // Fallback: If docked but no active doc selected, pick the first one found in tree
+                if (isDocked && !activeDocId && firstDocId) {
+                    activeDocId = firstDocId;
+                    if (searchInput) {
+                        searchInput.value = activeDocId;
+                        fetchRealData(true);
+                    }
+                }
+
+                // Mark active in UI & Scroll to it
+                if (activeDocId) {
+                    setTimeout(() => {
+                        const activeItem = Array.from(contentContainer.querySelectorAll('.doc-item')).find(el => el.title === activeDocId);
+                        if (activeItem) {
+                            activeItem.classList.add('active');
+                            activeItem.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                        }
+                    }, 50);
+                }
+
+                // Determine the primary tag path for the active document
+                let activeTagPath = null;
+                if (activeDocId) {
+                    // Find the first occurrence of this doc in the folder items
+                    const foundItem = folderLooseItems.find(item => item.isDoc && item.docData.id === activeDocId);
+                    if (foundItem) {
+                        activeTagPath = foundItem.tag;
+                    }
+                }
+
+                renderTreeRecursive(treeRoot, folderContent, isDocked, activeTagPath);
+            } else if (!isFolderTreeMode && folderLooseItems.length > 0) {
+                // Flat List for loose items
+                folderLooseItems.forEach(i => folderContent.appendChild(i.element));
+            }
         }
 
         // Initialen Selektionsstatus anwenden
@@ -811,7 +941,7 @@ export function initTagCloud(db) {
     `;
     document.body.insertAdjacentHTML('beforeend', cloudHTML);
 
-    initHiddenGroupRulesEvents();
+    initGroupRulesEvents();
 
     const container = document.getElementById('tag-cloud-container');
     const contentContainer = document.getElementById('tag-cloud-content');
@@ -893,6 +1023,63 @@ export function initTagCloud(db) {
             sector.classList.remove('drag-over');
             const id = e.dataTransfer.getData('text/plain');
             const draggableElement = document.getElementById(id);
+            
+            // Group Pill Logic (Move Regex Rule)
+            if (draggableElement && draggableElement.dataset.groupRule) {
+                const rule = draggableElement.dataset.groupRule;
+                const sourceSector = draggableElement.dataset.groupType;
+                const targetSector = sector.dataset.sector;
+
+                if (sourceSector === targetSector) return;
+
+                let changed = false;
+                
+                const updateSectorRules = (targetSec) => {
+                    const rules = getTagRules();
+                    if (!rules[targetSec]) rules[targetSec] = [];
+                    if (!rules[targetSec].includes(rule)) rules[targetSec].push(rule);
+                    
+                    const sourceSec = (targetSec === 'folder') ? 'hidden' : 'folder';
+                    if (rules[sourceSec]) {
+                        const idx = rules[sourceSec].indexOf(rule);
+                        if (idx > -1) rules[sourceSec].splice(idx, 1);
+                    }
+                    setTagRules(rules);
+                };
+
+                const moveRule = (rule, getSource, saveSource, getTarget, saveTarget) => {
+                    const sourceList = getSource();
+                    const targetList = getTarget();
+                    const idx = sourceList.indexOf(rule);
+                    if (idx > -1) {
+                        sourceList.splice(idx, 1);
+                        saveSource(sourceList);
+                        if (!targetList.includes(rule)) {
+                            targetList.push(rule);
+                            saveTarget(targetList);
+                        }
+                        return true;
+                    }
+                    return false;
+                };
+
+                if (sourceSector === 'folder' && targetSector === 'hidden') {
+                    if (moveRule(rule, getFolderGroupRules, saveFolderGroupRules, getHiddenGroupRules, saveHiddenGroupRules)) {
+                        updateSectorRules('hidden');
+                        changed = true;
+                    }
+                }
+                else if (sourceSector === 'hidden' && targetSector === 'folder') {
+                    if (moveRule(rule, getHiddenGroupRules, saveHiddenGroupRules, getFolderGroupRules, saveFolderGroupRules)) {
+                        updateSectorRules('folder');
+                        changed = true;
+                    }
+                }
+
+                if (changed && window.currentDbInstance) refreshTagCloud(window.currentDbInstance);
+                return;
+            }
+
             const dropzone = sector.querySelector('.sector-content');
             if (draggableElement && dropzone) {
                 dropzone.appendChild(draggableElement);

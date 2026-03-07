@@ -227,6 +227,11 @@ export async function seedData(db) {
                     tags.push(fmtDateTag("Last Updated", lastUpdateDate));
                 }
                 
+                if (executes > 0) {
+                    const lastExecuteDate = new Date(createdDate.getTime() + Math.floor(Math.random() * 60 * 24 * 3600 * 1000));
+                    tags.push(fmtDateTag("Last Executed", lastExecuteDate));
+                }
+                
                 // Add tags for specific embed types
                 if (payload.type === 'YOUTUBE_EMBED') {
                     tags.push("youtube");

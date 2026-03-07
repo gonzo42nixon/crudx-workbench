@@ -22,10 +22,19 @@ export function getTagSector(tag) {
 
     // 2. Regex Regeln prüfen
     try {
-        // Folder Rules
-        if (tagRules.folder && tagRules.folder.some(r => new RegExp(r).test(tag))) return 'folder';
         // Hidden Rules
-        if (tagRules.hidden && tagRules.hidden.some(r => new RegExp(r).test(tag))) return 'hidden';
+        if (tagRules.hidden && tagRules.hidden.some(r => r && new RegExp(r).test(tag))) return 'hidden';
+        
+        // Hidden Grouping Rules (Implicit Sector Assignment)
+        const hiddenGroupRules = JSON.parse(localStorage.getItem('crudx_hidden_group_rules') || '[]');
+        if (hiddenGroupRules.some(r => r && new RegExp(r).test(tag))) return 'hidden';
+
+        // Folder Rules
+        if (tagRules.folder && tagRules.folder.some(r => r && new RegExp(r).test(tag))) return 'folder';
+
+        // Folder Grouping Rules (Implicit Sector Assignment)
+        const folderGroupRules = JSON.parse(localStorage.getItem('crudx_folder_group_rules') || '[]');
+        if (folderGroupRules.some(r => r && new RegExp(r).test(tag))) return 'folder';
     } catch (e) {
         console.warn("Invalid Regex in Tag Rules", e);
     }
