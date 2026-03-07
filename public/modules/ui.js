@@ -56,10 +56,7 @@ export function renderDataFromDocs(docs, container) {
 
         if (Array.isArray(d.user_tags)) {
             d.user_tags.forEach(tag => {
-                let targetSector = 'cloud';
-                if (!isGrid1) { // Gruppierung nur wenn NICHT 1x1
-                    targetSector = getTagSector(tag);
-                }
+                let targetSector = getTagSector(tag);
 
                 if (targetSector === 'folder') folderTags.push(tag);
                 else if (targetSector === 'hidden') hiddenTags.push(tag);
@@ -123,18 +120,9 @@ export function renderDataFromDocs(docs, container) {
         sysTagsData.push({ text: d.size || '0KB', title: "Size" });
         sysTagsData.push({ text: ownerText, title: `Owner: ${d.owner || 'Sys'}`, style: ownerStyle });
 
-        let sysTagsHtml = '';
-        if (isGrid1) {
-            // 1x1: Alle einzeln anzeigen
-            sysTagsData.forEach(t => {
-                sysTagsHtml += `<div class="pill pill-sys" style="${t.style || ''}" title="${t.title || ''}">${t.text}</div>`;
-            });
-        } else {
-            // Andere Grids: Zusammenfassung
-            const sysTitle = `System Tags:\n- ${sysTagsData.map(t => t.text).join('\n- ')}`;
-            // Wir übergeben die Objekte als JSON im data-tags Attribut
-            sysTagsHtml = `<div class="pill pill-sys summary-pill" data-tags='${escapeHtml(JSON.stringify(sysTagsData))}' title="${escapeHtml(sysTitle)}" style="cursor: pointer;">⚙️ Sys</div>`;
-        }
+        const sysTitle = `System Tags:\n- ${sysTagsData.map(t => t.text).join('\n- ')}`;
+        // Wir übergeben die Objekte als JSON im data-tags Attribut
+        const sysTagsHtml = `<div class="pill pill-sys summary-pill" data-tags='${escapeHtml(JSON.stringify(sysTagsData))}' title="${escapeHtml(sysTitle)}" style="cursor: pointer;">⚙️ Sys</div>`;
 
         const checkAuth = (listName) => {
             if (isOwner) return true;

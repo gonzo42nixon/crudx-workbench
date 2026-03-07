@@ -6,6 +6,7 @@ import { getTagSector, setManualTagState } from './tag-state.js';
 let isDraggable = false;
 let offsetX, offsetY;
 let isFolderTreeMode = true; // Default: Tree View
+const snapThreshold = 20;
 
 // State für Docking
 let preDockState = {
@@ -225,6 +226,7 @@ function makeDraggable(container, handle) {
         container.style.left = `${e.clientX - offsetX}px`;
         container.style.top = `${e.clientY - offsetY}px`;
         updateSectorVisibility(container);
+        updateHandleVisibility(container);
     });
     
     document.addEventListener('mouseup', () => {

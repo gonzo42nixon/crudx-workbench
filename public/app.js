@@ -616,8 +616,18 @@ document.addEventListener("DOMContentLoaded", async () => {
                         document.body.appendChild(menu);
 
                         const pillRect = pill.getBoundingClientRect();
-                        menu.style.top = `${pillRect.bottom + 5}px`;
-                        menu.style.left = `${pillRect.left}px`;
+                        const menuRect = menu.getBoundingClientRect();
+
+                        // Check vertical space: Open upwards if space below is insufficient
+                        const spaceBelow = window.innerHeight - pillRect.bottom;
+                        if (spaceBelow < menuRect.height && pillRect.top > menuRect.height) {
+                            menu.style.top = `${pillRect.top - menuRect.height - 5}px`;
+                        } else {
+                            menu.style.top = `${pillRect.bottom + 5}px`;
+                        }
+
+                        // Check horizontal space
+                        menu.style.left = `${Math.min(pillRect.left, window.innerWidth - menuRect.width - 10)}px`;
                         return; // IMPORTANT: Stop further execution for summary pills
                     }
 
