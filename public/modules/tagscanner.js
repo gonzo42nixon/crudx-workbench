@@ -1,6 +1,6 @@
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { fetchRealData, getAccessTokens, applyLayout } from './pagination.js';
-import { auth } from './firebase.js';
+import { auth, db } from './firebase.js';
 import { getTagSector, setManualTagState, getTagRules, setTagRules } from './tag-state.js';
 
 let dockState = 0; // 0: floating, 1: left, 2: center, 3: right-bottom
@@ -123,7 +123,7 @@ function updateSectorsForDockState(container) {
     }
 }
 
-function dockTagCloudLeft(container) {
+function dockTagCloudLeft(container, targetDocId = null) {
     if (container.classList.contains('docked')) return;
 
     // Save state before docking
@@ -147,18 +147,19 @@ function dockTagCloudLeft(container) {
 
     dockState = 1;
     container.classList.add('docked');
+    container.classList.add('active'); // Ensure visibility immediately
     document.body.classList.add('ftc-docked');
     
     // Capture current selection (First Doc in Grid)
     const firstCardKey = document.querySelector('#data-container .card-kv .pill-key');
-    let selectedDocId = null;
-    if (firstCardKey) {
+    let selectedDocId = targetDocId;
+    if (!selectedDocId && firstCardKey) {
         selectedDocId = firstCardKey.textContent.trim();
     }
 
     // Animation Sequence: Wait for dock transition, then transform content & layout
     setTimeout(async () => {
-        const db = window.currentDbInstance;
+        const db = window.currentDbInstance || window.db; // Use global/window db as fallback
         if (db) {
             // Set search to specific doc ID if found, so tree expands correctly
             const searchInput = document.getElementById('main-search');
@@ -481,6 +482,21 @@ export function updateTagCloudSelection() {
     updateCloudSelectionState(contentContainer);
 }
 
+export function locateDocumentInCloud(docId) {
+    const container = document.getElementById('tag-cloud-container');
+    if (!container) return;
+
+    const searchInput = document.getElementById('main-search');
+    if (searchInput) searchInput.value = docId;
+
+    if (dockState !== 1) {
+        dockTagCloudLeft(container, docId);
+    } else {
+        // Already docked, just refresh to update tree selection
+        if (window.currentDbInstance) refreshTagCloud(window.currentDbInstance);
+    }
+}
+
 // ---------- Hidden Grouping Logic ----------
 function getHiddenGroupRules() {
     try {
@@ -632,11 +648,8 @@ async function scanAndRenderTags(db, contentContainer) {
         const user = auth.currentUser;
         const tokens = user ? getAccessTokens(user.email) : ['*@*'];
 
-        const querySnapshot = await getDocs(collection(db, "kv-store"));
-        querySnapshot.forEach(doc => {
-            const d = doc.data();
-            
-            // Access Control Filter: Zähle nur, was der User auch sehen darf
+        // Helper to process docs
+        const processDoc = (d, id) => {
             const ac = d.access_control || [];
             if (!ac.some(t => tokens.includes(t))) return;
 
@@ -645,10 +658,44 @@ async function scanAndRenderTags(db, contentContainer) {
                 tags.forEach(tag => {
                     tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
                     if (!docsByTag.has(tag)) docsByTag.set(tag, []);
-                    docsByTag.get(tag).push({ id: doc.id, ...d });
+                    docsByTag.get(tag).push({ id: id, ...d });
                 });
             }
-        });
+        };
+
+        const querySnapshot = await getDocs(collection(db, "kv-store"));
+        querySnapshot.forEach(doc => processDoc(doc.data(), doc.id));
+
+        // --- INJECT SYSTEM DOC ---
+        const now = new Date();
+        const nowIso = now.toISOString();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const d = String(now.getDate()).padStart(2, '0');
+        const dateTagSuffix = `>${y}>${m}>${d}`;
+        
+        const sysDoc = {
+            id: "CRUDX-INFO",
+            label: "CRUDX Info",
+            value: "# CRUDX Info \n\n\n## Create, Read, Update, Delete, eXecute \n\nThat simple.",
+            owner: "info@https://crudx-e0599.web.app/",
+            user_tags: [
+                "Info", "CRUDX", "v1", "🛡️ D",
+                `Created${dateTagSuffix}`,
+                `Last Read${dateTagSuffix}`,
+                `Last Updated${dateTagSuffix}`,
+                `Last Executed${dateTagSuffix}`
+            ],
+            access_control: ["*@*"],
+            white_list_execute: ["*@*"],
+            created_at: nowIso,
+            last_read_ts: nowIso,
+            last_update_ts: nowIso,
+            last_execute_ts: nowIso,
+            updates: 1, reads: 1, executes: 1,
+            size: "1KB"
+        };
+        processDoc(sysDoc, sysDoc.id);
 
         const sortedTags = Array.from(tagCounts.entries()).sort((a, b) => a[0].localeCompare(b[0], 'de', { sensitivity: 'base', numeric: true }));
         

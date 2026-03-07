@@ -265,6 +265,38 @@ export async function fetchRealData(resetPage = false) {
         currentUnsubscribe = onSnapshot(q, (snap) => {
             let docs = snap.docs;
 
+            // --- SYSTEM CARD INJECTION ---
+            if (currentPage === 1) {
+                const now = new Date().toISOString();
+                const sysDoc = {
+                    id: "CRUDX-INFO",
+                    data: () => ({
+                        label: "CRUDX Info",
+                        value: "# CRUDX Info \n\n\n## Create, Read, Update, Delete, eXecute \n\nThat simple.",
+                        owner: "info@https://crudx-e0599.web.app/",
+                        user_tags: ["Info", "CRUDX", "v1", "🛡️ D"],
+                        white_list_read: ["*@*"],
+                        white_list_update: [],
+                        white_list_delete: [],
+                        white_list_execute: ["*@*"],
+                        access_control: ["*@*"],
+                        created_at: now,
+                        last_read_ts: now,
+                        last_update_ts: now,
+                        last_execute_ts: now,
+                        updates: 1,
+                        reads: 1,
+                        executes: 1,
+                        size: "1KB"
+                    })
+                };
+
+                // Prepend System Doc if not filtered out by specific ID/Owner search
+                const isExcluded = (searchTerm && !needsClientSideFiltering && ((searchTerm.startsWith('owner:') && searchTerm.substring(6) !== sysDoc.data().owner) || (!searchTerm.startsWith('tag:') && !searchTerm.startsWith('mime:') && !searchTerm.startsWith('owner:') && sysDoc.id !== searchTerm)));
+                
+                if (!isExcluded && !docs.some(d => d.id === sysDoc.id)) docs = [sysDoc, ...docs];
+            }
+
             if (needsClientSideFiltering) {
                 const tokens = getAccessTokens(user.email);
                 docs = docs.filter(doc => {

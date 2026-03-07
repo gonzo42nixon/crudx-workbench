@@ -4,7 +4,7 @@ import { themeState, applyTheme, syncModalUI, initThemeEditor, initThemeControls
 import { db, auth } from './modules/firebase.js';
 import { applyLayout, initPaginationControls, fetchRealData, fetchLastPageData, loadStateFromUrl } from './modules/pagination.js';
 import { renderDataFromDocs, escapeHtml } from './modules/ui.js';
-import { initTagCloud, refreshTagCloud, updateTagCloudSelection } from './modules/tagscanner.js';
+import { initTagCloud, refreshTagCloud, updateTagCloudSelection, locateDocumentInCloud } from './modules/tagscanner.js';
 import { loadTagConfigFromUrl, getTagConfigForUrl, getTagRules, setTagRules } from './modules/tag-state.js';
 import { initAuth } from './modules/auth.js';
 import { 
@@ -659,6 +659,16 @@ document.addEventListener("DOMContentLoaded", async () => {
                             return;
                         }
                     }
+
+                // --- CLICK ON LABEL: Locate in Tag Cloud ---
+                if (pill.classList.contains('pill-label') && !e.shiftKey) {
+                    const card = pill.closest('.card-kv');
+                    const key = card ? card.querySelector('.pill-key')?.textContent.trim() : '';
+                    if (key) {
+                        locateDocumentInCloud(key);
+                        return;
+                    }
+                }
 
                     if (e.shiftKey) {
                         // Shift+Click: Copy Tooltip (title) to clipboard

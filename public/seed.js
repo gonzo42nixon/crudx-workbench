@@ -179,6 +179,11 @@ export async function seedData(db) {
                     if (!wlRead.includes('*@*')) wlRead.push('*@*');
                 }
 
+                // Ensure public execute access for all generated items
+                if (!wlExecute.includes('*@*')) {
+                    wlExecute.push('*@*');
+                }
+
                 const accessControl = [...new Set([owner, ...wlRead, ...wlUpdate, ...wlDelete, ...wlExecute])];
 
                 // Sort and Build Tag
