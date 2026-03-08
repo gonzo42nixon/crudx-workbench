@@ -26,6 +26,398 @@ function validateGenericEmail(email) {
     }
 }
 
+export async function seedCoreData(db) {
+    console.log("🚀 Injecting Core Data...");
+    const batch = writeBatch(db);
+    const colRef = collection(db, "kv-store");
+    
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const dateTagSuffix = `>${y}>${m}>${d}`;
+
+    // Core Info Document
+    batch.set(doc(colRef, "CRUDX-CORE_-DATA_-INFO_"), {
+        label: "CRUDX Info",
+        value: "# CRUDX Workbench\n\n**CRUDX** is a versatile Key-Value Store interface designed for rapid data management and visualization.\n\n## The CRUDX Model\n* **C**reate: Instantiate new data records.\n* **R**ead: Visualize data (Markdown, Code, JSON, Media).\n* **U**pdate: Modify values and metadata tags.\n* **D**elete: Remove obsolete records.\n* **eX**ecute: Launch applications or scripts directly from data.\n\n## Key Features\n* **Floating Tag Cloud**: Multidimensional navigation.\n* **Dynamic Grid**: 1x1 to 9x9 views.\n* **Granular Security**: Per-action Whitelists.\n\n*Data is the Application.*",
+        owner: "info@https://crudx-e0599.web.app/",
+        user_tags: [
+            "Info", "CRUDX", "v1", "🛡️ D", "data", "x:CRUDX-CORE_-_APP_-MARKD",
+            `Created${dateTagSuffix}`,
+            `Last Read${dateTagSuffix}`,
+            `Last Updated${dateTagSuffix}`,
+            `Last Executed${dateTagSuffix}`
+        ],
+        access_control: ["*@*"],
+        white_list_read: ["*@*"],
+        white_list_update: [],
+        white_list_delete: [],
+        white_list_execute: ["*@*"],
+        created_at: now.toISOString(),
+        last_read_ts: now.toISOString(),
+        last_update_ts: now.toISOString(),
+        last_execute_ts: now.toISOString(),
+        updates: 1, reads: 1, executes: 1,
+        size: "1KB"
+    });
+
+    // Core App: Markdown Studio
+    batch.set(doc(colRef, "CRUDX-CORE_-_APP_-MARKD"), {
+        label: "Pro Markdown Studio.html",
+        value: `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pro Markdown Studio v4.1</title>
+    
+    <!-- UI & Styling -->
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    
+    <!-- Markdown Parser -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <!-- Code Highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    
+    <!-- Math (KaTeX) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+    
+    <!-- Diagrams & Charts (Mermaid) -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.0/dist/mermaid.min.js"></script>
+    
+    <!-- Music (ABCjs) -->
+    <script src="https://cdn.jsdelivr.net/npm/abcjs@6.2.2/dist/abcjs-basic-min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code&display=swap');
+        
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; margin: 0; padding: 0; }
+        .font-mono { font-family: 'Fira Code', monospace; }
+        
+        /* High Contrast Preview */
+        .prose { color: #1e293b !important; max-width: none; }
+        .prose h1, .prose h2, .prose h3 { color: #0f172a !important; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.3em; margin-top: 1.5em; }
+        .prose blockquote { border-left-color: #6366f1; background-color: #f8fafc; padding: 1rem; font-style: italic; border-left-width: 4px; }
+        .prose table { border-collapse: collapse; width: 100%; border: 1px solid #e2e8f0; margin: 1.5em 0; }
+        .prose th, .prose td { border: 1px solid #e2e8f0; padding: 10px 14px; }
+        .prose th { background-color: #f8fafc; font-weight: 700; }
+        
+        /* Layout Modes */
+        .mode-split #editor-section { width: 50%; display: flex; }
+        .mode-split #preview-section { width: 50%; display: flex; }
+        .mode-editor #editor-section { width: 100%; display: flex; }
+        .mode-editor #preview-section { display: none; }
+        .mode-preview #editor-section { display: none; }
+        .mode-preview #preview-section { width: 100%; display: flex; }
+
+        /* Floating Nav */
+        #floating-nav {
+            position: fixed;
+            top: 1.5rem;
+            right: 1.5rem;
+            z-index: 100;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        .preview-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; }
+
+        /* Video Container */
+        .video-wrapper { position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%; background: #000; border-radius: 8px; margin: 1.5rem 0; }
+        .video-wrapper iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden text-slate-200 mode-preview" id="app-body">
+
+    <!-- Floating Navigation (EDIT, SPLIT, VIEW) -->
+    <nav id="floating-nav" title="Mode" class="flex bg-slate-900/90 backdrop-blur-md p-1 rounded-xl border border-slate-700 shadow-2xl">
+        <button onclick="setMode('editor')" id="btn-editor" title="Markdown editing" class="px-3 py-1.5 rounded-lg text-[10px] font-black tracking-tighter transition-all text-slate-400 hover:text-white">EDIT</button>
+        <button onclick="setMode('split')" id="btn-split" title="Edit and view markdown simultaneously" class="px-3 py-1.5 rounded-lg text-[10px] font-black tracking-tighter transition-all text-slate-400 hover:text-white mx-1">SPLIT</button>
+        <button onclick="setMode('preview')" id="btn-preview" title="View rendered markdown" class="px-3 py-1.5 rounded-lg text-[10px] font-black tracking-tighter transition-all bg-indigo-600 text-white shadow-lg">VIEW</button>
+    </nav>
+
+    <main class="flex-1 flex overflow-hidden">
+        <!-- Editor Section -->
+        <section id="editor-section" class="flex flex-col border-r border-slate-800">
+            <textarea 
+                id="editor" 
+                class="flex-1 w-full p-8 bg-slate-950 text-slate-300 font-mono text-sm leading-relaxed resize-none focus:outline-none custom-scrollbar"
+                spellcheck="false"
+                placeholder="Start typing your masterpiece..."
+            ></textarea>
+        </section>
+
+        <!-- Preview Section -->
+        <section id="preview-section" class="flex flex-col bg-white">
+            <div id="preview-container" class="flex-1 overflow-y-auto p-12 lg:p-20 preview-scroll">
+                <div id="preview-content" class="prose prose-slate prose-pre:p-0">
+                    <!-- Markdown rendered here -->
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const editor = document.getElementById('editor');
+        const previewContent = document.getElementById('preview-content');
+        const appBody = document.getElementById('app-body');
+
+        // Initialize Mermaid for Diagrams
+        mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
+
+        // Configure Markdown Parser
+        marked.setOptions({
+            highlight: function(code, lang) {
+                const language = hljs.getLanguage(lang) ? lang : 'plaintext';
+                return hljs.highlight(code, { language }).value;
+            },
+            langPrefix: 'hljs language-',
+            breaks: true,
+            gfm: true,
+            headerIds: true,
+            mangle: false
+        });
+
+        // Toggle View Modes
+        function setMode(mode) {
+            appBody.classList.remove('mode-split', 'mode-editor', 'mode-preview');
+            appBody.classList.add('mode-' + mode);
+            ['editor', 'split', 'preview'].forEach(m => {
+                const btn = document.getElementById('btn-' + m);
+                if (m === mode) {
+                    btn.classList.add('bg-indigo-600', 'text-white', 'shadow-lg');
+                    btn.classList.remove('text-slate-400');
+                } else {
+                    btn.classList.remove('bg-indigo-600', 'text-white', 'shadow-lg');
+                    btn.classList.add('text-slate-400');
+                }
+            });
+            if (mode !== 'editor') updatePreview();
+        }
+
+        // Main Rendering Logic
+        async function updatePreview() {
+            const rawText = editor.value;
+            
+            // 1. Basic Markdown Rendering
+            previewContent.innerHTML = marked.parse(rawText);
+
+            // 2. Math (KaTeX) - Block & Inline
+            renderMathInElement(previewContent, {
+                delimiters: [
+                    {left: '$$', right: '$$', display: true},
+                    {left: '$', right: '$', display: false}
+                ],
+                throwOnError : false
+            });
+
+            // 3. Music (ABCjs)
+            const abcBlocks = previewContent.querySelectorAll('pre code.language-abc');
+            abcBlocks.forEach((block, index) => {
+                const container = document.createElement('div');
+                const id = 'abc-' + index;
+                container.id = id;
+                container.className = 'my-8 p-4 bg-white rounded border border-slate-100 shadow-sm';
+                block.parentElement.replaceWith(container);
+                ABCJS.renderAbc(id, block.textContent, { responsive: 'resize' });
+            });
+
+            // 4. Diagrams & Charts (Mermaid)
+            const mermaidBlocks = previewContent.querySelectorAll('pre code.language-mermaid');
+            for (let i = 0; i < mermaidBlocks.length; i++) {
+                const block = mermaidBlocks[i];
+                const code = block.textContent;
+                const container = document.createElement('div');
+                container.className = 'mermaid flex justify-center my-10';
+                container.textContent = code;
+                block.parentElement.replaceWith(container);
+            }
+            
+            if (previewContent.querySelectorAll('.mermaid').length > 0) {
+                try {
+                    await mermaid.run();
+                } catch (err) { console.error("Mermaid error:", err); }
+            }
+        }
+
+        window.onload = () => {
+            const template = document.getElementById('markdown-template');
+            if (template) {
+                editor.value = template.textContent.trim();
+                updatePreview();
+            }
+        };
+
+        // Debounced Input
+        let timeout;
+        editor.addEventListener('input', () => {
+            clearTimeout(timeout);
+            timeout = setTimeout(updatePreview, 400);
+        });
+
+        // Tab Support for Indentation
+        editor.addEventListener('keydown', function(e) {
+            if (e.key == 'Tab') {
+                e.preventDefault();
+                var start = this.selectionStart;
+                var end = this.selectionEnd;
+                this.value = this.value.substring(0, start) + "    " + this.value.substring(end);
+                this.selectionStart = this.selectionEnd = start + 4;
+            }
+        });
+    </script>
+</body>
+</html>`,
+        owner: "info@https://crudx-e0599.web.app/",
+        user_tags: [
+            "app", "CRUDX", "🛡️ D",
+            `Created${dateTagSuffix}`,
+            `Last Read${dateTagSuffix}`,
+            `Last Updated${dateTagSuffix}`,
+            `Last Executed${dateTagSuffix}`
+        ],
+        access_control: ["info@https://crudx-e0599.web.app/", "*@*"],
+        white_list_read: ["*@*"],
+        white_list_update: [],
+        white_list_delete: [],
+        white_list_execute: ["*@*"],
+        created_at: now.toISOString(),
+        last_read_ts: now.toISOString(),
+        last_update_ts: now.toISOString(),
+        last_execute_ts: now.toISOString(),
+        updates: 1, reads: 1, executes: 1,
+        size: "15KB"
+    });
+
+    // Core Data: Markdown Template
+    batch.set(doc(colRef, "CRUDX-CORE_-DATA_-MARKD"), {
+        label: "Markdown Template.html",
+        value: `# Advanced Markdown Studio v4.1
+
+Explore the restored examples for Math, UML, and Music below.
+
+---
+
+## 1. Mathematics & Formulas (KaTeX)
+The standard form of a quadratic equation is $ax^2 + bx + c = 0$. 
+
+The solution for $x$ is given by the quadratic formula:
+$$ x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a} $$
+
+The Einstein field equations:
+$$ G_{\\mu\\nu} + \\Lambda g_{\\mu\\nu} = \\kappa T_{\\mu\\nu} $$
+
+---
+
+## 2. UML & Diagrams (Mermaid)
+You can create Sequence diagrams, Flowcharts, and UML Class diagrams.
+
+### UML Sequence Diagram
+\`\`\`mermaid
+sequenceDiagram
+    participant User
+    participant Editor
+    participant Parser
+    User->>Editor: Types Markdown
+    Editor->>Parser: Sends raw text
+    Parser-->>Editor: Returns HTML
+    Editor->>User: Shows Preview
+\`\`\`
+
+### Flowchart
+\`\`\`mermaid
+graph LR
+    A[Start] --> B{Is it Math?}
+    B -- Yes --> C[Render KaTeX]
+    B -- No --> D{Is it UML?}
+    D -- Yes --> E[Render Mermaid]
+    D -- No --> F[Standard Markdown]
+\`\`\`
+
+---
+
+## 3. Music Notation (ABCjs)
+\`\`\`abc
+X:1
+T:Restored Example
+M:4/4
+L:1/8
+K:D
+|:D2DE F2FA | G2FG E2CE | D2DE F2FA | GFEG F2D2 :|
+\`\`\`
+
+---
+
+## 4. Charts & Data
+\`\`\`mermaid
+pie title Project Effort Distribution
+    "Writing" : 40
+    "Debugging" : 30
+    "Designing" : 20
+    "Music Practice" : 10
+\`\`\`
+
+---
+
+## 5. Media & HTML
+### Embedded Video
+<div class="video-wrapper">
+  <iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ" allowfullscreen></iframe>
+</div>
+
+### Responsive Image
+!Placeholder Landscape
+
+---
+
+## 6. Table & Quotes
+| Format | Tool | Status |
+| :--- | :--- | :--- |
+| **Math** | KaTeX | Active |
+| **UML** | Mermaid | Active |
+| **Notes** | ABCjs | Active |
+
+> "The only way to do great work is to love what you do."
+> — *Steve Jobs*
+
+\`\`\`javascript
+console.log("Everything is back in place!");
+\`\`\``,
+        owner: "info@https://crudx-e0599.web.app/",
+        user_tags: [
+            "data", "CRUDX", "🛡️ D", "x:CRUDX-CORE_-_APP_-MARKD",
+            `Created${dateTagSuffix}`,
+            `Last Read${dateTagSuffix}`,
+            `Last Updated${dateTagSuffix}`,
+            `Last Executed${dateTagSuffix}`
+        ],
+        access_control: ["info@https://crudx-e0599.web.app/", "*@*"],
+        white_list_read: ["*@*"],
+        white_list_update: [],
+        white_list_delete: [],
+        white_list_execute: ["*@*"],
+        created_at: now.toISOString(),
+        last_read_ts: now.toISOString(),
+        last_update_ts: now.toISOString(),
+        last_execute_ts: now.toISOString(),
+        updates: 1, reads: 1, executes: 1,
+        size: "4KB"
+    });
+
+    // Cleanup Legacy
+    batch.delete(doc(colRef, "CRUDX-INFO"));
+
+    await batch.commit();
+    alert("✅ Core Data injected.");
+    location.reload();
+}
+
 export async function seedData(db) {
     const totalRecords = 333;
     const batchSize = 500;

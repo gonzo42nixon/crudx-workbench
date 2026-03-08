@@ -78,6 +78,7 @@
     /* Grid-spezifische Variablen (optional, können im Theme-Editor ergänzt werden) */
     --grid-gap: 12px;
     --header-footer-height: 140px; /* falls noch nicht dynamisch */
+    --docked-width: 380px;
 }
 
 /* ========== GLOBAL RESET ========== */
@@ -548,13 +549,18 @@ header {
 .tl-group {
     position: absolute;
     top: 12px;
+    bottom: auto;
     left: 12px;
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 8px;
     z-index: 10;
     max-width: 90%;
+    overflow: visible;
     pointer-events: none; /* Klicks gehen durch, können aber bei Bedarf angepasst werden */
+    opacity: 1;
+    transition: opacity 0.3s ease;
 }
 .tl-group .pill {
     pointer-events: auto; /* Pillen bleiben klickbar */
@@ -562,19 +568,43 @@ header {
 
 .br-group {
     position: absolute;
+    top: auto;
     bottom: 12px;
     right: 12px;
     display: flex;
     flex-wrap: wrap-reverse;
     flex-direction: row-reverse;
     justify-content: flex-start;
+    align-items: center;
     gap: 4px;
     max-width: 95%;
+    overflow: visible;
     z-index: 10;
     pointer-events: none;
+    opacity: 1;
+    transition: opacity 0.3s ease;
 }
 .br-group .pill {
     pointer-events: auto;
+}
+
+/* Confluence Mode Override: Always show all tags in footer */
+body.ftc-docked.layout-grid-1 .card-kv[data-mime="MD"] .br-group {
+    opacity: 1;
+    flex-wrap: wrap;
+    overflow: visible;
+    max-width: 95%; /* Allow full width usage in footer */
+    top: auto;
+    position: absolute !important;
+    bottom: 12px;
+}
+
+/* Confluence Mode: Key/Label stay top-left */
+body.ftc-docked.layout-grid-1 .card-kv[data-mime="MD"] .tl-group {
+    opacity: 1;
+    flex-wrap: wrap;
+    overflow: visible;
+    max-width: 95%;
 }
 
 /* ========== PILLS (TAGS) ========== */
@@ -993,34 +1023,6 @@ header {
     height: 12px; 
     padding: 0px 1px;
     height: 10px; 
-}
-
-/* Container für Key und Label anheben */
-.tl-group {
-    position: relative;
-    z-index: 100; /* Höher als der Rest der Karte */
-    display: flex;
-    gap: 4px;
-    margin-bottom: -10px; /* Optional: Schiebt die Pills leicht über den Content */
-}
-
-/* Spezifisch für Key und Label Pills */
-.pill-key {
-    background: var(--key-glass) !important;
-    color: var(--key-text) !important;
-    border-color: var(--key-border) !important;
-}
-
-.pill-label {
-    background: var(--label-glass) !important;
-    color: var(--label-text) !important;
-    border-color: var(--label-border) !important;
-}
-
-/* Den Content-Bereich darunter halten */
-.value-layer {
-    position: relative;
-    z-index: 1; /* Niedriger als tl-group */
 }
 
 /* ===== DREISPALTIGER THEME-EDITOR ===== */
@@ -1628,7 +1630,7 @@ header {
 .floating-modal.docked {
     top: 0 !important;
     left: 0 !important;
-    width: 320px !important;
+    width: var(--docked-width) !important;
     height: 100vh !important;
     max-height: 100vh !important;
     background: var(--canvas-glass) !important;
@@ -1655,16 +1657,57 @@ header {
 
 /* Body Shift wenn Docked */
 body.ftc-docked {
-    padding-left: 320px !important;
+    padding-left: var(--docked-width) !important;
     transition: padding-left 0.3s ease;
 }
 
 body.ftc-docked header {
-    left: 320px !important;
-    width: calc(100% - 320px) !important;
+    left: var(--docked-width) !important;
+    width: calc(100% - var(--docked-width)) !important;
 }
 body.ftc-docked #main-paginator {
-    left: calc(50% + 160px) !important; /* Mitte des verbleibenden Platzes */
+    left: calc(50% + (var(--docked-width) / 2)) !important; /* Mitte des verbleibenden Platzes */
+}
+
+/* Confluence Look: Unified Background when Docked & 1x1 View */
+body.ftc-docked.layout-grid-1:has(.card-kv[data-mime="MD"]) .floating-modal.docked {
+    background: var(--canvas-bg) !important;
+    backdrop-filter: none !important;
+    border-right: 1px solid var(--canvas-border) !important;
+    box-shadow: none !important;
+}
+
+/* Confluence Look: Hide Paginator in 1x1 Docked view */
+body.ftc-docked.layout-grid-1:has(.card-kv[data-mime="MD"]) #main-paginator {
+    display: none !important;
+}
+
+/* Confluence Look: Auto-hide Header in 1x1 Docked view */
+body.ftc-docked.layout-grid-1:has(.card-kv[data-mime="MD"]) header {
+    transform: translateY(-70px); /* Hide mostly, leave 10px trigger at top */
+    opacity: 0;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    pointer-events: auto; /* Enable hover trigger on the remaining strip */
+}
+body.ftc-docked.layout-grid-1:has(.card-kv[data-mime="MD"]) header:hover {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+/* Confluence Look: Slightly zoom Markdown content for better readability */
+body.ftc-docked.layout-grid-1 .card-kv[data-mime="MD"] iframe {
+    width: 87% !important; /* Compensate for scale(1.15) */
+    height: 87% !important;
+    transform: scale(1.15);
+    transform-origin: top left;
+}
+
+/* Special styling for Markdown docs when docked: 100% Transparent */
+body.ftc-docked .card-kv[data-mime="MD"] {
+    background: transparent !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
 }
 
 /* IFrame Modal: Non-blocking & Transparency */
@@ -1773,6 +1816,18 @@ body.ftc-docked #main-paginator {
 @keyframes slideInDocItem {
     from { opacity: 0; transform: translateX(10px); }
     to { opacity: 1; transform: translateX(0); }
+}
+
+/* ========== TAG FILTER HIGHLIGHTING ========== */
+.pill-inactive {
+    opacity: 0.5 !important;
+    filter: grayscale(50%);
+    transition: all 0.3s ease;
+}
+.pill-inactive:hover {
+    opacity: 1 !important;
+    filter: grayscale(0%);
+}   to { opacity: 1; transform: translateX(0); }
 }
 
 /* ========== TAG FILTER HIGHLIGHTING ========== */

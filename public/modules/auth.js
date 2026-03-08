@@ -1,6 +1,7 @@
 // modules/auth.js
 import { auth, db } from './firebase.js';
 import { applyLayout, fetchRealData, loadStateFromUrl } from './pagination.js';
+import { doc, getDoc, setDoc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // Hilfsfunktion für Event-Listener (wie in app.js)
 const bind = (id, event, fn) => {

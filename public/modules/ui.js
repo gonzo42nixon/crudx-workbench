@@ -1,7 +1,8 @@
 // public/modules/ui.js
 import { detectMimetype } from './mime.js';
-import { auth } from './firebase.js';
+import { auth, db } from './firebase.js';
 import { getTagSector } from './tag-state.js';
+import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 export function escapeHtml(unsafe) {
     if (!unsafe) return '';
@@ -12,9 +13,10 @@ export function escapeHtml(unsafe) {
         .replace(/"/g, '&quot;');
 }
 
-export function renderDataFromDocs(docs, container) {
+export async function renderDataFromDocs(docs, container) {
     const isNano = container.classList.contains('grid-9');
     const isGrid1 = container.classList.contains('grid-1');
+    const isDocked = document.body.classList.contains('ftc-docked');
     const currentUserEmail = auth.currentUser?.email;
     
     const searchInput = document.getElementById('main-search');
@@ -40,7 +42,23 @@ export function renderDataFromDocs(docs, container) {
     const fT = (label, ts) => { const s = toIso(ts); return s ? `${label}: ${s.replace('T', ' ').substring(0, 19)}` : label; };
     let htmlBuffer = "";
 
-    docs.forEach(doc => {
+    // Pre-fetch Markdown App if in Grid-1
+    let mdAppTemplate = null;
+    if (isGrid1 && isDocked) {
+        const hasMd = docs.some(d => detectMimetype(d.data().value).type === 'MD');
+        if (hasMd) {
+            try {
+                const appSnap = await getDoc(doc(db, "kv-store", "CRUDX-CORE_-_APP_-MARKD"));
+                if (appSnap.exists()) {
+                    mdAppTemplate = appSnap.data().value;
+                }
+            } catch (e) {
+                console.warn("Failed to load Markdown App template", e);
+            }
+        }
+    }
+
+    for (const doc of docs) {
         const d = doc.data();
         const foundMime = detectMimetype(d.value);
         
@@ -120,9 +138,10 @@ export function renderDataFromDocs(docs, container) {
         sysTagsData.push({ text: d.size || '0KB', title: "Size" });
         sysTagsData.push({ text: ownerText, title: `Owner: ${d.owner || 'Sys'}`, style: ownerStyle });
 
-        const sysTitle = `System Tags:\n- ${sysTagsData.map(t => t.text).join('\n- ')}`;
-        // Wir übergeben die Objekte als JSON im data-tags Attribut
-        const sysTagsHtml = `<div class="pill pill-sys summary-pill" data-tags='${escapeHtml(JSON.stringify(sysTagsData))}' title="${escapeHtml(sysTitle)}" style="cursor: pointer;">⚙️ Sys</div>`;
+        let sysTagsHtml = '';
+        sysTagsData.forEach(t => {
+            sysTagsHtml += `<div class="pill pill-sys" title="${escapeHtml(t.title)}" style="${t.style || ''}">${escapeHtml(t.text)}</div>`;
+        });
 
         const checkAuth = (listName) => {
             if (isOwner) return true;
@@ -159,8 +178,68 @@ export function renderDataFromDocs(docs, container) {
         const btnD = getBtnState('D', 'white_list_delete', 'Delete');
         const btnX = getBtnState('X', 'white_list_execute', 'Execute');
 
+        // Special Render for Markdown in Grid-1
+        if (isGrid1 && isDocked && foundMime && foundMime.type === 'MD' && mdAppTemplate) {
+            // Inject subtle scrollbar styles & force Preview Mode for "Confluence Look"
+            const customStyles = `
+            <style>
+                /* Warm Sepia Look */
+                body, #app-body, #preview-section { background-color: #fdf6e3 !important; color: #3b2f20 !important; }
+                .prose { color: #3b2f20 !important; }
+                .prose h1, .prose h2, .prose h3, .prose h4, .prose strong { color: #2a2116 !important; }
+
+                /* Images: Centered & Shadow */
+                .prose img { display: block; margin: 20px auto; box-shadow: 0 10px 25px rgba(0,0,0,0.15); border-radius: 4px; }
+
+                /* Headings: Fine underline, fit content */
+                .prose h1, .prose h2, .prose h3 { border-bottom: 1px solid rgba(59, 47, 32, 0.2); width: fit-content; padding-bottom: 4px; }
+
+                /* Blockquotes: Colored bar left */
+                .prose blockquote { border-left: 4px solid #cb4b16 !important; padding-left: 1rem; font-style: italic; color: #584e40 !important; background: rgba(0,0,0,0.03); border-radius: 0 4px 4px 0; }
+
+                /* Code Blocks: Dark background for readability (matches github-dark theme) */
+                .prose pre { background-color: #1e1e1e !important; color: #e6e6e6 !important; border-radius: 6px; border: 1px solid rgba(0,0,0,0.1); }
+
+                ::-webkit-scrollbar { width: 6px; height: 6px; }
+                ::-webkit-scrollbar-track { background: transparent; }
+                ::-webkit-scrollbar-thumb { background: rgba(59, 47, 32, 0.2); border-radius: 10px; }
+                ::-webkit-scrollbar-thumb:hover { background: rgba(59, 47, 32, 0.4); }
+            </style>
+            <script>
+                window.addEventListener('load', () => { if (typeof setMode === 'function') setMode('preview'); });
+            </script>`;
+
+            const injectedData = `${customStyles}<script type="text/markdown" id="markdown-template">${(d.value || '').replace(/<\/script>/g, '<\\/script>')}</script>`;
+            let appContent = mdAppTemplate;
+            if (appContent.includes('</body>')) {
+                appContent = appContent.replace('</body>', `${injectedData}</body>`);
+            } else {
+                appContent += injectedData;
+            }
+            const blob = new Blob([appContent], { type: 'text/html' });
+            const blobUrl = URL.createObjectURL(blob);
+
+            htmlBuffer += `
+            <div class="card-kv" data-mime="MD" style="padding:0; overflow:hidden;">
+                <iframe src="${blobUrl}" style="width:100%; height:100%; border:none; display:block;"></iframe>
+                
+                <div class="tr-group">
+                    <button class="btn-crudx btn-c" data-action="C" title="${btnC.title}" ${btnC.style}>C</button>
+                    <button class="btn-crudx btn-r" data-action="R" title="${btnR.title}" ${btnR.style}>R</button>
+                    <button class="btn-crudx btn-u" data-action="U" title="${btnU.title}" ${btnU.style}>U</button>
+                    <button class="btn-crudx btn-d" data-action="D" title="${btnD.title}" ${btnD.style}>D</button>
+                    <button class="btn-crudx btn-x" data-action="X" title="${btnX.title}" ${btnX.style}>X</button>
+                </div>
+                <div class="tl-group">
+                    <div class="pill pill-key" title="KEY">${doc.id}</div>
+                    <div class="pill pill-label" title="Label">${d.label || ''}</div>
+                </div>
+            </div>`;
+            continue;
+        }
+
         htmlBuffer += `
-            <div class="card-kv">
+            <div class="card-kv" data-mime="${foundMime ? foundMime.type : ''}">
                 <div class="tr-group">
                     <button class="btn-crudx btn-c" data-action="C" title="${btnC.title}" ${btnC.style}>C</button>
                     <button class="btn-crudx btn-r" data-action="R" title="${btnR.title}" ${btnR.style}>R</button>
@@ -180,6 +259,6 @@ export function renderDataFromDocs(docs, container) {
                     ${userTagsHtml}
                 </div>
             </div>`;
-    });
+    }
     container.innerHTML = htmlBuffer;
 }

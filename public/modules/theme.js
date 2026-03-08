@@ -22,7 +22,7 @@ export const themeState = {
                 sys: { bg: "#ff5252", text: "#000000", border: "#333333", opacity: 80, blur: false }
             },
             day: {
-                canvas: { bg: "#0a0a0a", text: "#111111", border: "#333333", paddingTop: 10, padding: 15, opacity: 85, blur: true },
+                canvas: { bg: "#ffffff", text: "#111111", border: "#dddddd", paddingTop: 10, padding: 15, opacity: 85, blur: true },
                 card: { bg: "#ffffff", text: "#111111", border: "#dddddd", opacity: 100, blur: false, padding: 20 },
                 navi: { bg: "#eeeeee", text: "#333333", border: "#bbbbbb", opacity: 90, blur: false, bottom: 25 },
                 editor: { bg: "#ffffff", text: "#111111", border: "#cccccc", opacity: 98, blur: true },

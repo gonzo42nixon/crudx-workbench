@@ -68,6 +68,16 @@ export function applyLayout(val, initialLoad = false) {
     const dataContainer = document.getElementById('data-container');
     if (!dataContainer) return;
 
+    // FIX: Ensure the dropdown reflects the actual layout state
+    const gridSelect = document.getElementById('grid-select');
+    if (gridSelect && gridSelect.value !== val) {
+        gridSelect.value = val;
+    }
+
+    // Helper class on body for specific styling in 1x1 mode (e.g. Confluence Look)
+    if (val === '1') document.body.classList.add('layout-grid-1');
+    else document.body.classList.remove('layout-grid-1');
+
     dataContainer.classList.remove(
         'grid-1', 'grid-3', 'grid-4', 'grid-5', 'grid-7', 'grid-9', 'list',
         'density-compact', 'density-minimal', 'density-nano'
@@ -262,40 +272,8 @@ export async function fetchRealData(resetPage = false) {
         // Realtime Listener statt einmaligem Fetch
         if (currentUnsubscribe) currentUnsubscribe();
 
-        currentUnsubscribe = onSnapshot(q, (snap) => {
+        currentUnsubscribe = onSnapshot(q, async (snap) => {
             let docs = snap.docs;
-
-            // --- SYSTEM CARD INJECTION ---
-            if (currentPage === 1) {
-                const now = new Date().toISOString();
-                const sysDoc = {
-                    id: "CRUDX-INFO",
-                    data: () => ({
-                        label: "CRUDX Info",
-                        value: "# CRUDX Info \n\n\n## Create, Read, Update, Delete, eXecute \n\nThat simple.",
-                        owner: "info@https://crudx-e0599.web.app/",
-                        user_tags: ["Info", "CRUDX", "v1", "🛡️ D"],
-                        white_list_read: ["*@*"],
-                        white_list_update: [],
-                        white_list_delete: [],
-                        white_list_execute: ["*@*"],
-                        access_control: ["*@*"],
-                        created_at: now,
-                        last_read_ts: now,
-                        last_update_ts: now,
-                        last_execute_ts: now,
-                        updates: 1,
-                        reads: 1,
-                        executes: 1,
-                        size: "1KB"
-                    })
-                };
-
-                // Prepend System Doc if not filtered out by specific ID/Owner search
-                const isExcluded = (searchTerm && !needsClientSideFiltering && ((searchTerm.startsWith('owner:') && searchTerm.substring(6) !== sysDoc.data().owner) || (!searchTerm.startsWith('tag:') && !searchTerm.startsWith('mime:') && !searchTerm.startsWith('owner:') && sysDoc.id !== searchTerm)));
-                
-                if (!isExcluded && !docs.some(d => d.id === sysDoc.id)) docs = [sysDoc, ...docs];
-            }
 
             if (needsClientSideFiltering) {
                 const tokens = getAccessTokens(user.email);
@@ -337,7 +315,7 @@ export async function fetchRealData(resetPage = false) {
             } else {
                 // Cursor muss auf dem originalen Snapshot basieren für korrekte Paginierung
                 pageCursors[currentPage - 1] = snap.docs[snap.docs.length - 1];
-                renderDataFromDocs(docs, container);
+                await renderDataFromDocs(docs, container);
             }
 
             // Buttons deaktivieren / aktivieren

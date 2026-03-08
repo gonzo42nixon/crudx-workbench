@@ -482,6 +482,16 @@ document.addEventListener("DOMContentLoaded", async () => {
                                         const appDocSnap = await getDoc(doc(db, "kv-store", appKey));
                                         if (appDocSnap.exists()) {
                                             appContent = appDocSnap.data().value;
+
+                                            // --- DATA INJECTION (DEV MODE) ---
+                                            if (params.has("data")) {
+                                                const injectedData = `<script type="text/markdown" id="markdown-template">${(d.value || '').replace(/<\/script>/g, '<\\/script>')}</script>`;
+                                                if (appContent.includes('</body>')) {
+                                                    appContent = appContent.replace('</body>', `${injectedData}</body>`);
+                                                } else {
+                                                    appContent += injectedData;
+                                                }
+                                            }
                                         } else {
                                             appContent = `<h3>⚠️ Error: App Document "${appKey}" not found.</h3>`;
                                         }
@@ -1061,6 +1071,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         if (isLocal) {
             bind('btn-inject', 'click', () => import(`./seed.js?t=${Date.now()}`).then(m => m.seedData(db)));
+            bind('btn-inject-core', 'click', () => import(`./seed.js?t=${Date.now()}`).then(m => m.seedCoreData(db)));
 
             bind('btn-delete', 'click', async () => {
                 if (!confirm("Really delete all documents?")) return;
@@ -1138,6 +1149,70 @@ document.addEventListener("DOMContentLoaded", async () => {
             </div>
         </div>`;
         document.body.insertAdjacentHTML('beforeend', wlModalHTML);
+
+        // --- TAG RULES MODAL INJECTION (Redesigned) ---
+        const rulesModalHTML = `
+        <div id="tag-rules-modal" class="modal-overlay" style="z-index: 3400;">
+            <div class="modal-content" style="width: 1000px; max-width: 95vw; height: 80vh; display: flex; flex-direction: column; background: var(--editor-bg); border: 1px solid var(--editor-border); box-shadow: 0 20px 50px rgba(0,0,0,0.8);">
+                <h3 class="modal-drag-handle" style="display: flex; justify-content: space-between; align-items: center; cursor: move;" title="Move Tags from Tag Cloud to Hidden or Folder: Add a Rule">
+                    <span>(.*) Tag Rules (Regex)</span>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <span id="btn-toggle-rules-transparency" title="Toggle Transparency" style="cursor: pointer; font-size: 1.2rem; opacity: 0.8;">👁️</span>
+                        <span id="btn-close-rules-x" class="close-x" title="Close">✕</span>
+                    </div>
+                </h3>
+                
+                <div class="modal-body" style="flex: 1; overflow-y: auto; padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
+                    <!-- Column 1: Folder -->
+                    <div class="rules-column" style="display: flex; flex-direction: column; gap: 20px;">
+                        <div>
+                            <h4 style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 10px; color: #888; font-size: 0.85em; text-transform: uppercase;" title="Add a Rule: Add/Specify a RegEx">
+                                <span>(.*) FOLDER RULES</span>
+                                <button id="btn-add-folder-rule" style="background: var(--user-bg); color: #000; border: none; border-radius: 4px; width: 24px; height: 24px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center;">+</button>
+                            </h4>
+                            <div id="folder-rules-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
+                        </div>
+
+                        <div>
+                            <h4 style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 10px; color: #888; font-size: 0.85em; text-transform: uppercase;" title="Collapse multiple tags to a single one: Add a Grouping">
+                                <span>(.*) FOLDER GROUPING</span>
+                                <button id="btn-add-folder-group-rule" style="background: var(--user-bg); color: #000; border: none; border-radius: 4px; width: 24px; height: 24px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center;">+</button>
+                            </h4>
+                            <div id="folder-group-rules-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Column 2: Hidden -->
+                    <div class="rules-column" style="display: flex; flex-direction: column; gap: 20px;">
+                        <div>
+                            <h4 style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 10px; color: #888; font-size: 0.85em; text-transform: uppercase;" title="Add a Rule: Add/Specify a RegEx">
+                                <span>(.*) HIDDEN RULES</span>
+                                <button id="btn-add-hidden-rule" style="background: var(--user-bg); color: #000; border: none; border-radius: 4px; width: 24px; height: 24px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center;">+</button>
+                            </h4>
+                            <div id="hidden-rules-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
+                        </div>
+
+                        <div>
+                            <h4 style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 10px; color: #888; font-size: 0.85em; text-transform: uppercase;" title="Collapse multiple tags to a single one: Add a Grouping">
+                                <span>(.*) HIDDEN GROUPING</span>
+                                <button id="btn-add-hidden-group-rule" style="background: var(--user-bg); color: #000; border: none; border-radius: 4px; width: 24px; height: 24px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center;">+</button>
+                            </h4>
+                            <div id="hidden-group-rules-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-actions" style="padding: 20px; border-top: 1px solid var(--editor-border); display: flex; justify-content: flex-end;">
+                     <button id="btn-save-rules" style="background: rgba(255,255,255,0.1); color: var(--editor-text); border: 1px solid var(--editor-border); padding: 8px 20px; border-radius: 6px; cursor: pointer; font-weight: bold;">Save Rules</button>
+                </div>
+            </div>
+        </div>`;
+        
+        // Remove existing if any
+        const existingRulesModal = document.getElementById('tag-rules-modal');
+        if (existingRulesModal) existingRulesModal.remove();
+        
+        document.body.insertAdjacentHTML('beforeend', rulesModalHTML);
 
         const wlModal = document.getElementById('whitelist-modal');
         const wlInput = document.getElementById('whitelist-input');

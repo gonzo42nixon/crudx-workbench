@@ -1,5 +1,30 @@
 // modules/mime.js
 
+const typeInfo = {
+    JSON: { icon: '📦', color: '#f7df1e' },
+    XML:  { icon: '🧬', color: '#ff6600' },
+    HTML: { icon: '🌐', color: '#e34c26' },
+    SVG:  { icon: '🖼️', color: '#ffb300' },
+    CSS:  { icon: '🎨', color: '#264de4' },
+    SQL:  { icon: '🗄️', color: '#336791' },
+    PY:   { icon: '🐍', color: '#3776ab' },
+    JS:   { icon: '📜', color: '#f7df1e' },
+    PHP:  { icon: '🐘', color: '#777bb3' },
+    JAVA: { icon: '☕', color: '#b07219' },
+    CPP:  { icon: '⚙️', color: '#00599c' },
+    MD:   { icon: '📝', color: '#083fa1' },
+    CSV:  { icon: '📊', color: '#1d6f42' },
+    YAML: { icon: '📋', color: '#cb171e' },
+    TOML: { icon: '🔧', color: '#8b4513' },
+    URL:  { icon: '🔗', color: '#2c3e50' },
+    BASE64: { icon: '🔐', color: '#7f8c8d' },
+    TXT:  { icon: '📄', color: '#aaaaaa' }
+};
+
+export function getMimeInfo(type) {
+    return typeInfo[type] || { icon: '📄', color: '#aaaaaa' };
+}
+
 /**
  * Erkennt den Typ eines Text-Snippets anhand gewichteter Heuristiken.
  * @param {string} value - Der zu prüfende Text.
@@ -68,11 +93,13 @@ export function detectMimetype(value) {
     // HTML: Doctype oder typische Tags
     // This list is expanded based on your feedback to correctly identify HTML fragments like iframes.
     const commonHtmlTags = /<\/?(html|body|head|div|span|p|a|img|table|ul|ol|li|form|input|button|textarea|select|header|nav|main|section|article|aside|footer|h[1-6]|iframe|video|audio|canvas|script|style|link|meta|title)\b/i;
-    if (lower.includes('<!doctype html>') || /<html\s*>/i.test(trimmed)) {
+    if (lower.startsWith('<!doctype html>') || lower.startsWith('<html')) {
+        scores.HTML += 1000; // Definitive HTML start overrides embedded CSS/JS
+    } else if (lower.includes('<!doctype html>') || /<html\s*>/i.test(trimmed)) {
         scores.HTML += 90;
     } else if (commonHtmlTags.test(trimmed)) {
         // A snippet containing common HTML tags gets a high score.
-        scores.HTML += 50;
+        scores.HTML += 40;
     }
 
     // SVG: spezifischer Start
@@ -128,11 +155,11 @@ export function detectMimetype(value) {
     if (/join\s+\w+\s+on\s+/i.test(trimmed)) scores.SQL += 10;
 
     // --- 3. Markdown ---
-    if (/^#{1,6}\s+/m.test(trimmed)) scores.MD += 20;
-    if (/^[\*\-\+]\s+/m.test(trimmed)) scores.MD += 15;
-    if (/^\d+\.\s+/m.test(trimmed)) scores.MD += 15;
-    if (/^```/m.test(trimmed)) scores.MD += 20;
-    if (/^>\s+/m.test(trimmed)) scores.MD += 10;
+    if (/^#{1,6}\s+/m.test(trimmed)) scores.MD += 40;
+    if (/^[\*\-\+]\s+/m.test(trimmed)) scores.MD += 20;
+    if (/^\d+\.\s+/m.test(trimmed)) scores.MD += 20;
+    if (/^```/m.test(trimmed)) scores.MD += 40;
+    if (/^>\s+/m.test(trimmed)) scores.MD += 20;
 
     // --- 4. CSV / Tabellendaten ---
     if (lines.length >= 2) {
@@ -179,27 +206,6 @@ export function detectMimetype(value) {
     }
 
     // --- 9. Mapping zu Icons und Farben ---
-    const typeInfo = {
-        JSON: { icon: '📦', color: '#f7df1e' },
-        XML:  { icon: '🧬', color: '#ff6600' },
-        HTML: { icon: '🌐', color: '#e34c26' },
-        SVG:  { icon: '🖼️', color: '#ffb300' },
-        CSS:  { icon: '🎨', color: '#264de4' },
-        SQL:  { icon: '🗄️', color: '#336791' },
-        PY:   { icon: '🐍', color: '#3776ab' },
-        JS:   { icon: '📜', color: '#f7df1e' },
-        PHP:  { icon: '🐘', color: '#777bb3' },
-        JAVA: { icon: '☕', color: '#b07219' },
-        CPP:  { icon: '⚙️', color: '#00599c' },
-        MD:   { icon: '📝', color: '#083fa1' },
-        CSV:  { icon: '📊', color: '#1d6f42' },
-        YAML: { icon: '📋', color: '#cb171e' },
-        TOML: { icon: '🔧', color: '#8b4513' },
-        URL:  { icon: '🔗', color: '#2c3e50' },
-        BASE64: { icon: '🔐', color: '#7f8c8d' },
-        TXT:  { icon: '📄', color: '#aaaaaa' }
-    };
-
     return {
         type: bestType,
         icon: typeInfo[bestType].icon,

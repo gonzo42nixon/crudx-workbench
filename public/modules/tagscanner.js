@@ -1,5 +1,6 @@
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { fetchRealData, getAccessTokens, applyLayout } from './pagination.js';
+import { detectMimetype, getMimeInfo } from './mime.js';
 import { auth, db } from './firebase.js';
 import { getTagSector, setManualTagState, getTagRules, setTagRules } from './tag-state.js';
 
@@ -16,6 +17,40 @@ let preDockState = {
     top: '100px',
     left: '20px'
 };
+
+// --- STATE PERSISTENCE ---
+function saveTagCloudState() {
+    const container = document.getElementById('tag-cloud-container');
+    if (!container) return;
+    
+    // Collect expanded folders
+    const expandedFolders = [];
+    const openDetails = container.querySelectorAll('details[open]');
+    openDetails.forEach(el => {
+        if (el.dataset.fullPath) expandedFolders.push(el.dataset.fullPath);
+    });
+
+    const state = {
+        dockState,
+        preDockState,
+        isActive: container.classList.contains('active'),
+        dockedWidth: document.documentElement.style.getPropertyValue('--docked-width'),
+        isFolderTreeMode,
+        expandedFolders,
+        visibleSectors: {
+            folder: container.querySelector('.sector-folder')?.style.display !== 'none',
+            hidden: container.querySelector('.sector-hidden')?.style.display !== 'none',
+            cloud: container.querySelector('.sector-cloud')?.style.display !== 'none'
+        },
+        rect: (dockState === 0) ? {
+            top: container.style.top,
+            left: container.style.left,
+            width: container.style.width,
+            height: container.style.height
+        } : null
+    };
+    localStorage.setItem('crudx_tag_cloud_state', JSON.stringify(state));
+}
 
 function updateHandleVisibility(container) {
     if (!container) return;
@@ -139,6 +174,9 @@ function dockTagCloudLeft(container, targetDocId = null) {
     container.style.width = `${rect.width}px`;
     container.style.height = `${rect.height}px`;
 
+    // Set default docked width to ensure title fits
+    document.documentElement.style.setProperty('--docked-width', '380px');
+
     // Clean up other states
     container.classList.remove('docked-center', 'docked-bottom-right', 'snapped-right');
     container.style.transform = '';
@@ -149,6 +187,8 @@ function dockTagCloudLeft(container, targetDocId = null) {
     container.classList.add('docked');
     container.classList.add('active'); // Ensure visibility immediately
     document.body.classList.add('ftc-docked');
+    updateSectorsForDockState(container); // Force sector visibility update immediately
+    saveTagCloudState();
     
     // Capture current selection (First Doc in Grid)
     const firstCardKey = document.querySelector('#data-container .card-kv .pill-key');
@@ -209,6 +249,7 @@ function dockTagCloudCenter(container) {
 
     // Re-render to show correct sectors
     if (window.currentDbInstance) refreshTagCloud(window.currentDbInstance);
+    saveTagCloudState();
 }
 
 function dockTagCloudBottomRight(container) {
@@ -241,12 +282,13 @@ function dockTagCloudBottomRight(container) {
     container.style.maxHeight = '50vh';
 
     if (window.currentDbInstance) refreshTagCloud(window.currentDbInstance);
+    saveTagCloudState();
 }
 
 function undockTagCloud(container, mouseX, mouseY) {
     if (dockState === 0) return; // Already floating
 
-    const wasLeftDocked = container.classList.contains('docked-left');
+    const wasLeftDocked = (dockState === 1);
     dockState = 0; // Set to floating state
 
     container.classList.remove('docked', 'docked-left', 'docked-center', 'docked-bottom-right', 'snapped-right');
@@ -277,6 +319,7 @@ function undockTagCloud(container, mouseX, mouseY) {
 
     const db = window.currentDbInstance;
     if (db) refreshTagCloud(db);
+    saveTagCloudState();
 }
 
 function makeDraggable(container, handle) {
@@ -365,6 +408,7 @@ function makeDraggable(container, handle) {
             }
             
             updateHandleVisibility(container);
+            saveTagCloudState();
         }
     });
 }
@@ -398,7 +442,7 @@ function buildTagTree(items) {
 }
 
 // Helper: Rendert den Baum rekursiv
-function renderTreeRecursive(node, container, isDocked = false, activeTagPath = null, currentPathPrefix = '') {
+function renderTreeRecursive(node, container, isDocked = false, activeTagPath = null, currentPathPrefix = '', expandedSet = null) {
     const keys = Object.keys(node).sort((a, b) => a.localeCompare(b, 'de', { sensitivity: 'base', numeric: true }));
 
     for (const key of keys) {
@@ -417,11 +461,21 @@ function renderTreeRecursive(node, container, isDocked = false, activeTagPath = 
                     shouldExpand = true;
                 }
             }
+            
+            if (expandedSet && expandedSet.has(fullPath)) {
+                shouldExpand = true;
+            }
 
             const details = document.createElement('details');
             details.open = shouldExpand; 
+            details.dataset.fullPath = fullPath;
             details.style.marginLeft = '10px';
             details.style.marginBottom = '2px';
+            
+            details.addEventListener('toggle', (e) => {
+                e.stopPropagation();
+                saveTagCloudState();
+            });
 
             const summary = document.createElement('summary');
             summary.textContent = key;
@@ -448,7 +502,7 @@ function renderTreeRecursive(node, container, isDocked = false, activeTagPath = 
             });
 
             // Dann Unterordner rendern
-            renderTreeRecursive(entry._children, details, isDocked, activeTagPath, fullPath);
+            renderTreeRecursive(entry._children, details, isDocked, activeTagPath, fullPath, expandedSet);
             container.appendChild(details);
         }
     }
@@ -458,18 +512,21 @@ function updateCloudSelectionState(contentContainer) {
     if (!contentContainer) return;
     const searchInput = document.getElementById('main-search');
     const searchTerm = searchInput ? searchInput.value.trim() : '';
-    const activeTag = searchTerm.startsWith('tag:') ? searchTerm.substring(4) : null;
+    
+    let activeFilter = null;
+    if (searchTerm.startsWith('tag:')) activeFilter = searchTerm.substring(4);
+    else if (searchTerm.startsWith('mime:')) activeFilter = 'mime:' + searchTerm.substring(5);
 
     const clearBtn = document.getElementById('btn-clear-tag-filter');
     if (clearBtn) {
-        clearBtn.style.display = activeTag ? 'inline' : 'none';
-        clearBtn.style.color = activeTag ? '#ff5252' : '';
+        clearBtn.style.display = activeFilter ? 'inline' : 'none';
+        clearBtn.style.color = activeFilter ? '#ff5252' : '';
     }
 
-    const pills = contentContainer.querySelectorAll('.pill-user');
+    const pills = contentContainer.querySelectorAll('.pill-user, .pill-mime');
     pills.forEach(pill => {
         const tag = pill.dataset.tagName;
-        if (activeTag && tag !== activeTag) {
+        if (activeFilter && tag !== activeFilter) {
             pill.classList.add('pill-inactive');
         } else {
             pill.classList.remove('pill-inactive');
@@ -493,6 +550,7 @@ export function locateDocumentInCloud(docId) {
         dockTagCloudLeft(container, docId);
     } else {
         // Already docked, just refresh to update tree selection
+        applyLayout('1');
         if (window.currentDbInstance) refreshTagCloud(window.currentDbInstance);
     }
 }
@@ -628,6 +686,7 @@ async function scanAndRenderTags(db, contentContainer) {
             e.stopPropagation();
             isFolderTreeMode = !isFolderTreeMode;
             scanAndRenderTags(db, contentContainer); // Re-Render
+            saveTagCloudState();
         };
     }
     
@@ -661,41 +720,23 @@ async function scanAndRenderTags(db, contentContainer) {
                     docsByTag.get(tag).push({ id: id, ...d });
                 });
             }
+            
+            // Inject Mime Type as virtual tag
+            if (d.value) {
+                const mime = detectMimetype(d.value);
+                if (mime && mime.type && mime.type !== 'TXT') {
+                    const tag = `mime:${mime.type}`;
+                    tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
+                    if (!docsByTag.has(tag)) docsByTag.set(tag, []);
+                    docsByTag.get(tag).push({ id: id, ...d });
+                }
+            }
         };
 
         const querySnapshot = await getDocs(collection(db, "kv-store"));
-        querySnapshot.forEach(doc => processDoc(doc.data(), doc.id));
-
-        // --- INJECT SYSTEM DOC ---
-        const now = new Date();
-        const nowIso = now.toISOString();
-        const y = now.getFullYear();
-        const m = String(now.getMonth() + 1).padStart(2, '0');
-        const d = String(now.getDate()).padStart(2, '0');
-        const dateTagSuffix = `>${y}>${m}>${d}`;
-        
-        const sysDoc = {
-            id: "CRUDX-INFO",
-            label: "CRUDX Info",
-            value: "# CRUDX Info \n\n\n## Create, Read, Update, Delete, eXecute \n\nThat simple.",
-            owner: "info@https://crudx-e0599.web.app/",
-            user_tags: [
-                "Info", "CRUDX", "v1", "🛡️ D",
-                `Created${dateTagSuffix}`,
-                `Last Read${dateTagSuffix}`,
-                `Last Updated${dateTagSuffix}`,
-                `Last Executed${dateTagSuffix}`
-            ],
-            access_control: ["*@*"],
-            white_list_execute: ["*@*"],
-            created_at: nowIso,
-            last_read_ts: nowIso,
-            last_update_ts: nowIso,
-            last_execute_ts: nowIso,
-            updates: 1, reads: 1, executes: 1,
-            size: "1KB"
-        };
-        processDoc(sysDoc, sysDoc.id);
+        querySnapshot.forEach(doc => {
+            processDoc(doc.data(), doc.id);
+        });
 
         const sortedTags = Array.from(tagCounts.entries()).sort((a, b) => a[0].localeCompare(b[0], 'de', { sensitivity: 'base', numeric: true }));
         
@@ -1009,7 +1050,16 @@ async function scanAndRenderTags(db, contentContainer) {
                     }
                 }
 
-                renderTreeRecursive(treeRoot, folderContent, isLeftDocked, activeTagPath);
+                // Load expanded state
+                let expandedSet = new Set();
+                try {
+                    const savedState = JSON.parse(localStorage.getItem('crudx_tag_cloud_state') || '{}');
+                    if (savedState.expandedFolders) {
+                        savedState.expandedFolders.forEach(p => expandedSet.add(p));
+                    }
+                } catch (e) {}
+
+                renderTreeRecursive(treeRoot, folderContent, isLeftDocked, activeTagPath, '', expandedSet);
             } else if (!isFolderTreeMode && folderLooseItems.length > 0) {
                 // Flat List for loose items
                 folderLooseItems.forEach(i => folderContent.appendChild(i.element));
@@ -1026,20 +1076,30 @@ async function scanAndRenderTags(db, contentContainer) {
 }
 
 function createTagPill(tag, count, contentContainer) {
+    const isMime = tag.startsWith('mime:');
+    const displayTag = isMime ? tag.substring(5) : tag;
+
     const item = document.createElement('div');
-    item.className = 'pill pill-user';
-    item.textContent = `${tag} (${count})`;
+    item.className = isMime ? 'pill pill-mime' : 'pill pill-user';
+    item.textContent = `${displayTag} (${count})`;
     item.style.cursor = 'pointer';
     item.id = `tag-pill-${tag.replace(/[^a-zA-Z0-9]/g, '-')}`;
     item.dataset.tagName = tag;
     item.draggable = true;
     item.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', e.target.id));
     
+    if (isMime) {
+        const info = getMimeInfo(displayTag);
+        item.style.backgroundColor = info.color;
+        item.style.color = ['TXT','BASE64','JSON','JS','SVG'].includes(displayTag) ? '#000' : '#fff';
+    }
+
     item.addEventListener('click', () => {
         const searchInput = document.getElementById('main-search');
         if (searchInput) {
             const currentSearch = searchInput.value.trim();
-            searchInput.value = (currentSearch === `tag:${tag}`) ? '' : `tag:${tag}`;
+            const searchVal = isMime ? `mime:${displayTag}` : `tag:${displayTag}`;
+            searchInput.value = (currentSearch === searchVal) ? '' : searchVal;
             fetchRealData(true);
             updateCloudSelectionState(contentContainer);
         }
@@ -1057,6 +1117,7 @@ export async function refreshTagCloud(db) {
         await scanAndRenderTags(db, contentContainer);
         updateHandleVisibility(container);
         updateSectorsForDockState(container);
+        saveTagCloudState();
     }
 }
 
@@ -1103,6 +1164,53 @@ export function initTagCloud(db) {
     `;
     document.body.insertAdjacentHTML('beforeend', cloudHTML);
 
+    // --- RESTORE STATE ---
+    try {
+        const saved = JSON.parse(localStorage.getItem('crudx_tag_cloud_state'));
+        if (saved) {
+            const container = document.getElementById('tag-cloud-container');
+            const contentContainer = document.getElementById('tag-cloud-content');
+            
+            if (saved.preDockState) preDockState = saved.preDockState;
+            if (saved.dockedWidth) document.documentElement.style.setProperty('--docked-width', saved.dockedWidth);
+            if (typeof saved.isFolderTreeMode !== 'undefined') isFolderTreeMode = saved.isFolderTreeMode;
+
+            // Restore Geometry (important for transitions)
+            const rect = saved.rect || saved.preDockState;
+            if (rect) {
+                if (rect.top) container.style.top = rect.top;
+                if (rect.left) container.style.left = rect.left;
+                if (rect.width) container.style.width = rect.width;
+                if (rect.height) container.style.height = rect.height;
+            }
+
+            // Restore Dock State
+            if (saved.dockState === 1) dockTagCloudLeft(container);
+            else if (saved.dockState === 2) dockTagCloudCenter(container);
+            else if (saved.dockState === 3) dockTagCloudBottomRight(container);
+            
+            // Restore Visibility & Content
+            if (saved.isActive) {
+                container.classList.add('active');
+                // We need to render tags immediately if active
+                if (db) {
+                    window.currentDbInstance = db;
+                    scanAndRenderTags(db, contentContainer);
+                }
+            }
+
+            // Restore Sector Visibility (Overrides default dock logic)
+            if (saved.visibleSectors) {
+                const folder = container.querySelector('.sector-folder');
+                const hidden = container.querySelector('.sector-hidden');
+                const cloud = container.querySelector('.sector-cloud');
+                if (folder) folder.style.display = saved.visibleSectors.folder ? 'flex' : 'none';
+                if (hidden) hidden.style.display = saved.visibleSectors.hidden ? 'flex' : 'none';
+                if (cloud) cloud.style.display = saved.visibleSectors.cloud ? 'flex' : 'none';
+            }
+        }
+    } catch(e) { console.error("Failed to restore Tag Cloud state", e); }
+
     initGroupRulesEvents();
 
     const container = document.getElementById('tag-cloud-container');
@@ -1117,6 +1225,59 @@ export function initTagCloud(db) {
 
     makeDraggable(container, handle);
     
+    // Context Menu for Sector Visibility
+    handle.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+
+        // Remove any existing menu
+        const existingMenu = document.querySelector('.tag-cloud-context-menu');
+        if (existingMenu) existingMenu.remove();
+
+        const menu = document.createElement('div');
+        menu.className = 'tag-cloud-context-menu';
+        menu.style.cssText = `
+            position: fixed;
+            top: ${e.clientY}px;
+            left: ${e.clientX}px;
+            background: var(--editor-bg);
+            border: 1px solid var(--editor-border);
+            border-radius: 6px;
+            padding: 5px;
+            z-index: 3000;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        `;
+
+        ['Folder', 'Hidden', 'Cloud'].forEach(name => {
+            const sectorEl = container.querySelector(`.sector-${name.toLowerCase()}`);
+            if (!sectorEl) return;
+
+            const isVisible = window.getComputedStyle(sectorEl).display !== 'none';
+
+            const item = document.createElement('div');
+            item.innerHTML = `<span style="display: inline-block; width: 20px;">${isVisible ? '✅' : '⬜'}</span> Toggle ${name}`;
+            item.style.cssText = `padding: 6px 12px; cursor: pointer; border-radius: 4px; font-size: 0.9em; user-select: none; display: flex; align-items: center;`;
+            item.onmouseover = () => item.style.backgroundColor = 'rgba(255,255,255,0.1)';
+            item.onmouseout = () => item.style.backgroundColor = 'transparent';
+
+            item.onclick = () => {
+                sectorEl.style.display = isVisible ? 'none' : 'flex';
+                saveTagCloudState();
+                menu.remove();
+            };
+            menu.appendChild(item);
+        });
+
+        document.body.appendChild(menu);
+
+        const closeMenu = (event) => {
+            if (!menu.contains(event.target)) { menu.remove(); window.removeEventListener('click', closeMenu, { capture: true }); }
+        };
+        window.addEventListener('click', closeMenu, { capture: true });
+    });
+
     // Double-Click to Dock/Undock
     handle.addEventListener('dblclick', (e) => {
         // Ignore clicks on buttons inside header
@@ -1132,9 +1293,29 @@ export function initTagCloud(db) {
     closeBtn.addEventListener('click', () => {
         container.classList.remove('active');
         // Reset Docking State on Close
-        if (container.classList.contains('docked')) {
-            container.classList.remove('docked');
+        if (dockState !== 0) {
+            // Restore floating state properties so it opens correctly next time
+            container.classList.remove('docked', 'docked-left', 'docked-center', 'docked-bottom-right', 'snapped-right');
             document.body.classList.remove('ftc-docked');
+            
+            container.style.width = preDockState.width;
+            container.style.height = preDockState.height || '';
+            container.style.top = preDockState.top || '100px';
+            container.style.left = preDockState.left || '20px';
+            container.style.bottom = '';
+            container.style.right = 'auto';
+            container.style.transform = '';
+            container.style.minWidth = '';
+            container.style.maxWidth = '';
+            container.style.maxHeight = '';
+
+            dockState = 0;
+            
+            // Refresh to revert special views (like Markdown App) if in 1x1
+            if (document.getElementById('grid-select')?.value === '1') {
+                fetchRealData();
+            }
+            saveTagCloudState();
         }
     });
     refreshBtn.addEventListener('click', () => scanAndRenderTags(db, contentContainer));
@@ -1285,13 +1466,21 @@ export function initTagCloud(db) {
                 
                 if (isRight) {
                     const newWidth = startWidth + dx;
-                    container.style.width = `${Math.max(300, newWidth)}px`;
+                    const clampedWidth = Math.max(300, newWidth);
+                    
+                    if (container.classList.contains('docked')) {
+                        document.documentElement.style.setProperty('--docked-width', `${clampedWidth}px`);
+                    } else {
+                        container.style.width = `${clampedWidth}px`;
+                    }
                 } else {
                     const newWidth = startWidth - dx;
                     if (newWidth >= 300) {
-                        container.style.width = `${newWidth}px`;
-                        if (!container.classList.contains('snapped-right')) {
-                            container.style.left = `${startLeft + dx}px`;
+                        if (!container.classList.contains('docked')) {
+                            container.style.width = `${newWidth}px`;
+                            if (!container.classList.contains('snapped-right')) {
+                                container.style.left = `${startLeft + dx}px`;
+                            }
                         }
                     }
                 }
@@ -1303,6 +1492,7 @@ export function initTagCloud(db) {
                 document.removeEventListener('mouseup', stopResize);
                 container.style.transition = ''; // Re-enable transition
                 updateHandleVisibility(container);
+                saveTagCloudState();
             }
             
             document.addEventListener('mousemove', doResize);
