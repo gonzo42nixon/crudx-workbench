@@ -70,7 +70,93 @@ document.addEventListener("DOMContentLoaded", async () => {
         let executionWindowZIndex = 3500;
         let executionWindowOffset = 0;
 
-        function createExecutionWindow(targetUrl, contentValue) {
+        // --- HELPER: Generate Secure App Blob (Shared logic for X-Button and Confluence Mode) ---
+        async function generateSecureAppBlob(key, d) {
+            const tags = d.user_tags || [];
+            let contextData = null;
+            
+            // 1. Build Params
+            const params = new URLSearchParams();
+            params.append("action", "X");
+            params.append("key", key);
+
+            if (tags.includes("app")) {
+                params.set("app", key);
+            }
+            if (tags.includes("data")) {
+                params.set("data", key);
+                const xTag = tags.find(t => t.startsWith("x:"));
+                if (xTag) params.set("app", xTag.substring(2));
+            }
+            // Aux Tags
+            tags.forEach(t => {
+                if (t.startsWith("s:")) params.set("settings", t.substring(2));
+                if (t.startsWith("d1:")) params.set("data-1", t.substring(3));
+                if (t.startsWith("d2:")) params.set("data-2", t.substring(3));
+                if (t.startsWith("d3:")) params.set("data-3", t.substring(3));
+            });
+
+            if (!params.has("app")) return null; // Not an app execution
+
+            // 2. Fetch App Content
+            const appKey = params.get("app");
+            let appContent = "";
+
+            if (appKey === key) {
+                appContent = d.value;
+            } else {
+                const appDocSnap = await getDoc(doc(db, "kv-store", appKey));
+                if (appDocSnap.exists()) {
+                    appContent = appDocSnap.data().value;
+                } else {
+                    return null; // App not found
+                }
+            }
+
+            // 3. Inject Context & Data
+            if (appContent && typeof appContent === 'string' && !appContent.startsWith("<h3>⚠️")) {
+                let injectedData = "";
+                if (params.has("data")) {
+                    injectedData = `<script type="text/markdown" id="markdown-template">${(d.value || '').replace(/<\/script>/g, '<\\/script>')}</script>`;
+                }
+                
+                contextData = {
+                    key: params.get("data") || key, 
+                    webhookUrl: "https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977",
+                    action: "U",
+                    label: d.label || "",
+                    owner: d.owner || "",
+                    user_tags: d.user_tags || [],
+                    white_list_read: d.white_list_read || [],
+                    white_list_update: d.white_list_update || [],
+                    white_list_delete: d.white_list_delete || [],
+                    white_list_execute: d.white_list_execute || []
+                };
+                const jsonStr = JSON.stringify(contextData).replace(/<\/script>/g, '<\\/script>');
+                const injectedContext = `<script>try{window.CRUDX_CONTEXT=${jsonStr};}catch(e){console.error("Ctx Inj Fail",e);}</script>`;
+
+                // FIX: Inject Context early (Head) if possible, Data late (Body)
+                if (/<head>/i.test(appContent)) {
+                    appContent = appContent.replace(/<head>/i, `<head>${injectedContext}`);
+                    if (/<\/body>/i.test(appContent)) {
+                        appContent = appContent.replace(/<\/body>/i, `${injectedData}</body>`);
+                    } else {
+                        appContent += injectedData;
+                    }
+                } else {
+                    // Fallback
+                    const bodyEndRegex = /<\/body>/i;
+                    if (bodyEndRegex.test(appContent)) {
+                        appContent = appContent.replace(bodyEndRegex, `${injectedData}${injectedContext}</body>`);
+                    } else {
+                        appContent += injectedData + injectedContext;
+                    }
+                }
+            }
+            return { blob: new Blob([appContent], { type: 'text/html' }), contextData };
+        }
+
+        function createExecutionWindow(targetUrl, contentValue, key) {
             executionWindowZIndex++;
             executionWindowOffset += 30;
             // Reset offset if it gets too far down/right
@@ -79,6 +165,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             const div = document.createElement('div');
             // KEIN Wrapper mehr, direkt das Fenster erstellen
             div.className = 'modal-content execution-window'; 
+            if (key) div.dataset.key = key; // Store key to bridge with Update Modal
             div.style.zIndex = executionWindowZIndex;
             
             // Default dimensions
@@ -293,7 +380,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     e.stopPropagation(); 
                     const action = btn.getAttribute('data-action');
                     const card = btn.closest('.card-kv');
-                    const key = card ? card.querySelector('.pill-key')?.textContent : '';
+                    const key = card ? card.querySelector('.pill-key')?.textContent.trim() : '';
                     let url = `https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977?action=${action}&key=${encodeURIComponent(key)}`;
                     
                     // --- Protection & Authorization Check ---
@@ -399,7 +486,43 @@ document.addEventListener("DOMContentLoaded", async () => {
                         const key = card ? card.querySelector('.pill-key')?.textContent : '';
                         const label = card ? card.querySelector('.pill-label')?.textContent : '';
                         const valueLayer = card ? card.querySelector('.value-layer') : null;
-                        const currentValue = valueLayer ? valueLayer.textContent : "";
+                        
+                        let currentValue = null;
+
+                        // Check for Iframe (Confluence Mode / Embeds)
+                        const iframe = valueLayer ? valueLayer.querySelector('iframe') : null;
+
+                        if (iframe) {
+                            try {
+                                // Try to get content from internal editor (e.g. Markdown Studio)
+                                const iframeEditor = iframe.contentWindow.document.getElementById('editor');
+                                if (iframeEditor) {
+                                    currentValue = iframeEditor.value;
+                                }
+                            } catch (err) {
+                                console.log("Iframe access skipped (likely cross-origin or no editor):", err);
+                            }
+                        } 
+
+                        // Check for floating execution window (Priority over everything else)
+                        // This handles the case where the user is editing in a pop-up (X) and clicks Update (U) on the card
+                        const execWindow = document.querySelector(`.execution-window[data-key="${key}"]`);
+                        if (execWindow) {
+                            const iframe = execWindow.querySelector('iframe');
+                            if (iframe) {
+                                try {
+                                    const iframeEditor = iframe.contentWindow.document.getElementById('editor');
+                                    if (iframeEditor) {
+                                        currentValue = iframeEditor.value;
+                                    }
+                                } catch (err) {
+                                    console.log("Exec window iframe access skipped:", err);
+                                }
+                            }
+                        }
+
+                        // FIX: Always load from DB if we couldn't get the value from a live iframe editor.
+                        // Falling back to DOM (valueLayer.textContent) is unreliable as it might be empty/truncated.
                         
                         openUpdateModal(key, currentValue, label, card);
                         return;
@@ -409,6 +532,11 @@ document.addEventListener("DOMContentLoaded", async () => {
                     if (action === 'X' && !e.shiftKey) {
                         const btn = e.target.closest('.btn-crudx');
                         const originalText = btn.textContent;
+
+                        if (!key) {
+                            alert("⚠️ Error: Could not determine Document ID (Key) from card. Please refresh.");
+                            return;
+                        }
                         
                         // Visual Feedback
                         btn.textContent = "🚀";
@@ -425,7 +553,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                             // Special Case: Bookmark URL -> Open in IFrame directly
                             const mime = detectMimetype(d.value);
                             if (tags.includes("bookmark") && mime.type === 'URL') {
-                                createExecutionWindow(d.value, d.value);
+                                createExecutionWindow(d.value, d.value, key);
                                 updateDoc(doc(db, "kv-store", key), { executes: increment(1), last_execute_ts: new Date().toISOString() }).catch(console.error);
                                 
                                 // Reset button state and stop further execution
@@ -434,82 +562,16 @@ document.addEventListener("DOMContentLoaded", async () => {
                                 return;
                             }
 
-                            // 2. Build Params
-                            const params = new URLSearchParams();
-                            params.append("action", "X"); // Base param
-                            params.append("key", key);    // Origin key
-
-                            // Rule 1: Tag "app" -> app=<This Key>
-                            if (tags.includes("app")) {
-                                params.set("app", key);
-                            }
-
-                            // Rule 2: Tag "data" -> data=<This Key>, app=<from x:tag>
-                            if (tags.includes("data")) {
-                                params.set("data", key);
-                                const xTag = tags.find(t => t.startsWith("x:"));
-                                if (xTag) params.set("app", xTag.substring(2));
-                            }
-
-                            // Rule 3: Aux Tags (s:, d1:, d2:, d3:)
-                            tags.forEach(t => {
-                                if (t.startsWith("s:")) params.set("settings", t.substring(2));
-                                if (t.startsWith("d1:")) params.set("data-1", t.substring(3));
-                                if (t.startsWith("d2:")) params.set("data-2", t.substring(3));
-                                if (t.startsWith("d3:")) params.set("data-3", t.substring(3));
-                            });
-
-                            // 3. Validation (App is mandatory)
-                            if (!params.has("app")) {
-                                alert("⚠️ Launcher Error: Missing 'app' parameter.\n\nTo execute this document, it must have:\n1. The tag 'app' (if it is an app)\n2. OR the tag 'data' AND a tag 'x:<AppKey>' (to launch it with an app)");
-                                return;
-                            }
-
-                            // 4. Launch
-                            const urlParams = new URLSearchParams(window.location.search);
-                            const forceProd = urlParams.get('mode') === 'live';
-                            const isEmulator = !forceProd && ['localhost', '127.0.0.1'].includes(window.location.hostname);
-
-                            if (isEmulator) {
-                                // --- DEV: SDK Logic (Simulate Execution by showing App Content) ---
-                                const appKey = params.get("app");
-                                let appContent = "";
-
-                                if (appKey === key) {
-                                    appContent = d.value;
-                                } else {
-                                    try {
-                                        const appDocSnap = await getDoc(doc(db, "kv-store", appKey));
-                                        if (appDocSnap.exists()) {
-                                            appContent = appDocSnap.data().value;
-
-                                            // --- DATA INJECTION (DEV MODE) ---
-                                            if (params.has("data")) {
-                                                const injectedData = `<script type="text/markdown" id="markdown-template">${(d.value || '').replace(/<\/script>/g, '<\\/script>')}</script>`;
-                                                if (appContent.includes('</body>')) {
-                                                    appContent = appContent.replace('</body>', `${injectedData}</body>`);
-                                                } else {
-                                                    appContent += injectedData;
-                                                }
-                                            }
-                                        } else {
-                                            appContent = `<h3>⚠️ Error: App Document "${appKey}" not found.</h3>`;
-                                        }
-                                    } catch (err) {
-                                        appContent = `<h3>⚠️ Error fetching App: ${err.message}</h3>`;
-                                    }
-                                }
-
-                                const blob = new Blob([appContent], { type: 'text/html' });
-                                const blobUrl = URL.createObjectURL(blob);
-                                createExecutionWindow(blobUrl, d.value);
-
+                            // Use shared helper to generate secure blob
+                            const { blob, contextData } = await generateSecureAppBlob(key, d) || {};
+                            
+                            if (blob) {
+                                let blobUrl = URL.createObjectURL(blob);
+                                if (contextData) blobUrl += `#ctx=${encodeURIComponent(JSON.stringify(contextData))}`;
+                                createExecutionWindow(blobUrl, d.value, key);
                                 updateDoc(doc(db, "kv-store", key), { executes: increment(1), last_execute_ts: new Date().toISOString() }).catch(console.error);
                             } else {
-                                // --- PROD: Webhook Logic ---
-                                const baseUrl = "https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977";
-                                const targetUrl = `${baseUrl}?${params.toString()}`;
-                                createExecutionWindow(targetUrl, d.value);
+                                alert("⚠️ Launcher Error: Could not resolve App logic. Check tags (app/data/x:...).");
                             }
 
                         } catch (err) {
@@ -1390,15 +1452,24 @@ document.addEventListener("DOMContentLoaded", async () => {
         function openUpdateModal(key, value, label, cardElement) {
             if (!updateModal) return;
             currentUpdateKey = key;
+
+            // Logic: If value is provided (string), use it. If null (e.g. unreadable iframe), wait for DB.
+            if (value !== null) {
+                updateEditor.value = value;
+            } else {
+                updateEditor.value = ""; 
+                updateEditor.placeholder = "Loading content...";
+            }
             
-            // Initiale Werte setzen & Daten nachladen, damit beim Speichern nichts überschrieben wird
+            // Initiale Werte setzen & Daten nachladen
             currentLabel = label || "";
-            currentTags = []; // Reset, bis Daten geladen sind
-            currentWhitelists = { read: [], update: [], delete: [], execute: [] }; // Reset Whitelists
+            currentTags = []; 
+            currentWhitelists = { read: [], update: [], delete: [], execute: [] }; 
             
             getDoc(doc(db, "kv-store", key)).then(snap => {
                 if (snap.exists()) {
                     const d = snap.data();
+                    currentLabel = d.label || ""; 
                     currentTags = d.user_tags || [];
                     currentOwner = d.owner || "";
                     currentWhitelists = {
@@ -1407,6 +1478,19 @@ document.addEventListener("DOMContentLoaded", async () => {
                         delete: d.white_list_delete || [],
                         execute: d.white_list_execute || []
                     };
+
+                    // Load value from DB if we couldn't extract it from DOM (value === null)
+                    if (value === null && d.value !== undefined) {
+                        updateEditor.value = d.value;
+                        
+                        // Update Mime Badge based on loaded content
+                        const mime = detectMimetype(d.value);
+                        updateMimeDisplay.textContent = mime.type;
+                        updateMimeDisplay.style.backgroundColor = mime.color;
+                        updateMimeDisplay.style.color = (mime.type === 'TXT' || mime.type === 'BASE64') ? '#000' : '#fff';
+                        if (mime.type === 'JSON' || mime.type === 'JS' || mime.type === 'SVG') updateMimeDisplay.style.color = '#000';
+                        btnBeautify.style.display = (mime.type === 'JSON') ? 'inline-block' : 'none';
+                    }
                 }
             });
 
@@ -1423,20 +1507,19 @@ document.addEventListener("DOMContentLoaded", async () => {
             
             // Reset View
             updateEditor.style.display = 'block';
-            updateEditor.value = value;
             
-            // Mime Detection für das Badge
-            const mime = detectMimetype(value);
-            updateMimeDisplay.textContent = mime.type;
-            updateMimeDisplay.style.backgroundColor = mime.color;
-            updateMimeDisplay.style.color = (mime.type === 'TXT' || mime.type === 'BASE64') ? '#000' : '#fff';
-            if (mime.type === 'JSON' || mime.type === 'JS' || mime.type === 'SVG') updateMimeDisplay.style.color = '#000';
-
-            // Beautify Button Logic
-            if (mime.type === 'JSON') {
-                btnBeautify.style.display = 'inline-block';
+            // Mime Detection (Initial)
+            if (value !== null) {
+                const mime = detectMimetype(value);
+                updateMimeDisplay.textContent = mime.type;
+                updateMimeDisplay.style.backgroundColor = mime.color;
+                updateMimeDisplay.style.color = (mime.type === 'TXT' || mime.type === 'BASE64') ? '#000' : '#fff';
+                if (mime.type === 'JSON' || mime.type === 'JS' || mime.type === 'SVG') updateMimeDisplay.style.color = '#000';
+                btnBeautify.style.display = (mime.type === 'JSON') ? 'inline-block' : 'none';
             } else {
-                btnBeautify.style.display = 'none';
+                // Placeholder badge while loading
+                updateMimeDisplay.textContent = "...";
+                updateMimeDisplay.style.backgroundColor = "#555";
             }
 
             updateModal.classList.add('active');
@@ -2276,8 +2359,32 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
         }
 
+        // Global Message Listener (e.g. for Fullscreen from IFrame)
+        window.addEventListener('message', (e) => {
+            if (e.data === 'toggle-fullscreen') {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(err => console.log(err));
+                } else {
+                    if (document.exitFullscreen) document.exitFullscreen();
+                }
+            }
+        });
+
         // Global ESC Key to close modals
         document.addEventListener('keydown', (e) => {
+            if (e.key === 'F11') {
+                const isConfluenceMode = document.body.classList.contains('ftc-docked') && 
+                                         document.body.classList.contains('layout-grid-1');
+                if (isConfluenceMode) {
+                    e.preventDefault();
+                    if (!document.fullscreenElement) {
+                        document.documentElement.requestFullscreen().catch(err => console.log(err));
+                    } else {
+                        if (document.exitFullscreen) document.exitFullscreen();
+                    }
+                }
+            }
+
             if (e.key === 'Escape') {
                 if (tagModal && tagModal.classList.contains('active')) {
                     closeTagModal();
@@ -2300,6 +2407,43 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         // Initialisiert die Floating Tag Cloud
         initTagCloud(db);
+
+        // --- AUTO-LAUNCHER FOR CONFLUENCE MODE (1x1) ---
+        // Watches the grid and automatically upgrades Markdown cards to Secure Apps
+        const gridObserver = new MutationObserver(async (mutations) => {
+            const gridSelect = document.getElementById('grid-select');
+            // Only active in 1x1 mode
+            if (gridSelect && gridSelect.value === '1') {
+                const card = document.querySelector('.card-kv');
+                // Check if it's a Markdown card that hasn't been upgraded yet
+                if (card && card.dataset.mime === 'MD' && !card.dataset.appLoaded) {
+                    card.dataset.appLoaded = "true"; // Mark as processing to prevent loops
+                    
+                    const key = card.querySelector('.pill-key')?.textContent.trim();
+                    if (key) {
+                        try {
+                            const docSnap = await getDoc(doc(db, "kv-store", key));
+                            if (docSnap.exists()) {
+                                const { blob, contextData } = await generateSecureAppBlob(key, docSnap.data()) || {};
+                                if (blob) {
+                                    let blobUrl = URL.createObjectURL(blob);
+                                    if (contextData) {
+                                        blobUrl += `#ctx=${encodeURIComponent(JSON.stringify(contextData))}`;
+                                        console.log("🔗 Attached Context to Blob URL");
+                                    }
+                                    const valueLayer = card.querySelector('.value-layer');
+                                    if (valueLayer) {
+                                        valueLayer.innerHTML = `<iframe src="${blobUrl}" style="width:100%; height:100%; border:none;" id="editor-frame"></iframe>`;
+                                        console.log("✅ Confluence Mode: Auto-Upgraded to Secure App.");
+                                    }
+                                }
+                            }
+                        } catch(e) { console.error("Auto-Launch failed", e); }
+                    }
+                }
+            }
+        });
+        gridObserver.observe(document.getElementById('data-container'), { childList: true, subtree: true });
 
     } catch (e) {
         console.error("🔥 FATAL:", e);

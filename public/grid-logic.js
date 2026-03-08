@@ -1,3 +1,5 @@
+import { detectMimetype } from './modules/mime.js';
+
 export function updateGrid(val) {
     const container = document.getElementById('data-container');
     container.style.gridTemplateColumns = `repeat(${val}, 1fr)`;
@@ -6,10 +8,11 @@ export function updateGrid(val) {
 
 export function renderCard(doc) {
     const d = doc.data();
+    const mime = detectMimetype(d.value);
     const dateOnly = d.created_ts ? d.created_ts.split('T')[0] : '2026-02-22';
 
     return `
-        <div class="card-kv">
+        <div class="card-kv" data-mime="${mime.type}">
             <div class="value-layer">${d.value}</div>
             <div class="pill-group top-left">
                 <div class="pill pill-key" title="Key: OCR Validated">${doc.id}</div>

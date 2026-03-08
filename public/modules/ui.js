@@ -207,6 +207,12 @@ export async function renderDataFromDocs(docs, container) {
             </style>
             <script>
                 window.addEventListener('load', () => { if (typeof setMode === 'function') setMode('preview'); });
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'F11') {
+                        e.preventDefault();
+                        window.parent.postMessage('toggle-fullscreen', '*');
+                    }
+                });
             </script>`;
 
             const injectedData = `${customStyles}<script type="text/markdown" id="markdown-template">${(d.value || '').replace(/<\/script>/g, '<\\/script>')}</script>`;
@@ -221,7 +227,7 @@ export async function renderDataFromDocs(docs, container) {
 
             htmlBuffer += `
             <div class="card-kv" data-mime="MD" style="padding:0; overflow:hidden;">
-                <iframe src="${blobUrl}" style="width:100%; height:100%; border:none; display:block;"></iframe>
+                <iframe src="${blobUrl}" allow="fullscreen" style="width:100%; height:100%; border:none; display:block;"></iframe>
                 
                 <div class="tr-group">
                     <button class="btn-crudx btn-c" data-action="C" title="${btnC.title}" ${btnC.style}>C</button>

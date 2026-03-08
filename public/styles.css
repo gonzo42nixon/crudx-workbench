@@ -1710,6 +1710,11 @@ body.ftc-docked .card-kv[data-mime="MD"] {
     backdrop-filter: none !important;
 }
 
+/* Confluence Mode: Hide CRUDX FAB to prevent obstruction */
+body.ftc-docked.layout-grid-1 .card-kv[data-mime="MD"] .tr-group {
+    display: none !important;
+}
+
 /* IFrame Modal: Non-blocking & Transparency */
 #iframe-modal {
     background: transparent !important;

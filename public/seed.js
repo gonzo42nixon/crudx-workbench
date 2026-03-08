@@ -38,7 +38,7 @@ export async function seedCoreData(db) {
     const dateTagSuffix = `>${y}>${m}>${d}`;
 
     // Core Info Document
-    batch.set(doc(colRef, "CRUDX-CORE_-DATA_-INFO_"), {
+    batch.set(doc(colRef, "CRUDX-CORE_-DATA_-INFO"), {
         label: "CRUDX Info",
         value: "# CRUDX Workbench\n\n**CRUDX** is a versatile Key-Value Store interface designed for rapid data management and visualization.\n\n## The CRUDX Model\n* **C**reate: Instantiate new data records.\n* **R**ead: Visualize data (Markdown, Code, JSON, Media).\n* **U**pdate: Modify values and metadata tags.\n* **D**elete: Remove obsolete records.\n* **eX**ecute: Launch applications or scripts directly from data.\n\n## Key Features\n* **Floating Tag Cloud**: Multidimensional navigation.\n* **Dynamic Grid**: 1x1 to 9x9 views.\n* **Granular Security**: Per-action Whitelists.\n\n*Data is the Application.*",
         owner: "info@https://crudx-e0599.web.app/",
@@ -51,7 +51,7 @@ export async function seedCoreData(db) {
         ],
         access_control: ["*@*"],
         white_list_read: ["*@*"],
-        white_list_update: [],
+        white_list_update: ["drueffler@gmail.com"],
         white_list_delete: [],
         white_list_execute: ["*@*"],
         created_at: now.toISOString(),
@@ -137,6 +137,7 @@ export async function seedCoreData(db) {
 
     <!-- Floating Navigation (EDIT, SPLIT, VIEW) -->
     <nav id="floating-nav" title="Mode" class="flex bg-slate-900/90 backdrop-blur-md p-1 rounded-xl border border-slate-700 shadow-2xl">
+        <button onclick="saveDocument()" id="btn-save" title="Save to Cloud (Ctrl+S)" class="px-3 py-1.5 rounded-lg text-[10px] font-black tracking-tighter transition-all bg-emerald-600 text-white shadow-lg hover:bg-emerald-500 mr-1">SAVE</button>
         <button onclick="setMode('editor')" id="btn-editor" title="Markdown editing" class="px-3 py-1.5 rounded-lg text-[10px] font-black tracking-tighter transition-all text-slate-400 hover:text-white">EDIT</button>
         <button onclick="setMode('split')" id="btn-split" title="Edit and view markdown simultaneously" class="px-3 py-1.5 rounded-lg text-[10px] font-black tracking-tighter transition-all text-slate-400 hover:text-white mx-1">SPLIT</button>
         <button onclick="setMode('preview')" id="btn-preview" title="View rendered markdown" class="px-3 py-1.5 rounded-lg text-[10px] font-black tracking-tighter transition-all bg-indigo-600 text-white shadow-lg">VIEW</button>
@@ -271,6 +272,101 @@ export async function seedCoreData(db) {
                 this.selectionStart = this.selectionEnd = start + 4;
             }
         });
+
+        // --- CRUDX CLOUD SAVE ---
+        async function saveDocument() {
+            const btn = document.getElementById('btn-save');
+            const originalText = btn.innerText;
+            
+            // Fallback: Try to reconstruct context from URL (Hash or Query)
+            if (!window.CRUDX_CONTEXT) {
+                console.log("🔍 Debug: Checking for Context in URL...", window.location.href);
+                
+                // 1. Try Hash (Secure Blob Context)
+                if (window.location.hash && window.location.hash.includes('ctx=')) {
+                    try {
+                        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+                        const ctxStr = hashParams.get('ctx');
+                        if (ctxStr) {
+                            // URLSearchParams already decodes the value
+                            window.CRUDX_CONTEXT = JSON.parse(ctxStr);
+                            console.log("✅ Context recovered from Hash:", window.CRUDX_CONTEXT);
+                        }
+                    } catch(e) { console.error("Hash Context Parse Error", e); }
+                }
+                // 2. Try Query (Webhook/Link)
+                else if (new URLSearchParams(window.location.search).get('key')) {
+                    const k = new URLSearchParams(window.location.search).get('key');
+                    window.CRUDX_CONTEXT = { key: k, webhookUrl: "https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977", action: "U" };
+                    console.log("⚠️ Context reconstructed from URL:", window.CRUDX_CONTEXT);
+                }
+            }
+            
+            const ctx = window.CRUDX_CONTEXT;
+
+            if (!ctx || !ctx.key) {
+                console.error("❌ Missing Context.", ctx);
+                alert("⚠️ No Context: Cannot save (Key missing).\\n\\nThis usually happens if the app didn't load correctly.\\nPlease refresh the page and try again.\\n\\nDebug: " + JSON.stringify(ctx));
+                return;
+            }
+
+            // SAFETY LOCK: Prevent saving in Fallback Mode (missing metadata) to avoid wiping tags/permissions.
+            if (!ctx.user_tags) {
+                alert("⚠️ Safety Lock: Edit Mode Unavailable.\\n\\nReason: Metadata (tags) missing in context.\\n\\nPossible causes:\\n1. Browser cache holds old app.js (Try Ctrl+F5 on dashboard).\\n2. Opened via Link/Webhook (Read-Only).\\n\\nPlease refresh the dashboard and open via 'X' button.");
+                return;
+            }
+
+            btn.innerText = "⏳";
+            btn.classList.add('animate-pulse');
+
+            try {
+                const payload = {
+                    action: ctx.action || "U",
+                    key: ctx.key,
+                    value: editor.value
+                };
+
+                // FIX: Always send metadata fields to satisfy Webhook requirements.
+                // Make.com expects these keys to exist, otherwise it generates invalid JSON (e.g. "user_tags": ,).
+                const wrapArray = (arr) => ({ arrayValue: { values: (arr || []).map(v => ({ stringValue: v })) } });
+                
+                payload.user_tags = wrapArray(ctx.user_tags);
+                payload.white_list_read = wrapArray(ctx.white_list_read);
+                payload.white_list_update = wrapArray(ctx.white_list_update);
+                payload.white_list_delete = wrapArray(ctx.white_list_delete);
+                payload.white_list_execute = wrapArray(ctx.white_list_execute);
+                
+                payload.label = ctx.label || "";
+                payload.owner = ctx.owner || "";
+
+                const response = await fetch(ctx.webhookUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+
+                if (response.ok) {
+                    btn.innerText = "✅";
+                    setTimeout(() => btn.innerText = originalText, 2000);
+                } else {
+                    throw new Error(response.statusText);
+                }
+            } catch (e) {
+                console.error(e);
+                btn.innerText = "❌";
+                alert("Save failed: " + e.message);
+                setTimeout(() => btn.innerText = originalText, 2000);
+            } finally {
+                btn.classList.remove('animate-pulse');
+            }
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                saveDocument();
+            }
+        });
     </script>
 </body>
 </html>`,
@@ -284,7 +380,7 @@ export async function seedCoreData(db) {
         ],
         access_control: ["info@https://crudx-e0599.web.app/", "*@*"],
         white_list_read: ["*@*"],
-        white_list_update: [],
+        white_list_update: ["drueffler@gmail.com"],
         white_list_delete: [],
         white_list_execute: ["*@*"],
         created_at: now.toISOString(),
@@ -412,6 +508,7 @@ console.log("Everything is back in place!");
 
     // Cleanup Legacy
     batch.delete(doc(colRef, "CRUDX-INFO"));
+    batch.delete(doc(colRef, "CRUDX-CORE_-DATA_-INFO_"));
 
     await batch.commit();
     alert("✅ Core Data injected.");
@@ -429,13 +526,12 @@ export async function seedData(db) {
         { type: "LOG_EXPORT", ext: ".log", val: Array(30).fill("2026-02-23 14:00:01 [INFO] Node-Synchronicity: OK").join("\n") },
         { type: "CSV_DATA", ext: ".csv", val: "id,metric,value,unit,status\n" + Array(40).fill("1,TEMP_CORE,45.2,CELSIUS,STABLE").join("\n") },
         { type: "SOURCE_CODE", ext: ".js", val: "/**\n * CRUDX Core Engine\n */\nclass Core {\n  constructor() {\n    this.state = 'INIT';\n  }\n  " + "run() { console.log('Processing...'); }\n".repeat(15) + "}" },
-        { type: "MARKDOWN_DOC", ext: ".md", val: "# CRUDX Documentation\n\n## Overview\n" + "This is a high-volume data block for stress testing the UI layout. ".repeat(20) },
         { type: "SVG_GRAPHIC", ext: ".svg", val: "<svg width='100' height='100'><circle cx='50' cy='50' r='40' stroke='green' stroke-width='4' fill='yellow' />" + "<text x='10' y='50'>DATA</text></svg>" },
         { type: "SQL_DUMP", ext: ".sql", val: "INSERT INTO system_registry (key, val, permissions) VALUES \n" + Array(15).fill("('SYS_01', 'BLOCK_DATA', '775')").join(",\n") + ";" },
         { type: "XML_SCHEMA", ext: ".xml", val: "<?xml version='1.0'?>\n<env:Envelope xmlns:env='http://www.w3.org/2003/05/soap-envelope'>\n<env:Body><data>" + "A".repeat(200) + "</data></env:Body></env:Envelope>" },
         { type: "PYTHON_SCRIPT", ext: ".py", val: "def main():\n    '''System Maintenance'''\n    items = [i for i in range(100)]\n    print(f'Cleaning {len(items)} units...')\n\nmain()" },
         { type: "CSS_THEME", ext: ".css", val: ":root {\n  --primary: #00ff00;\n  --bg: #000000;\n}\n" + ".card { border: 1px solid var(--primary); padding: 20px; }".repeat(10) },
-        { type: "SVG_GRAPHIC", type: "SVG_GRAPHIC", ext: ".svg", val: `<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="40" fill="purple" /></svg>` },
+        { type: "SVG_GRAPHIC", ext: ".svg", val: `<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="40" fill="purple" /></svg>` },
         { type: "BINARY_DATA", ext: ".bin", val: "0x43 0x52 0x55 0x44 0x58 0x20 0x42 0x49 0x4E 0x41 0x52 0x59" }
     ];
 
