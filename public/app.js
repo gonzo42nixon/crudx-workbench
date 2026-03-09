@@ -2126,6 +2126,18 @@ document.addEventListener("DOMContentLoaded", async () => {
         const btnCancelTags = document.getElementById('btn-cancel-tags-modal');
         if (btnCancelTags) btnCancelTags.style.display = 'none';
 
+        // --- HELPER: Calculate Access Control ---
+        function calculateAccessControl(owner, whitelists) {
+            const rawAccess = [
+                owner,
+                ...(whitelists.read || []),
+                ...(whitelists.update || []),
+                ...(whitelists.delete || []),
+                ...(whitelists.execute || [])
+            ].filter(item => item && typeof item === 'string' && item.trim() !== "");
+            return rawAccess.length > 0 ? [...new Set(rawAccess)] : ['*@*'];
+        }
+
         // Save Tags (Persist & Increment)
         bind('btn-save-tags-modal', 'click', async () => {
             if (currentIsNew) {
@@ -2143,6 +2155,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             const forceProd = urlParams.get('mode') === 'live';
             const isEmulator = !forceProd && ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
+            // FIX: Recalculate Access Control on Tag Save
+            const newAccessControl = calculateAccessControl(currentOwner, currentWhitelists);
+
             try {
                 if (isEmulator) {
                     console.log("🔧 Emulator Mode: Updating Tags via SDK directly.");
@@ -2150,6 +2165,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                         user_tags: currentTags,
                         label: currentLabel,
                         owner: currentOwner,
+                        access_control: newAccessControl, // WICHTIG: Update Access Control
                         white_list_read: currentWhitelists.read,
                         white_list_update: currentWhitelists.update,
                         white_list_delete: currentWhitelists.delete,
@@ -2167,6 +2183,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                             key: currentUpdateKey,
                             label: currentLabel,
                             owner: currentOwner,
+                            access_control: { arrayValue: { values: newAccessControl.map(v => ({ stringValue: v })) } }, // WICHTIG
                             user_tags: {
                                 arrayValue: {
                                     values: currentTags.map(t => ({ stringValue: t }))
@@ -2365,22 +2382,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const sizeBytes = new Blob([newValue]).size;
                 currentSize = sizeBytes > 1024 ? `${(sizeBytes/1024).toFixed(1)}KB` : `${sizeBytes}B`;
             }
-            
-            // Ensure public access if no owner is set (e.g. for testing)
-            if (!currentOwner && currentWhitelists.read.length === 0) {
-                currentWhitelists.read.push('*@*');
-            }
 
-            // --- CALCULATE ACCESS CONTROL ---
-            // Essential for visibility in views (pagination.js filters by access_control)
-            const rawAccess = [
-                currentOwner,
-                ...(currentWhitelists.read || []),
-                ...(currentWhitelists.update || []),
-                ...(currentWhitelists.delete || []),
-                ...(currentWhitelists.execute || [])
-            ].filter(item => item && typeof item === 'string' && item.trim() !== "");
-            const uniqueAccessControl = rawAccess.length > 0 ? [...new Set(rawAccess)] : ['*@*']; // Fallback to public if empty to avoid invisible docs
+            const uniqueAccessControl = calculateAccessControl(currentOwner, currentWhitelists);
 
             try {
                 if (isEmulator) {
