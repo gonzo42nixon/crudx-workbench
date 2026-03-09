@@ -1369,6 +1369,31 @@ document.addEventListener("DOMContentLoaded", async () => {
                 fab.style.transition = ''; // Restore transition
                 document.removeEventListener('mousemove', onMouseMove);
                 document.removeEventListener('mouseup', onMouseUp);
+
+                // Smart Anchoring: Automatisch an die nächste Kante heften
+                // Verhindert, dass der Button beim Resizen verschwindet
+                const rect = fab.getBoundingClientRect();
+                const winW = window.innerWidth;
+                const winH = window.innerHeight;
+                
+                // Horizontal: Links oder Rechts?
+                if (rect.left + (rect.width / 2) > winW / 2) {
+                    fab.style.left = 'auto';
+                    fab.style.right = `${winW - rect.right}px`;
+                } else {
+                    fab.style.right = 'auto';
+                    fab.style.left = `${rect.left}px`;
+                }
+                
+                // Vertical: Oben oder Unten?
+                if (rect.top + (rect.height / 2) > winH / 2) {
+                    fab.style.top = 'auto';
+                    fab.style.bottom = `${winH - rect.bottom}px`;
+                } else {
+                    fab.style.bottom = 'auto';
+                    fab.style.top = `${rect.top}px`;
+                }
+
                 if (hasMoved) {
                     fab.dataset.justDragged = "true";
                     setTimeout(() => delete fab.dataset.justDragged, 50);
