@@ -1630,7 +1630,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             // --- Dynamic Tag Button Label ---
             const btnEditTags = document.getElementById('btn-edit-tags');
             if (btnEditTags) {
-                btnEditTags.textContent = currentIsNew ? "Prepare Tags" : "🏷️ Tags & Meta";
+                btnEditTags.textContent = currentIsNew ? "Prepare Tags" : "Tags";
+                btnEditTags.title = "Maintain Tags";
             }
 
             // --- FIX: Dynamic Button Text & ID (Robustness) ---
@@ -1642,10 +1643,14 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (btn) {
                 if (currentIsNew) {
                     btn.textContent = "CREATE";
+                    btn.title = "Create new Card";
                     btn.style.backgroundColor = "#00e676"; // Grün für Create
+                    btn.style.setProperty('color', '#000000', 'important');
                 } else {
-                    btn.textContent = "SAVE & UPDATE";
+                    btn.textContent = "UPDATE";
+                    btn.title = "UPDATE Content";
                     btn.style.backgroundColor = "#ff9100"; // Orange für Update
+                    btn.style.setProperty('color', '#000000', 'important');
                 }
             }
 
@@ -1703,11 +1708,19 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             if (currentIsNew) {
                 // New Card: Use existing in-memory state (do not reset or fetch)
-                if (btnSave) btnSave.textContent = "Done";
+                if (btnSave) {
+                    btnSave.textContent = "Done";
+                    btnSave.style.backgroundColor = "#00e676"; 
+                    btnSave.style.color = "#000000";
+                }
                 renderTagsInModal();
             } else {
                 // Existing Card: Reset and Fetch
-                if (btnSave) btnSave.textContent = "UPDATE";
+                if (btnSave) {
+                    btnSave.textContent = "UPDATE";
+                    btnSave.style.backgroundColor = "#ff9100";
+                    btnSave.style.color = "#000000";
+                }
                 currentLabel = label;
                 currentTags = [];
                 currentWhitelists = { read: [], update: [], delete: [], execute: [] };
@@ -2013,8 +2026,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (currentSystemInfo.last_update_ts) createSysPill(`U: ${fmt(currentSystemInfo.last_update_ts)}`, styleOrange, `Last Update: ${currentSystemInfo.last_update_ts}`);
             if (currentSystemInfo.last_execute_ts) createSysPill(`X: ${fmt(currentSystemInfo.last_execute_ts)}`, styleBlack, `Last Execute: ${currentSystemInfo.last_execute_ts}`);
 
-            // Append elements in reverse order to the actual DOM container
-            brElements.reverse().forEach(el => brGroup.appendChild(el));
+            // Append elements to the actual DOM container (No reverse -> User Tags on Right)
+            brElements.forEach(el => brGroup.appendChild(el));
         }
 
         // Helper to open Whitelist Modal from Tag Editor
