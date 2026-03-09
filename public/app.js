@@ -9,13 +9,22 @@ import { loadTagConfigFromUrl, getTagConfigForUrl, getTagRules, setTagRules } fr
 import { initAuth } from './modules/auth.js';
 import { 
     collection, query, limit, getDocs, getCountFromServer, orderBy, startAfter, deleteDoc, doc, 
-    writeBatch, updateDoc, arrayUnion, getDoc, arrayRemove, where, increment
+    writeBatch, updateDoc, setDoc, arrayUnion, getDoc, arrayRemove, where, increment
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const FREEMAIL_DOMAINS = new Set([
     'gmail.com', 'googlemail.com', 'outlook.com', 'hotmail.com', 'live.com',
     'gmx.de', 'gmx.net', 'web.de', 't-online.de', 'freenet.de', 'icloud.com'
 ]);
+
+// --- ID GENERATOR (OCR Logic) ---
+function encodeOCR(id) {
+    const map = { '0': 'C', '1': 'R', '6': 'U', '7': 'D', '9': 'X' };
+    let raw = id.toString().padStart(15, '0'); 
+    let encoded = raw.split('').map(char => map[char] || char).join('');
+    let groups = encoded.match(/.{1,5}/g) || [];
+    return `CRUDX-${groups.join('-')}`.toUpperCase();
+}
 
 function getEmailWarning(email) {
     const [local, domain] = email.split('@');
@@ -527,7 +536,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                         // FIX: Always load from DB if we couldn't get the value from a live iframe editor.
                         // Falling back to DOM (valueLayer.textContent) is unreliable as it might be empty/truncated.
                         
-                        openUpdateModal(key, currentValue, label, card);
+                        openUpdateModal(key, currentValue, label, card, false);
                         return;
                     }
 
@@ -1312,6 +1321,61 @@ document.addEventListener("DOMContentLoaded", async () => {
         
         document.body.insertAdjacentHTML('beforeend', rulesModalHTML);
 
+        // --- CREATE FAB INJECTION ---
+        const createFabHTML = `<div id="btn-create-card" class="fab-create" title="Create a Card">+</div>`;
+        document.body.insertAdjacentHTML('beforeend', createFabHTML);
+
+        // --- CREATE FAB DRAG LOGIC ---
+        const fab = document.getElementById('btn-create-card');
+        if (fab) {
+            let isDragging = false;
+            let hasMoved = false;
+            let startX, startY, initialLeft, initialTop;
+
+            fab.addEventListener('mousedown', (e) => {
+                if (e.button !== 0) return; // Only left click
+                isDragging = true;
+                hasMoved = false;
+                startX = e.clientX;
+                startY = e.clientY;
+                
+                const rect = fab.getBoundingClientRect();
+                initialLeft = rect.left;
+                initialTop = rect.top;
+                
+                // Switch to absolute positioning based on current location
+                fab.style.bottom = 'auto';
+                fab.style.right = 'auto';
+                fab.style.left = `${initialLeft}px`;
+                fab.style.top = `${initialTop}px`;
+                fab.style.transition = 'none'; // Disable transition for instant movement
+                
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+            });
+
+            function onMouseMove(e) {
+                if (!isDragging) return;
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                if (Math.abs(dx) > 3 || Math.abs(dy) > 3) hasMoved = true;
+                fab.style.left = `${initialLeft + dx}px`;
+                fab.style.top = `${initialTop + dy}px`;
+            }
+
+            function onMouseUp() {
+                if (!isDragging) return;
+                isDragging = false;
+                fab.style.transition = ''; // Restore transition
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+                if (hasMoved) {
+                    fab.dataset.justDragged = "true";
+                    setTimeout(() => delete fab.dataset.justDragged, 50);
+                }
+            }
+        }
+
         const wlModal = document.getElementById('whitelist-modal');
         const wlInput = document.getElementById('whitelist-input');
         const wlWarningBox = document.getElementById('whitelist-warning');
@@ -1476,6 +1540,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         
         // Store current key for saving
         let currentUpdateKey = "";
+        let currentIsNew = false;
         let currentLabel = "";
         let currentValue = "";
         let currentOwner = "";
@@ -1485,9 +1550,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         let currentWhitelists = { read: [], update: [], delete: [], execute: [] };
         let currentSystemInfo = {};
 
-        function openUpdateModal(key, value, label, cardElement) {
+        function openUpdateModal(key, value, label, cardElement, isNew = false) {
             if (!updateModal) return;
             currentUpdateKey = key;
+            currentIsNew = isNew;
 
             // Logic: If value is provided (string), use it. If null (e.g. unreadable iframe), wait for DB.
             if (value !== null) {
@@ -1501,6 +1567,26 @@ document.addEventListener("DOMContentLoaded", async () => {
             currentLabel = label || "";
             currentTags = []; 
             currentWhitelists = { read: [], update: [], delete: [], execute: [] }; 
+            currentOwner = "";
+            currentSystemInfo = {};
+
+            if (isNew) {
+                // Defaults for New Card (Initialize here so they show up in "Prepare Tags")
+                if (auth.currentUser) currentOwner = auth.currentUser.email;
+                if (!currentTags.includes("data")) currentTags.push("data");
+                if (!currentTags.includes("🛡️ D")) currentTags.push("🛡️ D");
+
+                // Auto-generate folder tags
+                const now = new Date();
+                const y = now.getFullYear();
+                const m = String(now.getMonth() + 1).padStart(2, '0');
+                const d = String(now.getDate()).padStart(2, '0');
+                const dateTagSuffix = `>${y}>${m}>${d}`;
+
+                if (!currentTags.some(t => t.startsWith("Created>"))) currentTags.push(`Created${dateTagSuffix}`);
+                
+                currentSystemInfo = { created_at: now.toISOString(), reads: 0, updates: 0, executes: 0 };
+            }
             
             getDoc(doc(db, "kv-store", key)).then(snap => {
                 if (snap.exists()) {
@@ -1541,6 +1627,28 @@ document.addEventListener("DOMContentLoaded", async () => {
             updateLabelDisplay.textContent = label || key;
             updateLabelDisplay.title = `CRUDX-ID: ${key}`;
             
+            // --- Dynamic Tag Button Label ---
+            const btnEditTags = document.getElementById('btn-edit-tags');
+            if (btnEditTags) {
+                btnEditTags.textContent = currentIsNew ? "Prepare Tags" : "🏷️ Tags & Meta";
+            }
+
+            // --- FIX: Dynamic Button Text & ID (Robustness) ---
+            let btn = document.getElementById('btn-create-update');
+            if (!btn) {
+                btn = document.getElementById('btn-save-update');
+                if (btn) btn.id = 'btn-create-update'; // ID korrigieren, falls alt
+            }
+            if (btn) {
+                if (currentIsNew) {
+                    btn.textContent = "CREATE";
+                    btn.style.backgroundColor = "#00e676"; // Grün für Create
+                } else {
+                    btn.textContent = "SAVE & UPDATE";
+                    btn.style.backgroundColor = "#ff9100"; // Orange für Update
+                }
+            }
+
             // Reset View
             updateEditor.style.display = 'block';
             
@@ -1574,45 +1682,66 @@ document.addEventListener("DOMContentLoaded", async () => {
         // --- NEW TAG MODAL LOGIC ---
         function openTagModal(key, label) {
             if (!tagModal) return;
-            currentLabel = label;
-            currentTags = [];
-            currentWhitelists = { read: [], update: [], delete: [], execute: [] };
-            currentSystemInfo = {};
-            currentValue = "";
-            currentOwner = "";
-            currentSize = "";
             
+            // --- 1:1 Overlay Logic ---
+            if (updateModalContent && tagModalContent) {
+                // Sync dimensions and position from the underlying Update Modal
+                tagModalContent.style.width = updateModalContent.style.width || getComputedStyle(updateModalContent).width;
+                tagModalContent.style.height = updateModalContent.style.height || getComputedStyle(updateModalContent).height;
+                tagModalContent.style.transform = updateModalContent.style.transform;
+            }
+
             // Set Tooltip on Title
             if (tagModalTitle) {
                 tagModalTitle.title = `Key: ${key}\nLabel: ${label}`;
             }
 
-            // Fetch tags
-            getDoc(doc(db, "kv-store", key)).then(snap => {
-                if (snap.exists()) {
-                    const d = snap.data();
-                    currentValue = d.value || "";
-                    currentOwner = d.owner || "";
-                    currentSize = d.size || "0KB";
-                    currentTags = d.user_tags || [];
-                    currentWhitelists = {
-                        read: d.white_list_read || [],
-                        update: d.white_list_update || [],
-                        delete: d.white_list_delete || [],
-                        execute: d.white_list_execute || []
-                    };
-                    currentSystemInfo = {
-                        created_at: d.created_at,
-                        reads: d.reads || 0,
-                        last_read_ts: d.last_read_ts,
-                        updates: d.updates || 0,
-                        last_update_ts: d.last_update_ts,
-                        executes: d.executes || 0,
-                        last_execute_ts: d.last_execute_ts
-                    };
-                    renderTagsInModal();
-                }
-            });
+            const btnSave = document.getElementById('btn-save-tags-modal');
+            if (btnSave && btnSave.parentElement) {
+                btnSave.parentElement.style.justifyContent = 'flex-end'; // Ensure button is right-aligned
+            }
+
+            if (currentIsNew) {
+                // New Card: Use existing in-memory state (do not reset or fetch)
+                if (btnSave) btnSave.textContent = "Done";
+                renderTagsInModal();
+            } else {
+                // Existing Card: Reset and Fetch
+                if (btnSave) btnSave.textContent = "UPDATE";
+                currentLabel = label;
+                currentTags = [];
+                currentWhitelists = { read: [], update: [], delete: [], execute: [] };
+                currentSystemInfo = {};
+                currentValue = "";
+                currentOwner = "";
+                currentSize = "";
+
+                getDoc(doc(db, "kv-store", key)).then(snap => {
+                    if (snap.exists()) {
+                        const d = snap.data();
+                        currentValue = d.value || "";
+                        currentOwner = d.owner || "";
+                        currentSize = d.size || "0KB";
+                        currentTags = d.user_tags || [];
+                        currentWhitelists = {
+                            read: d.white_list_read || [],
+                            update: d.white_list_update || [],
+                            delete: d.white_list_delete || [],
+                            execute: d.white_list_execute || []
+                        };
+                        currentSystemInfo = {
+                            created_at: d.created_at,
+                            reads: d.reads || 0,
+                            last_read_ts: d.last_read_ts,
+                            updates: d.updates || 0,
+                            last_update_ts: d.last_update_ts,
+                            executes: d.executes || 0,
+                            last_execute_ts: d.last_execute_ts
+                        };
+                        renderTagsInModal();
+                    }
+                });
+            }
 
             tagModal.classList.add('active');
             document.getElementById('new-tag-input').focus();
@@ -1621,7 +1750,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         function renderTagsInModal() {
             if (!tagListContainer) return;
             tagListContainer.innerHTML = '';
-            tagListContainer.style.justifyContent = 'flex-end';
+            // Use relative positioning to support absolute groups (tl-group, br-group)
+            tagListContainer.style.cssText = "position: relative; flex: 1; width: 100%; overflow: hidden;";
+
+            const tlGroup = document.createElement('div');
+            tlGroup.className = 'tl-group';
+            const brGroup = document.createElement('div');
+            brGroup.className = 'br-group';
+
+            tagListContainer.appendChild(tlGroup);
+            tagListContainer.appendChild(brGroup);
             
             // --- KEY PILL ---
             const keyPill = document.createElement('span');
@@ -1629,7 +1767,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             keyPill.textContent = currentUpdateKey;
             keyPill.title = "Key";
             keyPill.style.cssText = "padding: 4px 8px; font-size: 0.85em; cursor: default;";
-            tagListContainer.appendChild(keyPill);
+            tlGroup.appendChild(keyPill);
 
             // --- LABEL PILL ---
             if (currentLabel) {
@@ -1672,8 +1810,12 @@ document.addEventListener("DOMContentLoaded", async () => {
                 };
 
                 labelPill.appendChild(textSpan);
-                tagListContainer.appendChild(labelPill);
+                tlGroup.appendChild(labelPill);
             }
+
+            // --- REVERSED ORDER FOR BR-GROUP ---
+            // Create a temporary container to hold elements in the desired visual order
+            const brElements = [];
 
             // --- USER TAGS ---
             currentTags.forEach(tag => {
@@ -1723,11 +1865,11 @@ document.addEventListener("DOMContentLoaded", async () => {
                     currentTags = currentTags.filter(t => t !== tag);
                     renderTagsInModal();
                 };
-                tagListContainer.appendChild(pill);
+                brElements.push(pill);
             });
 
             // --- HELPER FOR SYSTEM PILLS ---
-            const createSysPill = (text, colorStyle, tooltip = "", clickCallback = null) => {
+            const createSysPill = (text, colorStyle, tooltip = "", clickCallback = null, container = brGroup) => {
                 const pill = document.createElement('span');
                 pill.className = 'pill';
                 pill.style.cssText = `padding: 4px 8px; font-size: 0.85em; cursor: ${clickCallback ? 'pointer' : 'default'}; ${colorStyle}`;
@@ -1737,7 +1879,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 if (clickCallback) {
                     pill.onclick = (e) => { e.stopPropagation(); clickCallback(); };
                 }
-                tagListContainer.appendChild(pill);
+                brElements.push(pill);
             };
 
             const fmt = (ts) => ts ? ts.split('T')[0] : '';
@@ -1775,7 +1917,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             if(['JSON','JS','SVG'].includes(mime.type)) mimePill.style.color = '#000';
             mimePill.textContent = mime.type;
             mimePill.title = "Mime Type";
-            tagListContainer.appendChild(mimePill);
+            brElements.push(mimePill);
 
             // --- OWNER PILL (Editable, No Delete, Valid Email) ---
             if (currentOwner) {
@@ -1848,7 +1990,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     input.select();
                 };
 
-                tagListContainer.appendChild(ownerPill);
+                brElements.push(ownerPill);
             }
 
             // --- SIZE PILL (Read-Only) ---
@@ -1857,7 +1999,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             sizePill.style.cssText = "padding: 4px 8px; font-size: 0.85em; cursor: default;";
             sizePill.textContent = currentSize;
             sizePill.title = "Size";
-            tagListContainer.appendChild(sizePill);
+            brElements.push(sizePill);
 
             // --- 5. COUNTERS (Reads, Updates, Executes) ---
             createSysPill(`R: ${currentSystemInfo.reads || 0}`, styleGreen, `Reads: ${currentSystemInfo.reads}`);
@@ -1870,6 +2012,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (currentSystemInfo.last_read_ts) createSysPill(`R: ${fmt(currentSystemInfo.last_read_ts)}`, styleGreen, `Last Read: ${currentSystemInfo.last_read_ts}`);
             if (currentSystemInfo.last_update_ts) createSysPill(`U: ${fmt(currentSystemInfo.last_update_ts)}`, styleOrange, `Last Update: ${currentSystemInfo.last_update_ts}`);
             if (currentSystemInfo.last_execute_ts) createSysPill(`X: ${fmt(currentSystemInfo.last_execute_ts)}`, styleBlack, `Last Execute: ${currentSystemInfo.last_execute_ts}`);
+
+            // Append elements in reverse order to the actual DOM container
+            brElements.reverse().forEach(el => brGroup.appendChild(el));
         }
 
         // Helper to open Whitelist Modal from Tag Editor
@@ -1911,9 +2056,19 @@ document.addEventListener("DOMContentLoaded", async () => {
         };
         bind('btn-close-tags-modal-x', 'click', closeTagModal);
         bind('btn-cancel-tags-modal', 'click', closeTagModal);
+        
+        // Hide Cancel Button (X is enough)
+        const btnCancelTags = document.getElementById('btn-cancel-tags-modal');
+        if (btnCancelTags) btnCancelTags.style.display = 'none';
 
         // Save Tags (Persist & Increment)
         bind('btn-save-tags-modal', 'click', async () => {
+            if (currentIsNew) {
+                // Just close, keep tags in memory for the main Create action
+                closeTagModal();
+                return;
+            }
+
             const btn = document.getElementById('btn-save-tags-modal');
             const originalText = btn.textContent;
             btn.textContent = "Saving...";
@@ -2052,72 +2207,192 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
         });
 
+        // --- CREATE ACTION ---
+        bind('btn-create-card', 'click', async () => {
+            const btn = document.getElementById('btn-create-card');
+            if (btn.dataset.justDragged === "true") return; // Prevent click after drag
+            const originalText = btn.textContent;
+            
+            // Visual Feedback & Lock
+            btn.textContent = "⏳";
+            btn.style.cursor = "wait";
+            btn.style.pointerEvents = "none";
+            
+            try {
+                let isUnique = false;
+                let newId = "";
+                let attempts = 0;
+                
+                // Retry loop to ensure ID uniqueness
+                while (!isUnique && attempts < 5) {
+                    attempts++;
+                    // Generate a 15-digit number: Timestamp (13 digits) + 2 Random digits
+                    const rawId = `${Date.now()}${Math.floor(Math.random() * 100).toString().padStart(2, '0')}`;
+                    newId = encodeOCR(rawId);
+                    
+                    try {
+                        // Check if ID already exists in Firestore
+                        const docSnap = await getDoc(doc(db, "kv-store", newId));
+                        if (!docSnap.exists()) isUnique = true;
+                        else await new Promise(r => setTimeout(r, 10)); // Wait 10ms before retry
+                    } catch (err) {
+                        // If permission denied (e.g. cannot read non-existent docs), assume unique to allow creation
+                        if (err.code === 'permission-denied') {
+                            console.warn("Permission denied checking ID uniqueness. Assuming unique.");
+                            isUnique = true;
+                        } else {
+                            throw err;
+                        }
+                    }
+                }
+                
+                openUpdateModal(newId, "", "New Card", null, true);
+            } catch (e) {
+                console.error("Error generating ID:", e);
+                alert("Failed to generate unique ID: " + e.message);
+            } finally {
+                btn.textContent = originalText;
+                btn.style.cursor = "pointer";
+                btn.style.pointerEvents = "auto";
+            }
+        });
+
         // Save Action (POST to Make.com)
-        bind('btn-save-update', 'click', async () => {
+        // FIX: Listener robust anbinden (sucht nach neuer oder alter ID)
+        const saveActionBtn = document.getElementById('btn-create-update') || document.getElementById('btn-save-update');
+        if (saveActionBtn) {
+            saveActionBtn.id = 'btn-create-update'; // ID standardisieren
+            saveActionBtn.addEventListener('click', async () => {
             const key = currentUpdateKey;
             const newValue = updateEditor.value;
-            const btn = document.getElementById('btn-save-update');
+            const btn = document.getElementById('btn-create-update');
             const originalText = btn.textContent;
 
-            btn.textContent = "⏳ Sending...";
+            btn.textContent = currentIsNew ? "⏳ Creating..." : "⏳ Saving...";
             btn.disabled = true;
 
             const urlParams = new URLSearchParams(window.location.search);
             const forceProd = urlParams.get('mode') === 'live';
             const isEmulator = !forceProd && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+            
+            // --- CREATE LOGIC DETECTION ---
+            const isNew = currentIsNew;
+            const action = isNew ? "C" : "U";
+
+            if (isNew) {
+                // Defaults for New Card - Allow empty owner for Make.com debugging
+                if (auth.currentUser) currentOwner = auth.currentUser.email;
+                if (!currentTags.includes("data")) currentTags.push("data");
+                if (!currentTags.includes("🛡️ D")) currentTags.push("🛡️ D");
+
+                // --- AUTO-GENERATE FOLDER TAGS ---
+                const now = new Date();
+                const y = now.getFullYear();
+                const m = String(now.getMonth() + 1).padStart(2, '0');
+                const d = String(now.getDate()).padStart(2, '0');
+                const dateTagSuffix = `>${y}>${m}>${d}`;
+
+                if (!currentTags.some(t => t.startsWith("Created>"))) currentTags.push(`Created${dateTagSuffix}`);
+                if (!currentTags.some(t => t.startsWith("Last Read>"))) currentTags.push(`Last Read${dateTagSuffix}`);
+                if (!currentTags.some(t => t.startsWith("Last Updated>"))) currentTags.push(`Last Updated${dateTagSuffix}`);
+                if (!currentTags.some(t => t.startsWith("Last Executed>"))) currentTags.push(`Last Executed${dateTagSuffix}`);
+                
+                const sizeBytes = new Blob([newValue]).size;
+                currentSize = sizeBytes > 1024 ? `${(sizeBytes/1024).toFixed(1)}KB` : `${sizeBytes}B`;
+            }
+            
+            // Ensure public access if no owner is set (e.g. for testing)
+            if (!currentOwner && currentWhitelists.read.length === 0) {
+                currentWhitelists.read.push('*@*');
+            }
+
+            // --- CALCULATE ACCESS CONTROL ---
+            // Essential for visibility in views (pagination.js filters by access_control)
+            const rawAccess = [
+                currentOwner,
+                ...(currentWhitelists.read || []),
+                ...(currentWhitelists.update || []),
+                ...(currentWhitelists.delete || []),
+                ...(currentWhitelists.execute || [])
+            ].filter(item => item && typeof item === 'string' && item.trim() !== "");
+            const uniqueAccessControl = rawAccess.length > 0 ? [...new Set(rawAccess)] : ['*@*']; // Fallback to public if empty to avoid invisible docs
 
             try {
                 if (isEmulator) {
                     // --- EMULATOR: SDK Update ONLY (No Webhook) ---
-                    console.log("🔧 Emulator Mode: Updating via SDK directly.");
-                    await updateDoc(doc(db, "kv-store", key), {
+                    console.log(`🔧 Emulator Mode: Action=${action} via SDK directly.`);
+                    
+                    const docData = {
                         value: newValue,
                         // Hinzugefügt, um Label und Owner aus dem Tag-Editor mit zu speichern
                         label: currentLabel,
                         owner: currentOwner,
+                        access_control: uniqueAccessControl, // WICHTIG: Damit das Dokument in der Query gefunden wird
                         user_tags: currentTags, // Für Emulator direkt als Array
                         white_list_read: currentWhitelists.read,
                         white_list_update: currentWhitelists.update,
                         white_list_delete: currentWhitelists.delete,
                         white_list_execute: currentWhitelists.execute,
-                        updates: increment(1),
-                        last_update_ts: new Date().toISOString()
-                    });
+                        updates: isNew ? 0 : increment(1),
+                        last_update_ts: isNew ? null : new Date().toISOString()
+                    };
+
+                    if (isNew) {
+                        docData.created_at = new Date().toISOString();
+                        docData.reads = 0;
+                        docData.executes = 0;
+                        docData.last_read_ts = null;
+                        docData.last_execute_ts = null;
+                        docData.size = currentSize;
+                    } else if (currentSystemInfo.created_at) {
+                        docData.created_at = currentSystemInfo.created_at;
+                    }
+
+                    await setDoc(doc(db, "kv-store", key), docData, { merge: true });
                 } else {
                     // --- PRODUCTION: Webhook Update ---
                     // Fix: Escape quotes/backslashes to prevent breaking the JSON structure in Make.com
                     const safeValue = JSON.stringify(newValue).slice(1, -1);
 
+                    const payload = {
+                        action: action, // "C" or "U"
+                        key: key,
+                        value: safeValue,
+                        label: currentLabel,
+                        owner: currentOwner,
+                        access_control: { arrayValue: { values: uniqueAccessControl.map(v => ({ stringValue: v })) } },
+                        user_tags: { arrayValue: { values: (currentTags || []).map(t => ({ stringValue: t })) } },
+                        white_list_read: { arrayValue: { values: (currentWhitelists.read || []).map(v => ({ stringValue: v })) } },
+                        white_list_update: { arrayValue: { values: (currentWhitelists.update || []).map(v => ({ stringValue: v })) } },
+                        white_list_delete: { arrayValue: { values: (currentWhitelists.delete || []).map(v => ({ stringValue: v })) } },
+                        white_list_execute: { arrayValue: { values: (currentWhitelists.execute || []).map(v => ({ stringValue: v })) } },
+                    };
+
+                    if (isNew) {
+                        payload.created_at = new Date().toISOString();
+                        payload.reads = 0;
+                        payload.updates = 0;
+                        payload.executes = 0;
+                        payload.last_read_ts = null;
+                        payload.last_update_ts = null;
+                        payload.last_execute_ts = null;
+                        payload.size = currentSize;
+                    } else {
+                        payload.last_update_ts = new Date().toISOString();
+                    }
+
                     const response = await fetch("https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            action: "U",
-                            key: key,
-                            value: safeValue,
-                            // Hinzugefügt, um Label und Owner aus dem Tag-Editor mit zu speichern
-                            label: currentLabel,
-                            owner: currentOwner,
-                            // User Tags ebenfalls mitsenden (Firestore JSON Format für Make.com)
-                            user_tags: {
-                                arrayValue: {
-                                    values: (currentTags || []).map(t => ({ stringValue: t }))
-                                }
-                            },
-                            white_list_read: { arrayValue: { values: (currentWhitelists.read || []).map(v => ({ stringValue: v })) } },
-                            white_list_update: { arrayValue: { values: (currentWhitelists.update || []).map(v => ({ stringValue: v })) } },
-                            white_list_delete: { arrayValue: { values: (currentWhitelists.delete || []).map(v => ({ stringValue: v })) } },
-                            white_list_execute: { arrayValue: { values: (currentWhitelists.execute || []).map(v => ({ stringValue: v })) } }
-                        })
+                        body: JSON.stringify(payload)
                     });
 
                     if (!response.ok) throw new Error(`Webhook returned ${response.status}`);
                     
-                    // Optional: Kurz warten, damit Make.com Zeit hat zu schreiben, dann Refresh
                     setTimeout(() => fetchRealData(), 1000);
                 }
 
-                closeUpdateModal();
+                closeUpdateModal(); // Close only on success
             } catch (e) {
                 alert("Update failed: " + e.message);
             } finally {
@@ -2125,6 +2400,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 btn.disabled = false;
             }
         });
+        }
 
         // --- DRAG LOGIC FOR UPDATE MODAL ---
         if (updateModalContent) {
