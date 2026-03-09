@@ -1763,13 +1763,31 @@ document.addEventListener("DOMContentLoaded", async () => {
         function renderTagsInModal() {
             if (!tagListContainer) return;
             tagListContainer.innerHTML = '';
-            // Use relative positioning to support absolute groups (tl-group, br-group)
-            tagListContainer.style.cssText = "position: relative; flex: 1; width: 100%; overflow: hidden;";
+            // Use flex column to stack groups vertically, allow scrolling
+            tagListContainer.style.cssText = "position: relative; flex: 1; width: 100%; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; padding: 5px;";
+            tagListContainer.style.cssText = "position: relative; flex: 1; width: 100%; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; padding: 5px; justify-content: space-between;";
 
             const tlGroup = document.createElement('div');
             tlGroup.className = 'tl-group';
+            // Override absolute positioning for modal flow
+            tlGroup.style.position = 'relative';
+            tlGroup.style.top = 'auto';
+            tlGroup.style.left = 'auto';
+            tlGroup.style.width = '100%';
+            tlGroup.style.marginBottom = '10px';
+
             const brGroup = document.createElement('div');
             brGroup.className = 'br-group';
+            // Override absolute positioning and ensure Row-Reverse (System Right -> User Left)
+            brGroup.style.position = 'relative';
+            brGroup.style.marginTop = 'auto';
+            brGroup.style.paddingTop = '15px';
+            brGroup.style.flexDirection = 'row-reverse';
+            brGroup.style.flexWrap = 'wrap-reverse';
+            brGroup.style.justifyContent = 'flex-start';
+            brGroup.style.width = '100%';
+            brGroup.style.right = 'auto';
+            brGroup.style.bottom = 'auto';
 
             tagListContainer.appendChild(tlGroup);
             tagListContainer.appendChild(brGroup);
@@ -1830,57 +1848,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             // Create a temporary container to hold elements in the desired visual order
             const brElements = [];
 
-            // --- USER TAGS ---
-            currentTags.forEach(tag => {
-                const pill = document.createElement('span');
-                pill.className = 'pill pill-user';
-                pill.style.cssText = "padding: 4px 8px; font-size: 0.85em; cursor: default;";
-                
-                // Inline Edit Span
-                const textSpan = document.createElement('span');
-                textSpan.textContent = tag;
-                textSpan.style.cursor = 'text';
-                textSpan.title = 'Click to edit User Memo';
-                textSpan.onclick = (e) => {
-                    e.stopPropagation();
-                    const input = document.createElement('input');
-                    input.type = 'text';
-                    input.value = tag;
-                    input.style.cssText = "background: #222; border: none; color: #fff; font-family: inherit; font-size: inherit; width: 80px; outline: none; padding: 0;";
-                    
-                    const saveEdit = () => {
-                        const newVal = input.value.trim();
-                        if (newVal && newVal !== tag && newVal !== "") {
-                            const idx = currentTags.indexOf(tag);
-                            if (idx !== -1) currentTags[idx] = newVal;
-                        }
-                        renderTagsInModal();
-                    };
-                    input.addEventListener('blur', saveEdit);
-                    input.addEventListener('keydown', (ev) => { if(ev.key === 'Enter') saveEdit(); });
-                    
-                    pill.innerHTML = '';
-                    pill.appendChild(input);
-                    input.focus();
-                };
-
-                const removeSpan = document.createElement('span');
-                removeSpan.innerHTML = '✕';
-                removeSpan.style.cssText = "cursor:pointer; margin-left:6px; font-weight:bold; opacity:0.6;";
-                removeSpan.title = "Remove Tag";
-                
-                pill.appendChild(textSpan);
-                pill.appendChild(removeSpan);
-                
-                // Remove Handler
-                removeSpan.onclick = (e) => {
-                    e.stopPropagation();
-                    currentTags = currentTags.filter(t => t !== tag);
-                    renderTagsInModal();
-                };
-                brElements.push(pill);
-            });
-
             // --- HELPER FOR SYSTEM PILLS ---
             const createSysPill = (text, colorStyle, tooltip = "", clickCallback = null, container = brGroup) => {
                 const pill = document.createElement('span');
@@ -1895,44 +1862,42 @@ document.addEventListener("DOMContentLoaded", async () => {
                 brElements.push(pill);
             };
 
-            const fmt = (ts) => ts ? ts.split('T')[0] : '';
+            // FIX: Robust Date Formatter (handles Strings & Firestore Timestamps)
+            const fmt = (ts) => {
+                if (!ts) return '';
+                if (typeof ts === 'string') return ts.split('T')[0];
+                if (ts.toDate && typeof ts.toDate === 'function') return ts.toDate().toISOString().split('T')[0];
+                return String(ts);
+            };
 
-            // --- 3. WHITELIST PILLS (Summarized: Icon + Count) ---
-            // READ (Green)
+            // --- ORDER: SYSTEM (Right) -> MIME -> USER (Left) ---
+            
+            // 1. TIMESTAMPS (System)
+            const styleBlue = "border: 1px solid #2979ff; color: #2979ff; background: rgba(41, 121, 255, 0.1);";
             const styleGreen = "border: 1px solid #00e676; color: #00e676; background: rgba(0, 230, 118, 0.1);";
-            createSysPill(`R: ${currentWhitelists.read.length}`, styleGreen, "Click to edit Whitelist READ", () => {
-                openWhitelistModalForTagEditor('read');
-            });
-
-            // UPDATE (Orange)
             const styleOrange = "border: 1px solid #ff9100; color: #ff9100; background: rgba(255, 145, 0, 0.1);";
-            createSysPill(`U: ${currentWhitelists.update.length}`, styleOrange, "Click to edit Whitelist UPDATE", () => {
-                openWhitelistModalForTagEditor('update');
-            });
-
-            // DELETE (Red)
             const styleRed = "border: 1px solid #ff1744; color: #ff1744; background: rgba(255, 23, 68, 0.1);";
-            createSysPill(`D: ${currentWhitelists.delete.length}`, styleRed, "Click to edit Whitelist DELETE", () => {
-                openWhitelistModalForTagEditor('delete');
-            });
-
-            // EXECUTE (Black)
             const styleBlack = "border: 1px solid #555; color: #eee; background: #000;";
-            createSysPill(`X: ${currentWhitelists.execute.length}`, styleBlack, "Click to edit Whitelist EXECUTE", () => {
-                openWhitelistModalForTagEditor('execute');
-            });
 
-            // --- 4. MIME TYPE ---
-            const mime = detectMimetype(currentValue);
-            const mimePill = document.createElement('span');
-            mimePill.className = 'pill pill-mime';
-            mimePill.style.cssText = `padding: 4px 8px; font-size: 0.85em; cursor: default; background-color: ${mime.color}; color: ${['TXT','BASE64'].includes(mime.type)?'#000':'#fff'};`;
-            if(['JSON','JS','SVG'].includes(mime.type)) mimePill.style.color = '#000';
-            mimePill.textContent = mime.type;
-            mimePill.title = "Mime Type";
-            brElements.push(mimePill);
+            if (currentSystemInfo.created_at) createSysPill(`C: ${fmt(currentSystemInfo.created_at)}`, styleBlue, `Created: ${currentSystemInfo.created_at}`);
+            if (currentSystemInfo.last_read_ts) createSysPill(`R: ${fmt(currentSystemInfo.last_read_ts)}`, styleGreen, `Last Read: ${currentSystemInfo.last_read_ts}`);
+            if (currentSystemInfo.last_update_ts) createSysPill(`U: ${fmt(currentSystemInfo.last_update_ts)}`, styleOrange, `Last Update: ${currentSystemInfo.last_update_ts}`);
+            if (currentSystemInfo.last_execute_ts) createSysPill(`X: ${fmt(currentSystemInfo.last_execute_ts)}`, styleBlack, `Last Execute: ${currentSystemInfo.last_execute_ts}`);
 
-            // --- OWNER PILL (Editable, No Delete, Valid Email) ---
+            // 2. COUNTERS (System)
+            createSysPill(`R: ${currentSystemInfo.reads || 0}`, styleGreen, `Reads: ${currentSystemInfo.reads}`);
+            createSysPill(`U: ${currentSystemInfo.updates || 0}`, styleOrange, `Updates: ${currentSystemInfo.updates}`);
+            createSysPill(`X: ${currentSystemInfo.executes || 0}`, styleBlack, `Executes: ${currentSystemInfo.executes}`);
+
+            // 3. SIZE PILL (System)
+            const sizePill = document.createElement('span');
+            sizePill.className = 'pill pill-sys';
+            sizePill.style.cssText = "padding: 4px 8px; font-size: 0.85em; cursor: default;";
+            sizePill.textContent = currentSize;
+            sizePill.title = "Size";
+            brElements.push(sizePill);
+
+            // 4. OWNER PILL
             if (currentOwner) {
                 const ownerPill = document.createElement('span');
                 const isMe = auth.currentUser && auth.currentUser.email === currentOwner;
@@ -2006,25 +1971,87 @@ document.addEventListener("DOMContentLoaded", async () => {
                 brElements.push(ownerPill);
             }
 
-            // --- SIZE PILL (Read-Only) ---
-            const sizePill = document.createElement('span');
-            sizePill.className = 'pill pill-sys';
-            sizePill.style.cssText = "padding: 4px 8px; font-size: 0.85em; cursor: default;";
-            sizePill.textContent = currentSize;
-            sizePill.title = "Size";
-            brElements.push(sizePill);
+            // 5. WHITELIST PILLS
+            // READ (Green)
+            createSysPill(`R: ${currentWhitelists.read.length}`, styleGreen, "Click to edit Whitelist READ", () => {
+                openWhitelistModalForTagEditor('read');
+            });
 
-            // --- 5. COUNTERS (Reads, Updates, Executes) ---
-            createSysPill(`R: ${currentSystemInfo.reads || 0}`, styleGreen, `Reads: ${currentSystemInfo.reads}`);
-            createSysPill(`U: ${currentSystemInfo.updates || 0}`, styleOrange, `Updates: ${currentSystemInfo.updates}`);
-            createSysPill(`X: ${currentSystemInfo.executes || 0}`, styleBlack, `Executes: ${currentSystemInfo.executes}`);
+            // UPDATE (Orange)
+            createSysPill(`U: ${currentWhitelists.update.length}`, styleOrange, "Click to edit Whitelist UPDATE", () => {
+                openWhitelistModalForTagEditor('update');
+            });
 
-            // --- 6. TIMESTAMPS ---
-            const styleBlue = "border: 1px solid #2979ff; color: #2979ff; background: rgba(41, 121, 255, 0.1);";
-            if (currentSystemInfo.created_at) createSysPill(`C: ${fmt(currentSystemInfo.created_at)}`, styleBlue, `Created: ${currentSystemInfo.created_at}`);
-            if (currentSystemInfo.last_read_ts) createSysPill(`R: ${fmt(currentSystemInfo.last_read_ts)}`, styleGreen, `Last Read: ${currentSystemInfo.last_read_ts}`);
-            if (currentSystemInfo.last_update_ts) createSysPill(`U: ${fmt(currentSystemInfo.last_update_ts)}`, styleOrange, `Last Update: ${currentSystemInfo.last_update_ts}`);
-            if (currentSystemInfo.last_execute_ts) createSysPill(`X: ${fmt(currentSystemInfo.last_execute_ts)}`, styleBlack, `Last Execute: ${currentSystemInfo.last_execute_ts}`);
+            // DELETE (Red)
+            createSysPill(`D: ${currentWhitelists.delete.length}`, styleRed, "Click to edit Whitelist DELETE", () => {
+                openWhitelistModalForTagEditor('delete');
+            });
+
+            // EXECUTE (Black)
+            createSysPill(`X: ${currentWhitelists.execute.length}`, styleBlack, "Click to edit Whitelist EXECUTE", () => {
+                openWhitelistModalForTagEditor('execute');
+            });
+
+            // 6. MIME TYPE
+            const mime = detectMimetype(currentValue);
+            const mimePill = document.createElement('span');
+            mimePill.className = 'pill pill-mime';
+            mimePill.style.cssText = `padding: 4px 8px; font-size: 0.85em; cursor: default; background-color: ${mime.color}; color: ${['TXT','BASE64'].includes(mime.type)?'#000':'#fff'};`;
+            if(['JSON','JS','SVG'].includes(mime.type)) mimePill.style.color = '#000';
+            mimePill.textContent = mime.type;
+            mimePill.title = "Mime Type";
+            brElements.push(mimePill);
+
+            // 7. USER TAGS (Last inserted -> Leftmost in Row-Reverse)
+            currentTags.forEach(tag => {
+                const pill = document.createElement('span');
+                pill.className = 'pill pill-user';
+                pill.style.cssText = "padding: 4px 8px; font-size: 0.85em; cursor: default;";
+                
+                // Inline Edit Span
+                const textSpan = document.createElement('span');
+                textSpan.textContent = tag;
+                textSpan.style.cursor = 'text';
+                textSpan.title = 'Click to edit User Memo';
+                textSpan.onclick = (e) => {
+                    e.stopPropagation();
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.value = tag;
+                    input.style.cssText = "background: #222; border: none; color: #fff; font-family: inherit; font-size: inherit; width: 80px; outline: none; padding: 0;";
+                    
+                    const saveEdit = () => {
+                        const newVal = input.value.trim();
+                        if (newVal && newVal !== tag && newVal !== "") {
+                            const idx = currentTags.indexOf(tag);
+                            if (idx !== -1) currentTags[idx] = newVal;
+                        }
+                        renderTagsInModal();
+                    };
+                    input.addEventListener('blur', saveEdit);
+                    input.addEventListener('keydown', (ev) => { if(ev.key === 'Enter') saveEdit(); });
+                    
+                    pill.innerHTML = '';
+                    pill.appendChild(input);
+                    input.focus();
+                };
+
+                const removeSpan = document.createElement('span');
+                removeSpan.innerHTML = '✕';
+                removeSpan.style.cssText = "cursor:pointer; margin-left:6px; font-weight:bold; opacity:0.6;";
+                removeSpan.title = "Remove Tag";
+                
+                pill.appendChild(textSpan);
+                pill.appendChild(removeSpan);
+                
+                // Remove Handler
+                removeSpan.onclick = (e) => {
+                    e.stopPropagation();
+                    currentTags = currentTags.filter(t => t !== tag);
+                    renderTagsInModal();
+                };
+                brElements.push(pill);
+            });
 
             // Append elements to the actual DOM container (No reverse -> User Tags on Right)
             brElements.forEach(el => brGroup.appendChild(el));
