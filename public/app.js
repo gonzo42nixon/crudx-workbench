@@ -117,7 +117,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (appContent && typeof appContent === 'string' && !appContent.startsWith("<h3>⚠️")) {
                 let injectedData = "";
                 if (params.has("data")) {
-                    injectedData = `<script type="text/markdown" id="markdown-template">${(d.value || '').replace(/<\/script>/g, '<\\/script>')}</script>`;
+                    const safeJson = JSON.stringify(d).replace(/<\/script>/g, '<\\/script>');
+                    injectedData = `<script type="application/json" id="markdown-template">${safeJson}</script>`;
                 }
                 
                 contextData = {
@@ -126,6 +127,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     action: "U",
                     label: d.label || "",
                     owner: d.owner || "",
+                    documentData: d, // Pass full document data for context reconstruction
                     user_tags: d.user_tags || [],
                     white_list_read: d.white_list_read || [],
                     white_list_update: d.white_list_update || [],
@@ -133,7 +135,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                     white_list_execute: d.white_list_execute || []
                 };
                 const jsonStr = JSON.stringify(contextData).replace(/<\/script>/g, '<\\/script>');
-                const injectedContext = `<script>try{window.CRUDX_CONTEXT=${jsonStr};}catch(e){console.error("Ctx Inj Fail",e);}</script>`;
+                // Inject isEmulator flag into the context
+                const injectedContext = `<script>try{window.CRUDX_CONTEXT=${jsonStr}; window.CRUDX_CONTEXT.isEmulator = ${['localhost', '127.0.0.1'].includes(window.location.hostname)};}catch(e){console.error("Ctx Inj Fail",e);}</script>`;
 
                 // FIX: Inject Context early (Head) if possible, Data late (Body)
                 if (/<head>/i.test(appContent)) {
@@ -562,16 +565,49 @@ document.addEventListener("DOMContentLoaded", async () => {
                                 return;
                             }
 
-                            // Use shared helper to generate secure blob
-                            const { blob, contextData } = await generateSecureAppBlob(key, d) || {};
-                            
-                            if (blob) {
-                                let blobUrl = URL.createObjectURL(blob);
-                                if (contextData) blobUrl += `#ctx=${encodeURIComponent(JSON.stringify(contextData))}`;
-                                createExecutionWindow(blobUrl, d.value, key);
+                            // Determine Environment
+                            const urlParams = new URLSearchParams(window.location.search);
+                            const forceProd = urlParams.get('mode') === 'live';
+                            const isEmulator = !forceProd && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+                            if (!isEmulator) {
+                                // --- PROD: Use Make.com Webhook ---
+                                const params = new URLSearchParams();
+                                params.append("action", "X");
+
+                                if (tags.includes("app")) params.set("app", key);
+                                if (tags.includes("data")) {
+                                    params.set("data", key);
+                                    const xTag = tags.find(t => t.startsWith("x:"));
+                                    if (xTag) params.set("app", xTag.substring(2));
+                                }
+                                tags.forEach(t => {
+                                    if (t.startsWith("s:")) params.set("settings", t.substring(2));
+                                    if (t.startsWith("d1:")) params.set("data-1", t.substring(3));
+                                    if (t.startsWith("d2:")) params.set("data-2", t.substring(3));
+                                    if (t.startsWith("d3:")) params.set("data-3", t.substring(3));
+                                });
+
+                                if (!params.has("app")) {
+                                    alert("⚠️ Launcher Error: Missing 'app' parameter (Tag 'app' or 'x:AppKey' required).");
+                                    return;
+                                }
+
+                                const baseUrl = "https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977";
+                                const targetUrl = `${baseUrl}?${params.toString()}`;
+                                createExecutionWindow(targetUrl, d.value, key);
                                 updateDoc(doc(db, "kv-store", key), { executes: increment(1), last_execute_ts: new Date().toISOString() }).catch(console.error);
                             } else {
-                                alert("⚠️ Launcher Error: Could not resolve App logic. Check tags (app/data/x:...).");
+                                // --- EMULATOR: Client-Side Rendering (Blob) ---
+                                const { blob, contextData } = await generateSecureAppBlob(key, d) || {};
+                                if (blob) {
+                                    let blobUrl = URL.createObjectURL(blob);
+                                    if (contextData) blobUrl += `#ctx=${encodeURIComponent(JSON.stringify(contextData))}`;
+                                    createExecutionWindow(blobUrl, d.value, key);
+                                    updateDoc(doc(db, "kv-store", key), { executes: increment(1), last_execute_ts: new Date().toISOString() }).catch(console.error);
+                                } else {
+                                    alert("⚠️ Launcher Error: Could not resolve App logic. Check tags (app/data/x:...).");
+                                }
                             }
 
                         } catch (err) {
@@ -2366,6 +2402,41 @@ document.addEventListener("DOMContentLoaded", async () => {
                     document.documentElement.requestFullscreen().catch(err => console.log(err));
                 } else {
                     if (document.exitFullscreen) document.exitFullscreen();
+                }
+            }
+        });
+
+        // --- GLOBAL MESSAGE LISTENER FOR IFRAME COMMUNICATION ---
+        // Handles save requests from sandboxed apps (e.g., Markdown Studio in Emulator mode)
+        window.addEventListener('message', async (event) => {
+            // Basic security: check for expected data structure
+            if (event.data && event.data.type === 'CRUDX_SAVE') {
+                const payload = event.data.payload;
+                console.log('📬 Received save request from IFrame:', payload);
+
+                if (!payload || !payload.key) {
+                    console.error("❌ IFrame save failed: Payload is missing a key.");
+                    return;
+                }
+
+                try {
+                    // Reconstruct the data to be saved, similar to the Update Modal
+                    const dataToSave = {
+                        value: payload.value,
+                        label: payload.label,
+                        owner: payload.owner,
+                        user_tags: payload.user_tags?.arrayValue?.values?.map(v => v.stringValue) || [],
+                        white_list_read: payload.white_list_read?.arrayValue?.values?.map(v => v.stringValue) || [],
+                        white_list_update: payload.white_list_update?.arrayValue?.values?.map(v => v.stringValue) || [],
+                        white_list_delete: payload.white_list_delete?.arrayValue?.values?.map(v => v.stringValue) || [],
+                        white_list_execute: payload.white_list_execute?.arrayValue?.values?.map(v => v.stringValue) || [],
+                        updates: increment(1),
+                        last_update_ts: new Date().toISOString()
+                    };
+                    await updateDoc(doc(db, "kv-store", payload.key), dataToSave);
+                    console.log(`✅ IFrame save for [${payload.key}] successful!`);
+                } catch (e) {
+                    console.error(`❌ IFrame save for [${payload.key}] failed:`, e);
                 }
             }
         });

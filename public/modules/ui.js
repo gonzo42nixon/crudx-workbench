@@ -215,12 +215,28 @@ export async function renderDataFromDocs(docs, container) {
                 });
             </script>`;
 
-            const injectedData = `${customStyles}<script type="text/markdown" id="markdown-template">${(d.value || '').replace(/<\/script>/g, '<\\/script>')}</script>`;
+            const safeJson = JSON.stringify(d).replace(/<\/script>/g, '<\\/script>');
+            const injectedDataScript = `<script type="application/json" id="markdown-template">${safeJson}</script>`;
+            
+            // --- CONTEXT INJECTION FOR CONFLUENCE MODE ---
+            // This is crucial for the Save button to work inside the sandboxed app.
+            // It mirrors the logic from app.js's generateSecureAppBlob.
+            const contextData = {
+                key: doc.id, 
+                webhookUrl: "https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977",
+                action: "U",
+                documentData: d, // Pass the full document data
+                isEmulator: ['localhost', '127.0.0.1'].includes(window.location.hostname)
+            };
+            const jsonStr = JSON.stringify(contextData).replace(/<\/script>/g, '<\\/script>');
+            const injectedContext = `<script>try{window.CRUDX_CONTEXT=${jsonStr}; window.CRUDX_CONTEXT.isEmulator = ${contextData.isEmulator};}catch(e){console.error("Ctx Inj Fail",e);}</script>`;
+
             let appContent = mdAppTemplate;
-            if (appContent.includes('</body>')) {
-                appContent = appContent.replace('</body>', `${injectedData}</body>`);
+            if (/<head>/i.test(appContent)) {
+                appContent = appContent.replace(/<head>/i, `<head>${injectedContext}`);
+                appContent = appContent.replace('</body>', `${customStyles}${injectedDataScript}</body>`);
             } else {
-                appContent += injectedData;
+                appContent = `${injectedContext}${appContent}${customStyles}${injectedDataScript}`;
             }
             const blob = new Blob([appContent], { type: 'text/html' });
             const blobUrl = URL.createObjectURL(blob);

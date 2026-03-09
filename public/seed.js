@@ -249,9 +249,39 @@ export async function seedCoreData(db) {
 
         window.onload = () => {
             const template = document.getElementById('markdown-template');
-            if (template) {
-                editor.value = template.textContent.trim();
-                updatePreview();
+            if (template && template.textContent) {
+                try {
+                    // Pre-check for a context injected by the calling environment (app.js)
+                    const preInjectedKey = window.CRUDX_CONTEXT ? window.CRUDX_CONTEXT.key : null;
+
+                    // 1. Parse the full document data from the template script
+                    const docData = JSON.parse(template.textContent.trim());
+                    
+                    // 2. Determine the document key. Prioritize the pre-injected key,
+                    // as blob URLs in the emulator won't have URL parameters.
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const docKey = preInjectedKey || urlParams.get('data') || urlParams.get('key') || "UNKNOWN_KEY";
+
+                    // 3. Build/rebuild the global context in the structure this app expects.
+                    window.CRUDX_CONTEXT = {
+                        ...(window.CRUDX_CONTEXT || {}),
+                        key: docKey,
+                        action: "U",
+                        webhookUrl: "https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977",
+                        documentData: docData 
+                    };
+
+                    console.log("✅ Context successfully loaded/rebuilt:", window.CRUDX_CONTEXT);
+
+                    // 4. Inject ONLY the Markdown value into the editor
+                    if (docData.value) {
+                        editor.value = docData.value;
+                    }
+                    updatePreview();
+                } catch (e) {
+                    console.error("❌ Failed to parse injected JSON. Is it valid JSON?", e);
+                    editor.value = "# Error loading data\\nCould not parse the injected data.";
+                }
             }
         };
 
@@ -278,66 +308,68 @@ export async function seedCoreData(db) {
             const btn = document.getElementById('btn-save');
             const originalText = btn.innerText;
             
-            // Fallback: Try to reconstruct context from URL (Hash or Query)
-            if (!window.CRUDX_CONTEXT) {
-                console.log("🔍 Debug: Checking for Context in URL...", window.location.href);
-                
-                // 1. Try Hash (Secure Blob Context)
-                if (window.location.hash && window.location.hash.includes('ctx=')) {
-                    try {
-                        const hashParams = new URLSearchParams(window.location.hash.substring(1));
-                        const ctxStr = hashParams.get('ctx');
-                        if (ctxStr) {
-                            // URLSearchParams already decodes the value
-                            window.CRUDX_CONTEXT = JSON.parse(ctxStr);
-                            console.log("✅ Context recovered from Hash:", window.CRUDX_CONTEXT);
-                        }
-                    } catch(e) { console.error("Hash Context Parse Error", e); }
-                }
-                // 2. Try Query (Webhook/Link)
-                else if (new URLSearchParams(window.location.search).get('key')) {
-                    const k = new URLSearchParams(window.location.search).get('key');
-                    window.CRUDX_CONTEXT = { key: k, webhookUrl: "https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977", action: "U" };
-                    console.log("⚠️ Context reconstructed from URL:", window.CRUDX_CONTEXT);
-                }
-            }
-            
             const ctx = window.CRUDX_CONTEXT;
 
-            if (!ctx || !ctx.key) {
+            if (!ctx || !ctx.key || ctx.key === "UNKNOWN_KEY") {
                 console.error("❌ Missing Context.", ctx);
-                alert("⚠️ No Context: Cannot save (Key missing).\\n\\nThis usually happens if the app didn't load correctly.\\nPlease refresh the page and try again.\\n\\nDebug: " + JSON.stringify(ctx));
+                alert("⚠️ No Context: Cannot save (Key missing).\\nPlease ensure the app was opened with the ?data= parameter.");
                 return;
             }
 
+            const docData = ctx.documentData;
+
             // SAFETY LOCK: Prevent saving in Fallback Mode (missing metadata) to avoid wiping tags/permissions.
-            if (!ctx.user_tags) {
-                alert("⚠️ Safety Lock: Edit Mode Unavailable.\\n\\nReason: Metadata (tags) missing in context.\\n\\nPossible causes:\\n1. Browser cache holds old app.js (Try Ctrl+F5 on dashboard).\\n2. Opened via Link/Webhook (Read-Only).\\n\\nPlease refresh the dashboard and open via 'X' button.");
+            if (!docData || !docData.user_tags) {
+                alert("⚠️ Safety Lock: Edit Mode Unavailable.\\nReason: Metadata missing.");
                 return;
+            }
+
+            // --- EMULATOR-SPECIFIC SAVE LOGIC ---
+            // In the emulator, the app runs in a sandboxed blob and cannot access the parent's
+            // Firestore instance directly. Instead of calling the webhook, it sends the data
+            // to the parent window (app.js), which then handles the database update.
+            if (ctx.isEmulator) {
+                console.log("🔧 Emulator Mode: Sending save request to parent window.");
+                const payload = {
+                    action: "U",
+                    key: ctx.key,
+                    value: editor.value,
+                    label: docData.label || "",
+                    owner: docData.owner || "",
+                    user_tags: { arrayValue: { values: (docData.user_tags || []).map(v => ({ stringValue: v })) } },
+                    white_list_read: { arrayValue: { values: (docData.white_list_read || []).map(v => ({ stringValue: v })) } },
+                    white_list_update: { arrayValue: { values: (docData.white_list_update || []).map(v => ({ stringValue: v })) } },
+                    white_list_delete: { arrayValue: { values: (docData.white_list_delete || []).map(v => ({ stringValue: v })) } },
+                    white_list_execute: { arrayValue: { values: (docData.white_list_execute || []).map(v => ({ stringValue: v })) } },
+                };
+                window.parent.postMessage({ type: 'CRUDX_SAVE', payload: payload }, '*');
+                btn.innerText = "✅";
+                setTimeout(() => btn.innerText = originalText, 2000);
+                return; // Stop execution here, do not proceed to webhook.
             }
 
             btn.innerText = "⏳";
             btn.classList.add('animate-pulse');
 
             try {
+                // Construct the base payload
                 const payload = {
                     action: ctx.action || "U",
                     key: ctx.key,
-                    value: editor.value
+                    value: editor.value // Take the modified text from the editor
                 };
 
-                // FIX: Always send metadata fields to satisfy Webhook requirements.
-                // Make.com expects these keys to exist, otherwise it generates invalid JSON (e.g. "user_tags": ,).
+                // Reconstruct the array structure Make.com expects
                 const wrapArray = (arr) => ({ arrayValue: { values: (arr || []).map(v => ({ stringValue: v })) } });
                 
-                payload.user_tags = wrapArray(ctx.user_tags);
-                payload.white_list_read = wrapArray(ctx.white_list_read);
-                payload.white_list_update = wrapArray(ctx.white_list_update);
-                payload.white_list_delete = wrapArray(ctx.white_list_delete);
-                payload.white_list_execute = wrapArray(ctx.white_list_execute);
+                payload.user_tags = wrapArray(docData.user_tags);
+                payload.white_list_read = wrapArray(docData.white_list_read);
+                payload.white_list_update = wrapArray(docData.white_list_update);
+                payload.white_list_delete = wrapArray(docData.white_list_delete);
+                payload.white_list_execute = wrapArray(docData.white_list_execute);
                 
-                payload.label = ctx.label || "";
-                payload.owner = ctx.owner || "";
+                payload.label = docData.label || "";
+                payload.owner = docData.owner || "";
 
                 const response = await fetch(ctx.webhookUrl, {
                     method: "POST",
