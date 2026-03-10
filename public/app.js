@@ -1459,7 +1459,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                             const type = currentWhitelistField.replace('white_list_', '');
                             if (currentWhitelists[type]) {
                                 currentWhitelists[type] = snap.data()[currentWhitelistField] || [];
-                                renderTagsInModal();
+                                renderTagsInModal(tagListContainer);
                             }
                         }
                         fetchRealData(); 
@@ -1530,7 +1530,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                         const type = currentWhitelistField.replace('white_list_', '');
                         if (currentWhitelists[type]) {
                             currentWhitelists[type] = snap.data()[currentWhitelistField] || [];
-                            renderTagsInModal();
+                            renderTagsInModal(tagListContainer);
                         }
                     }
                     wlInput.value = '';
@@ -1556,6 +1556,30 @@ document.addEventListener("DOMContentLoaded", async () => {
         const updateMimeDisplay = document.getElementById('update-mime-display');
         const btnBeautify = document.getElementById('btn-beautify');
         const btnTransparency = document.getElementById('btn-toggle-transparency');
+
+        // --- INJECT INLINE TAG EDITOR CONTAINER ---
+        if (updateModalContent) {
+            const existingContainer = document.getElementById('update-modal-tag-editor');
+            
+            // FIX: Wrap editor to provide positioning context for tags (relative to editor, not modal)
+            let wrapper = document.getElementById('update-editor-wrapper');
+            if (!wrapper && updateEditor) {
+                wrapper = document.createElement('div');
+                wrapper.id = 'update-editor-wrapper';
+                wrapper.style.cssText = "position: relative; flex: 1; display: flex; flex-direction: column; min-height: 0; margin-bottom: 15px;";
+                updateEditor.parentNode.insertBefore(wrapper, updateEditor);
+                wrapper.appendChild(updateEditor);
+                updateEditor.style.marginBottom = '0';
+                updateEditor.style.flex = '1';
+            }
+
+            if (!existingContainer && wrapper) {
+                const div = document.createElement('div');
+                div.id = 'update-modal-tag-editor';
+                div.style.display = 'none';
+                wrapper.appendChild(div);
+            }
+        }
         
         // Tag Modal Elements
         const tagModal = document.getElementById('tag-modal');
@@ -1652,8 +1676,26 @@ document.addEventListener("DOMContentLoaded", async () => {
             updateLabelDisplay.textContent = label || key;
             updateLabelDisplay.title = `CRUDX-ID: ${key}`;
             
-            // --- Dynamic Tag Button Label ---
+            // --- NEW: Inline Tag Editor for Create ---
             const btnEditTags = document.getElementById('btn-edit-tags');
+            const tagEditorContainer = document.getElementById('update-modal-tag-editor');
+
+            if (isNew) {
+                if (tagEditorContainer) {
+                    tagEditorContainer.style.display = 'block';
+                    renderTagsInModal(tagEditorContainer);
+                }
+                if (btnEditTags) btnEditTags.style.display = 'none';
+                updateEditor.style.paddingTop = '50px';
+                updateEditor.style.paddingBottom = '50px';
+            } else {
+                if (tagEditorContainer) tagEditorContainer.style.display = 'none';
+                if (btnEditTags) btnEditTags.style.display = 'inline-block';
+                updateEditor.style.paddingTop = '15px';
+                updateEditor.style.paddingBottom = '15px';
+            }
+
+            // --- Dynamic Tag Button Label ---
             if (btnEditTags) {
                 btnEditTags.textContent = currentIsNew ? "Prepare Tags" : "Tags";
                 btnEditTags.title = "Maintain Tags";
@@ -1738,7 +1780,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     btnSave.style.backgroundColor = "#00e676"; 
                     btnSave.style.color = "#000000";
                 }
-                renderTagsInModal();
+                renderTagsInModal(tagListContainer);
             } else {
                 // Existing Card: Reset and Fetch
                 if (btnSave) {
@@ -1776,7 +1818,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                             executes: d.executes || 0,
                             last_execute_ts: d.last_execute_ts
                         };
-                        renderTagsInModal();
+                        renderTagsInModal(tagListContainer);
                     }
                 });
             }
@@ -1785,37 +1827,53 @@ document.addEventListener("DOMContentLoaded", async () => {
             document.getElementById('new-tag-input').focus();
         }
 
-        function renderTagsInModal() {
-            if (!tagListContainer) return;
-            tagListContainer.innerHTML = '';
-            // Use flex column to stack groups vertically, allow scrolling
-            tagListContainer.style.cssText = "position: relative; flex: 1; width: 100%; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; padding: 5px;";
-            tagListContainer.style.cssText = "position: relative; flex: 1; width: 100%; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; padding: 5px; justify-content: space-between;";
+        function renderTagsInModal(targetContainer) {
+            if (!targetContainer) return;
+            targetContainer.innerHTML = '';
+            
+            // Check if we are in the Update Modal (Overlay Mode)
+            const isOverlay = (targetContainer.id === 'update-modal-tag-editor');
+
+            if (isOverlay) {
+                // Z-Axis Overlay: Absolute positioning over the modal content
+                targetContainer.style.cssText = "position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 20;";
+            } else {
+                // Y-Axis List: Flex column for the dedicated Tag Editor
+                targetContainer.style.cssText = "position: relative; flex: 1; width: 100%; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; padding: 5px; justify-content: space-between;";
+            }
 
             const tlGroup = document.createElement('div');
             tlGroup.className = 'tl-group';
-            // Override absolute positioning for modal flow
-            tlGroup.style.position = 'relative';
-            tlGroup.style.top = 'auto';
-            tlGroup.style.left = 'auto';
-            tlGroup.style.width = '100%';
-            tlGroup.style.marginBottom = '10px';
+            
+            if (!isOverlay) {
+                // List Mode: Relative positioning
+                tlGroup.style.position = 'relative';
+                tlGroup.style.top = 'auto';
+                tlGroup.style.left = 'auto';
+                tlGroup.style.width = '100%';
+                tlGroup.style.marginBottom = '10px';
+            }
+            // Else Overlay Mode: Inherit CSS (absolute, top:12px, left:12px)
 
             const brGroup = document.createElement('div');
             brGroup.className = 'br-group';
-            // Override absolute positioning and ensure Row-Reverse (System Right -> User Left)
-            brGroup.style.position = 'relative';
-            brGroup.style.marginTop = 'auto';
-            brGroup.style.paddingTop = '15px';
-            brGroup.style.flexDirection = 'row-reverse';
-            brGroup.style.flexWrap = 'wrap-reverse';
-            brGroup.style.justifyContent = 'flex-start';
-            brGroup.style.width = '100%';
-            brGroup.style.right = 'auto';
-            brGroup.style.bottom = 'auto';
+            
+            if (!isOverlay) {
+                // List Mode: Relative positioning & Flex tweaks
+                brGroup.style.position = 'relative';
+                brGroup.style.marginTop = 'auto';
+                brGroup.style.paddingTop = '15px';
+                brGroup.style.flexDirection = 'row-reverse';
+                brGroup.style.flexWrap = 'wrap-reverse';
+                brGroup.style.justifyContent = 'flex-start';
+                brGroup.style.width = '100%';
+                brGroup.style.right = 'auto';
+                brGroup.style.bottom = 'auto';
+            }
+            // Else Overlay Mode: Inherit CSS (absolute, bottom:12px, right:12px, row-reverse)
 
-            tagListContainer.appendChild(tlGroup);
-            tagListContainer.appendChild(brGroup);
+            targetContainer.appendChild(tlGroup);
+            targetContainer.appendChild(brGroup);
             
             // --- KEY PILL ---
             const keyPill = document.createElement('span');
@@ -1855,7 +1913,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                             // Sync with Update Modal Title immediately to keep user orientation
                             if (updateLabelDisplay) updateLabelDisplay.textContent = currentLabel;
                         }
-                        renderTagsInModal();
+                        renderTagsInModal(targetContainer);
                     };
                     input.addEventListener('blur', saveEdit);
                     input.addEventListener('keydown', (ev) => { if(ev.key === 'Enter') saveEdit(); });
@@ -1974,13 +2032,13 @@ document.addEventListener("DOMContentLoaded", async () => {
                         
                         if (!newVal) {
                             alert("Owner cannot be empty.");
-                            renderTagsInModal();
+                            renderTagsInModal(targetContainer);
                         } else if (!emailRegex.test(newVal)) {
                             alert("Owner must be a valid email address.");
-                            renderTagsInModal();
+                            renderTagsInModal(targetContainer);
                         } else {
                             currentOwner = newVal;
-                            renderTagsInModal();
+                            renderTagsInModal(targetContainer);
                         }
                     };
                     
@@ -2051,7 +2109,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                             const idx = currentTags.indexOf(tag);
                             if (idx !== -1) currentTags[idx] = newVal;
                         }
-                        renderTagsInModal();
+                        renderTagsInModal(targetContainer);
                     };
                     input.addEventListener('blur', saveEdit);
                     input.addEventListener('keydown', (ev) => { if(ev.key === 'Enter') saveEdit(); });
@@ -2073,13 +2131,49 @@ document.addEventListener("DOMContentLoaded", async () => {
                 removeSpan.onclick = (e) => {
                     e.stopPropagation();
                     currentTags = currentTags.filter(t => t !== tag);
-                    renderTagsInModal();
+                    renderTagsInModal(targetContainer);
                 };
                 brElements.push(pill);
             });
 
             // Append elements to the actual DOM container (No reverse -> User Tags on Right)
             brElements.forEach(el => brGroup.appendChild(el));
+
+            // --- ADD NEW TAG INPUT (Overlay Mode Only) ---
+            if (isOverlay) {
+                const addPill = document.createElement('span');
+                addPill.className = 'pill pill-user';
+                addPill.title = "Add Tag";
+                addPill.style.cssText = "padding: 0; cursor: text; border: none; background-color: #00e676 !important; color: #ffffff !important; display: inline-flex; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-weight: bold;";
+                
+                const addInput = document.createElement('input');
+                addInput.type = 'text';
+                addInput.placeholder = '+ Tag';
+                addInput.style.cssText = "background: transparent; border: none; color: inherit; font-family: inherit; font-size: 0.85em; width: 60px; outline: none; padding: 4px 8px; font-weight: bold;";
+                
+                const submitTag = () => {
+                    const val = addInput.value.trim();
+                    if (val && !currentTags.includes(val)) {
+                        currentTags.push(val);
+                        renderTagsInModal(targetContainer);
+                        // Restore focus to new input for rapid entry
+                        setTimeout(() => {
+                            const newInputs = targetContainer.querySelectorAll('input[placeholder="+ Tag"]');
+                            if(newInputs.length > 0) newInputs[0].focus();
+                        }, 10);
+                    }
+                };
+
+                addInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') submitTag();
+                });
+                addInput.addEventListener('blur', () => {
+                    if (addInput.value.trim()) submitTag();
+                });
+
+                addPill.appendChild(addInput);
+                brGroup.appendChild(addPill);
+            }
         }
 
         // Helper to open Whitelist Modal from Tag Editor
@@ -2216,7 +2310,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             const val = input.value.trim();
             if (val && !currentTags.includes(val)) {
                 currentTags.push(val);
-                renderTagsInModal();
+                renderTagsInModal(tagListContainer);
                 input.value = '';
             }
         };
