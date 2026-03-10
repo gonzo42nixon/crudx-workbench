@@ -2419,35 +2419,37 @@ document.addEventListener("DOMContentLoaded", async () => {
                     await setDoc(doc(db, "kv-store", key), docData, { merge: true });
                 } else {
                     // --- PRODUCTION: Webhook Update ---
-                    // Fix: Escape quotes/backslashes to prevent breaking the JSON structure in Make.com
-                    const safeValue = JSON.stringify(newValue).slice(1, -1);
-
-                    const payload = {
-                        action: action, // "C" or "U"
+                    const inputData = {
                         key: key,
-                        value: safeValue,
-                        label: currentLabel,
-                        owner: currentOwner,
-                        access_control: { arrayValue: { values: uniqueAccessControl.map(v => ({ stringValue: v })) } },
-                        user_tags: { arrayValue: { values: (currentTags || []).map(t => ({ stringValue: t })) } },
-                        white_list_read: { arrayValue: { values: (currentWhitelists.read || []).map(v => ({ stringValue: v })) } },
-                        white_list_update: { arrayValue: { values: (currentWhitelists.update || []).map(v => ({ stringValue: v })) } },
-                        white_list_delete: { arrayValue: { values: (currentWhitelists.delete || []).map(v => ({ stringValue: v })) } },
-                        white_list_execute: { arrayValue: { values: (currentWhitelists.execute || []).map(v => ({ stringValue: v })) } },
+                        label: currentLabel || "",
+                        value: newValue,
+                        owner: currentOwner || "",
+                        size: currentSize || "0B",
+                        user_tags: currentTags || [],
+                        access_control: uniqueAccessControl,
+                        white_list_read: currentWhitelists.read || [],
+                        white_list_update: currentWhitelists.update || [],
+                        white_list_delete: currentWhitelists.delete || [],
+                        white_list_execute: currentWhitelists.execute || []
                     };
 
                     if (isNew) {
-                        payload.created_at = new Date().toISOString();
-                        payload.reads = 0;
-                        payload.updates = 0;
-                        payload.executes = 0;
-                        payload.last_read_ts = null;
-                        payload.last_update_ts = null;
-                        payload.last_execute_ts = null;
-                        payload.size = currentSize;
+                        inputData.created_at = new Date().toISOString();
+                        inputData.reads = 0;
+                        inputData.updates = 0;
+                        inputData.executes = 0;
                     } else {
-                        payload.last_update_ts = new Date().toISOString();
+                        inputData.created_at = currentSystemInfo.created_at;
+                        inputData.reads = currentSystemInfo.reads || 0;
+                        inputData.updates = (currentSystemInfo.updates || 0) + 1;
+                        inputData.executes = currentSystemInfo.executes || 0;
+                        inputData.last_read_ts = currentSystemInfo.last_read_ts;
+                        inputData.last_execute_ts = currentSystemInfo.last_execute_ts;
+                        inputData.last_update_ts = new Date().toISOString();
                     }
+
+                    const payload = buildFirestoreCreatePayload(inputData);
+                    payload.action = action;
 
                     const response = await fetch("https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977", {
                         method: "POST",
@@ -2457,10 +2459,20 @@ document.addEventListener("DOMContentLoaded", async () => {
 
                     if (!response.ok) throw new Error(`Webhook returned ${response.status}`);
                     
-                    setTimeout(() => fetchRealData(), 1000);
                 }
 
                 closeUpdateModal(); // Close only on success
+
+                if (isNew) {
+                    console.log(`✅ New card ${key} created. Switching to Confluence view.`);
+                    // A delay is needed for the database to become consistent, especially with webhooks.
+                    const delay = isEmulator ? 100 : 1500;
+                    setTimeout(() => locateDocumentInCloud(key), delay);
+                } else {
+                    // For a regular update, just refresh the current view.
+                    const delay = isEmulator ? 100 : 1500;
+                    setTimeout(() => fetchRealData(), delay);
+                }
             } catch (e) {
                 alert("Update failed: " + e.message);
             } finally {
@@ -2864,3 +2876,91 @@ document.addEventListener("DOMContentLoaded", async () => {
         console.error("🔥 FATAL:", e);
     }
 });
+
+/**
+ * Hauptfunktion: Konvertiert ein flaches JS-Objekt in einen Firestore REST API Body.
+ */
+function buildFirestoreCreatePayload(input) {
+    if (!input || typeof input !== 'object') {
+        throw new Error("Input must be a valid object.");
+    }
+
+    const docKey = input.key || "";
+    const fields = {};
+
+    // Konfiguration der Feld-Typen für Firestore
+    const fieldConfig = {
+        integers:   ['reads', 'updates', 'executes'],
+        timestamps: ['created_at', 'last_update_ts', 'last_read_ts', 'last_execute_ts'],
+        arrays:     ['user_tags', 'access_control', 'white_list_read', 'white_list_update', 'white_list_delete', 'white_list_execute'],
+        strings:    ['label', 'value', 'owner', 'size']
+    };
+
+    for (const [key, val] of Object.entries(input)) {
+        if (key === 'key') continue;
+        if (val === undefined || val === null) continue;
+
+        // 1. Integers -> integerValue (muss als String übergeben werden)
+        if (fieldConfig.integers.includes(key)) {
+            const num = parseInt(val, 10);
+            if (!isNaN(num)) {
+                fields[key] = { integerValue: String(num) };
+            }
+            continue;
+        }
+
+        // 2. Timestamps -> timestampValue (nur valide ISO-Strings)
+        if (fieldConfig.timestamps.includes(key)) {
+            if (isValidIsoDate(val)) {
+                fields[key] = { timestampValue: val };
+            } else if (typeof val === 'string' && val.trim() !== "") {
+                // Fallback für nicht-ISO Strings
+                fields[key] = { stringValue: val };
+            }
+            continue;
+        }
+
+        // 3. Arrays -> arrayValue.values
+        if (fieldConfig.arrays.includes(key)) {
+            if (Array.isArray(val)) {
+                // Filter: Entferne null, undefined und leere Strings
+                const cleanValues = val.filter(item => item && typeof item === 'string' && item.trim() !== "");
+                const firestoreValues = cleanValues.map(item => ({ stringValue: item }));
+                fields[key] = {
+                    arrayValue: {
+                        values: firestoreValues
+                    }
+                };
+            }
+            continue;
+        }
+
+        // 4. Strings & Sonstiges -> stringValue
+        if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') {
+            fields[key] = { stringValue: String(val) };
+        }
+    }
+
+    // Das finale Objekt für Firestore
+    const finalFirestoreBody = { fields: fields };
+    
+    // WICHTIG: Hier wird das Objekt in einen JSON-String umgewandelt.
+    // Make.com erwartet für den Raw-Body einen String, kein Objekt.
+    const bodyRawString = JSON.stringify(finalFirestoreBody);
+
+    // Debugging zur Sicherheit
+    console.log("--- PAYLOAD CHECK ---");
+    console.log("Type of body_raw:", typeof bodyRawString); // Muss "string" sein
+    console.log("Content:", bodyRawString);
+
+    return {
+        key: docKey,
+        body_raw: bodyRawString
+    };
+}
+
+function isValidIsoDate(str) {
+    if (typeof str !== 'string') return false;
+    const isoRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
+    return isoRegex.test(str) && !isNaN(Date.parse(str));
+}
