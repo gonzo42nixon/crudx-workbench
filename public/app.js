@@ -2,9 +2,9 @@ import { setupAuth } from './auth-helper.js';
 import { detectMimetype } from './modules/mime.js';
 import { themeState, applyTheme, syncModalUI, initThemeEditor, initThemeControls } from './modules/theme.js';
 import { db, auth } from './modules/firebase.js';
-import { applyLayout, initPaginationControls, fetchRealData, fetchLastPageData, loadStateFromUrl } from './modules/pagination.js';
+import { applyLayout, initPaginationControls, fetchRealData, fetchLastPageData, loadStateFromUrl, unsubscribeListener } from './modules/pagination.js';
 import { renderDataFromDocs, escapeHtml } from './modules/ui.js';
-import { initTagCloud, refreshTagCloud, updateTagCloudSelection, locateDocumentInCloud } from './modules/tagscanner.js';
+import { initTagCloud, refreshTagCloud, updateTagCloudSelection, locateDocumentInCloud, resetTagCloud } from './modules/tagscanner.js';
 import { loadTagConfigFromUrl, getTagConfigForUrl, getTagRules, setTagRules } from './modules/tag-state.js';
 import { initAuth } from './modules/auth.js';
 import { encodeOCR, getEmailWarning, syntaxHighlight, buildFirestoreCreatePayload, isValidIsoDate } from './modules/utils.js';
@@ -587,12 +587,36 @@ document.addEventListener("DOMContentLoaded", async () => {
                             const forceProd = urlParams.get('mode') === 'live';
                             const isEmulator = !forceProd && ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
+                            // Unsubscribe from any active listener BEFORE deleting the doc
+                            // to prevent a race condition where the listener renders "No docs".
+                            unsubscribeListener();
+
                             if (isEmulator) {
                                 console.log(`🔧 Emulator Mode: Deleting "${key}" via SDK.`);
                                 deleteDoc(doc(db, "kv-store", key))
                                     .then(() => {
                                         console.log(`✅ Document "${key}" deleted.`);
                                         fetchRealData();
+                                        const gridSelect = document.getElementById('grid-select');
+                                        const searchInput = document.getElementById('main-search');
+                                        
+                                        // If deleting the currently viewed single doc, reset to list view.
+                                        if (gridSelect && gridSelect.value === '1') {
+                                            console.log("Single document view deletion detected. Switching to list view.");
+                                            searchInput.value = ''; // Clear search
+                                            
+                                            // Apply layout classes but skip the fetch to prevent race condition
+                                            applyLayout('list', false, true);
+                                            
+                                            // Trigger the actual data fetch with a delay, ensuring the search input is cleared
+                                            setTimeout(() => fetchRealData(true), 50);
+
+                                            resetTagCloud(); // Force cloud to bottom-right (exit folder mode)
+                                        } else {
+                                            // Default behavior for all other cases
+                                            fetchRealData();
+                                        }
+                                    refreshTagCloud(db, true); // Force Tag Cloud Update
                                     })
                                     .catch(err => alert("Delete failed: " + err.message));
                             } else {
@@ -601,6 +625,26 @@ document.addEventListener("DOMContentLoaded", async () => {
                                         if (res.ok) {
                                             console.log(`✅ Document "${key}" deleted via Webhook.`);
                                             setTimeout(() => fetchRealData(), 1000);
+                                            setTimeout(() => {
+                                                const gridSelect = document.getElementById('grid-select');
+                                                const searchInput = document.getElementById('main-search');
+                                                // If deleting the currently viewed single doc, reset to list view.
+                                                if (gridSelect && gridSelect.value === '1') {
+                                                    console.log("Single document view deletion detected. Switching to list view.");
+                                                    searchInput.value = ''; // Clear search
+
+                                                    // Apply layout classes but skip the fetch to prevent race condition
+                                                    applyLayout('list', false, true);
+
+                                                    // Trigger the actual data fetch with a delay, ensuring the search input is cleared
+                                                    setTimeout(() => fetchRealData(true), 50);
+
+                                                    resetTagCloud(); // Force cloud to bottom-right (exit folder mode)
+                                                } else {
+                                                    fetchRealData();
+                                                }
+                                            refreshTagCloud(db, true); // Force Tag Cloud Update
+                                            }, 1000);
                                         } else {
                                             alert("Delete failed: " + res.statusText);
                                         }

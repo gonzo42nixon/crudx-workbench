@@ -23,6 +23,14 @@ export let pageCursors = [];
 export let sortDirection = 'asc';
 let currentUnsubscribe = null;
 
+export function unsubscribeListener() {
+    if (currentUnsubscribe) {
+        console.log("Unsubscribing from Firestore listener.");
+        currentUnsubscribe();
+        currentUnsubscribe = null;
+    }
+}
+
 // ---------- URL State Management ----------
 export function updateUrlParams() {
     const params = new URLSearchParams();
@@ -64,7 +72,7 @@ export function loadStateFromUrl() {
 }
 
 // ---------- Layout anwenden ----------
-export function applyLayout(val, initialLoad = false) {
+export function applyLayout(val, initialLoad = false, skipFetch = false) {
     const dataContainer = document.getElementById('data-container');
     if (!dataContainer) return;
 
@@ -108,7 +116,9 @@ export function applyLayout(val, initialLoad = false) {
         currentPage = 1;
         pageCursors = [];
     }
-    fetchRealData();
+    if (!skipFetch) {
+        fetchRealData();
+    }
 }
 
 // ---------- Daten laden (aktuelle Seite) ----------
@@ -135,7 +145,9 @@ export async function fetchRealData(resetPage = false) {
     updateUrlParams();
 
     try {
-        let countQuery = colRef;
+        unsubscribeListener();
+
+        let countQuery;
         let mineCount = 0;
 
         if (user) {
@@ -149,6 +161,9 @@ export async function fetchRealData(resetPage = false) {
                 const mineSnap = await getCountFromServer(mineQuery);
                 mineCount = mineSnap.data().count;
             }
+        } else {
+            // If no user, query for public documents
+            countQuery = query(colRef, where("access_control", "array-contains", "*@*"));
         }
         const totalSnap = await getCountFromServer(countQuery);
         const totalCount = totalSnap.data().count;
@@ -270,9 +285,7 @@ export async function fetchRealData(resetPage = false) {
         const q = query(colRef, ...constraints);
 
         // Realtime Listener statt einmaligem Fetch
-        if (currentUnsubscribe) currentUnsubscribe();
-
-        currentUnsubscribe = onSnapshot(q, async (snap) => {
+        unsubscribeListener();        currentUnsubscribe = onSnapshot(q, async (snap) => {
             let docs = snap.docs;
 
             if (needsClientSideFiltering) {

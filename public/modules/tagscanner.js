@@ -90,7 +90,7 @@ function dockTagCloudLeft(container, targetDocId = null) {
             }
 
             // 1. Refresh Cloud first (Transforms Pills to Doc List & Expands Tree to selected Doc)
-            await refreshTagCloud(db);
+            await refreshTagCloud(db, true); // FORCE REFRESH to find new documents immediately
             
             // 2. Then Switch Main Grid to 1x1 (showing the selected doc)
             applyLayout('1');
@@ -274,6 +274,17 @@ export function updateTagCloudSelection() {
     updateCloudSelectionState(contentContainer);
 }
 
+/**
+ * Setzt die Tag Cloud in den Standard-Zustand (unten rechts) zurück.
+ * Wird verwendet, wenn der Confluence-Mode verlassen wird (z.B. nach Delete).
+ */
+export function resetTagCloud() {
+    const container = document.getElementById('tag-cloud-container');
+    if (container) {
+        dockTagCloudBottomRight(container);
+    }
+}
+
 export function locateDocumentInCloud(docId) {
     const container = document.getElementById('tag-cloud-container');
     if (!container) return;
@@ -286,7 +297,7 @@ export function locateDocumentInCloud(docId) {
     } else {
         // Already docked, just refresh to update tree selection
         applyLayout('1');
-        if (window.currentDbInstance) refreshTagCloud(window.currentDbInstance);
+        if (window.currentDbInstance) refreshTagCloud(window.currentDbInstance, true); // Force refresh here too
     }
 }
 
@@ -756,15 +767,6 @@ async function scanAndRenderTags(db, contentContainer, force = false) {
                 let activeDocId = null;
                 if (searchInput && searchInput.value.trim() && !searchInput.value.startsWith('tag:') && !searchInput.value.startsWith('mime:') && !searchInput.value.startsWith('owner:')) {
                     activeDocId = searchInput.value.trim();
-                }
-
-                // Fallback: If docked but no active doc selected, pick the first one found in tree
-                if (isLeftDocked && !activeDocId && firstDocId) {
-                    activeDocId = firstDocId;
-                    if (searchInput) {
-                        searchInput.value = activeDocId;
-                        fetchRealData(true);
-                    }
                 }
 
                 // Mark active in UI & Scroll to it
