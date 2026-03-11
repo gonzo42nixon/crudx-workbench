@@ -11,7 +11,7 @@ export const themeState = {
         themes: {
             night: {
                 canvas: { bg: "#0a0a0a", text: "#eeeeee", border: "#333333", paddingTop: 10, padding: 15, opacity: 85, blur: true },
-                card: { bg: "#111111", text: "#eeeeee", border: "#222222", opacity: 100, blur: false, padding: 20 },
+                card: { bg: "#111111", text: "#eeeeee", border: "#222222", opacity: 100, blur: false, padding: 30 },
                 navi: { bg: "#0f0f0f", text: "#cccccc", border: "#333333", opacity: 85, blur: false, bottom: 25 },
                 editor: { bg: "#111111", text: "#eeeeee", border: "#333333", opacity: 95, blur: true },
                 search: { bg: "#111111", text: "#eeeeee", border: "#333333", opacity: 80, blur: false },
@@ -23,7 +23,7 @@ export const themeState = {
             },
             day: {
                 canvas: { bg: "#ffffff", text: "#111111", border: "#dddddd", paddingTop: 10, padding: 15, opacity: 85, blur: true },
-                card: { bg: "#ffffff", text: "#111111", border: "#dddddd", opacity: 100, blur: false, padding: 20 },
+                card: { bg: "#ffffff", text: "#111111", border: "#dddddd", opacity: 100, blur: false, padding: 30 },
                 navi: { bg: "#eeeeee", text: "#333333", border: "#bbbbbb", opacity: 90, blur: false, bottom: 25 },
                 editor: { bg: "#ffffff", text: "#111111", border: "#cccccc", opacity: 98, blur: true },
                 search: { bg: "#ffffff", text: "#111111", border: "#cccccc", opacity: 90, blur: false },
@@ -35,7 +35,7 @@ export const themeState = {
             },
             arnold: {
                 canvas: { bg: "#0a0a0a", text: "#ff0000", border: "#333333", paddingTop: 10, padding: 15, opacity: 85, blur: true },
-                card: { bg: "#110000", text: "#ff0000", border: "#ff0000", opacity: 100, blur: false, padding: 20 },
+                card: { bg: "#110000", text: "#ff0000", border: "#ff0000", opacity: 100, blur: false, padding: 30 },
                 navi: { bg: "#000000", text: "#ff0000", border: "#ff0000", opacity: 80, blur: false, bottom: 10 },
                 editor: { bg: "#000000", text: "#ff0000", border: "#ff0000", opacity: 100, blur: false },
                 search: { bg: "#000000", text: "#ff0000", border: "#ff0000", opacity: 80, blur: false },
@@ -47,7 +47,7 @@ export const themeState = {
             },
             gaga: {
                 canvas: { bg: "#0a0a0a", text: "#000000", border: "#333333", paddingTop: 10, padding: 15, opacity: 85, blur: true },
-                card: { bg: "#ffb3ff", text: "#000000", border: "#000000", opacity: 90, blur: true, padding: 20 },
+                card: { bg: "#ffb3ff", text: "#000000", border: "#000000", opacity: 90, blur: true, padding: 30 },
                 navi: { bg: "#ffff00", text: "#000000", border: "#000000", opacity: 80, blur: false, bottom: 40 },
                 editor: { bg: "#00ffff", text: "#000000", border: "#000000", opacity: 90, blur: true },
                 search: { bg: "#ffffff", text: "#000000", border: "#000000", opacity: 95, blur: false },

@@ -83,7 +83,10 @@ export function buildFirestoreCreatePayload(input) {
         }
 
         if (fieldConfig.timestamps.includes(key)) {
-            if (isValidIsoDate(val)) {
+            // Handle Firestore Timestamp objects directly
+            if (val && val.toDate && typeof val.toDate === 'function') {
+                fields[key] = { timestampValue: val.toDate().toISOString() };
+            } else if (isValidIsoDate(val)) {
                 fields[key] = { timestampValue: val };
             } else if (typeof val === 'string' && val.trim() !== "") {
                 fields[key] = { stringValue: val };

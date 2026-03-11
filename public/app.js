@@ -12,6 +12,8 @@ import {
     collection, query, limit, getDocs, getCountFromServer, orderBy, startAfter, deleteDoc, doc, 
     writeBatch, updateDoc, setDoc, arrayUnion, getDoc, arrayRemove, where, increment
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { generateSecureAppBlob, createExecutionWindow } from './modules/launcher.js';
+import { backupData, restoreData, deleteByTag, deleteAllDocuments } from './modules/admin.js';
 
 document.addEventListener("DOMContentLoaded", async () => {
     try {
@@ -25,229 +27,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         let editingOrigin = null;
         let currentDocData = null; // Store for JSON Modal
         let iframeTransLevel = 0; // State for IFrame Transparency
-
-        // --- MULTI-WINDOW EXECUTION LOGIC ---
-        let executionWindowZIndex = 3500;
-        let executionWindowOffset = 0;
-
-        // --- HELPER: Generate Secure App Blob (Shared logic for X-Button and Confluence Mode) ---
-        async function generateSecureAppBlob(key, d) {
-            const tags = d.user_tags || [];
-            let contextData = null;
-            
-            // 1. Build Params
-            const params = new URLSearchParams();
-            params.append("action", "X");
-            params.append("key", key);
-
-            if (tags.includes("app")) {
-                params.set("app", key);
-            }
-            if (tags.includes("data")) {
-                params.set("data", key);
-                const xTag = tags.find(t => t.startsWith("x:"));
-                if (xTag) params.set("app", xTag.substring(2));
-            }
-            // Aux Tags
-            tags.forEach(t => {
-                if (t.startsWith("s:")) params.set("settings", t.substring(2));
-                if (t.startsWith("d1:")) params.set("data-1", t.substring(3));
-                if (t.startsWith("d2:")) params.set("data-2", t.substring(3));
-                if (t.startsWith("d3:")) params.set("data-3", t.substring(3));
-            });
-
-            if (!params.has("app")) return null; // Not an app execution
-
-            // 2. Fetch App Content
-            const appKey = params.get("app");
-            let appContent = "";
-
-            if (appKey === key) {
-                appContent = d.value;
-            } else {
-                const appDocSnap = await getDoc(doc(db, "kv-store", appKey));
-                if (appDocSnap.exists()) {
-                    appContent = appDocSnap.data().value;
-                } else {
-                    return null; // App not found
-                }
-            }
-
-            // 3. Inject Context & Data
-            if (appContent && typeof appContent === 'string' && !appContent.startsWith("<h3>⚠️")) {
-                let injectedData = "";
-                if (params.has("data")) {
-                    const safeJson = JSON.stringify(d).replace(/<\/script>/g, '<\\/script>');
-                    injectedData = `<script type="application/json" id="markdown-template">${safeJson}</script>`;
-                }
-                
-                contextData = {
-                    key: params.get("data") || key, 
-                    webhookUrl: "https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977",
-                    action: "U",
-                    label: d.label || "",
-                    owner: d.owner || "",
-                    documentData: d, // Pass full document data for context reconstruction
-                    user_tags: d.user_tags || [],
-                    white_list_read: d.white_list_read || [],
-                    white_list_update: d.white_list_update || [],
-                    white_list_delete: d.white_list_delete || [],
-                    white_list_execute: d.white_list_execute || []
-                };
-                const jsonStr = JSON.stringify(contextData).replace(/<\/script>/g, '<\\/script>');
-                // Inject isEmulator flag into the context
-                const injectedContext = `<script>try{window.CRUDX_CONTEXT=${jsonStr}; window.CRUDX_CONTEXT.isEmulator = ${['localhost', '127.0.0.1'].includes(window.location.hostname)};}catch(e){console.error("Ctx Inj Fail",e);}</script>`;
-
-                // FIX: Inject Context early (Head) if possible, Data late (Body)
-                if (/<head>/i.test(appContent)) {
-                    appContent = appContent.replace(/<head>/i, `<head>${injectedContext}`);
-                    if (/<\/body>/i.test(appContent)) {
-                        appContent = appContent.replace(/<\/body>/i, `${injectedData}</body>`);
-                    } else {
-                        appContent += injectedData;
-                    }
-                } else {
-                    // Fallback
-                    const bodyEndRegex = /<\/body>/i;
-                    if (bodyEndRegex.test(appContent)) {
-                        appContent = appContent.replace(bodyEndRegex, `${injectedData}${injectedContext}</body>`);
-                    } else {
-                        appContent += injectedData + injectedContext;
-                    }
-                }
-            }
-            return { blob: new Blob([appContent], { type: 'text/html' }), contextData };
-        }
-
-        function createExecutionWindow(targetUrl, contentValue, key) {
-            executionWindowZIndex++;
-            executionWindowOffset += 30;
-            // Reset offset if it gets too far down/right
-            if (executionWindowOffset > 150) executionWindowOffset = 30;
-
-            const div = document.createElement('div');
-            // KEIN Wrapper mehr, direkt das Fenster erstellen
-            div.className = 'modal-content execution-window'; 
-            if (key) div.dataset.key = key; // Store key to bridge with Update Modal
-            div.style.zIndex = executionWindowZIndex;
-            
-            // Default dimensions
-            let width = '90vw';
-            let height = '90vh';
-            
-            // Parse dimensions from content
-            if (contentValue && typeof contentValue === 'string') {
-                const wMatch = contentValue.match(/width=["']?(\d+)(?:px)?["']?/i);
-                const hMatch = contentValue.match(/height=["']?(\d+)(?:px)?["']?/i);
-                if (wMatch && hMatch) {
-                    width = `${parseInt(wMatch[1]) + 40}px`; // +40px buffer for borders/padding
-                    height = `${parseInt(hMatch[1]) + 80}px`; // +80px for Header + padding
-                }
-            }
-
-            // Styles direkt auf das Fenster anwenden
-            div.style.width = width;
-            div.style.height = height;
-            div.style.position = 'absolute';
-            div.style.top = `calc(50% + ${executionWindowOffset}px)`;
-            div.style.left = `calc(50% + ${executionWindowOffset}px)`;
-            div.style.transform = 'translate(-50%, -50%)';
-            div.style.display = 'flex';
-            div.style.flexDirection = 'column';
-            div.style.padding = '0';
-            div.style.overflow = 'hidden';
-            div.style.resize = 'both';
-            div.style.minWidth = '400px';
-            div.style.minHeight = '300px';
-
-            div.innerHTML = `
-                    <div class="modal-drag-handle" style="padding: 10px; background: rgba(255,255,255,0.05); border-bottom: 1px solid var(--editor-border); display: flex; justify-content: space-between; align-items: center; gap: 15px; cursor: move;">
-                        <span style="font-size: 1.2rem;">🚀</span>
-                        <input type="text" readonly value="${targetUrl}" style="flex: 1; background: #000; border: 1px solid #333; color: #00ff00; padding: 6px 10px; font-family: 'JetBrains Mono', monospace; font-size: 0.85em; border-radius: 4px; outline: none;">
-                        <span class="btn-external" title="Open in New Tab" style="cursor: pointer; font-size: 1.2rem; opacity: 0.8;">🔗</span>
-                        <span class="btn-transparency" title="Toggle Transparency" style="cursor: pointer; font-size: 1.2rem; opacity: 0.8;">👁️</span>
-                        <span class="btn-close" title="Close" style="cursor: pointer; font-size: 1.2rem;">✕</span>
-                    </div>
-                    <div class="execution-iframe-container" style="position: relative; flex: 1; overflow: hidden;">
-                        <iframe src="${targetUrl}" style="width: 100%; height: 100%; border: none; background: var(--canvas-bg);"></iframe>
-                    </div>
-            `;
-
-            document.body.appendChild(div);
-
-            const content = div; // Das div IST jetzt der Content
-            const handle = div.querySelector('.modal-drag-handle');
-            const btnClose = div.querySelector('.btn-close');
-            const btnTrans = div.querySelector('.btn-transparency');
-            const btnExternal = div.querySelector('.btn-external');
-            const iframe = div.querySelector('iframe');
-            const iframeContainer = div.querySelector('.execution-iframe-container');
-
-            // Bring to front on click
-            content.addEventListener('mousedown', () => {
-                executionWindowZIndex++;
-                div.style.zIndex = executionWindowZIndex;
-            });
-
-            // Open External
-            btnExternal.addEventListener('click', () => {
-                window.open(targetUrl, '_blank');
-            });
-
-            // Close
-            btnClose.addEventListener('click', () => {
-                document.body.removeChild(div);
-            });
-
-            // Transparency
-            let transLevel = 0;
-            btnTrans.addEventListener('click', () => {
-                transLevel = (transLevel + 1) % 3;
-                content.classList.remove('iframe-trans-1', 'iframe-trans-2');
-                if (transLevel === 1) {
-                    content.classList.add('iframe-trans-1');
-                    btnTrans.style.opacity = "1";
-                } else if (transLevel === 2) {
-                    content.classList.add('iframe-trans-2');
-                    btnTrans.style.opacity = "0.5";
-                } else {
-                    btnTrans.style.opacity = "0.8";
-                }
-            });
-
-            // Drag Logic (Specific to this instance)
-            let isDragging = false;
-            let startX, startY, startTransX, startTransY;
-
-            handle.addEventListener('mousedown', (e) => {
-                if (e.target.closest('.btn-close') || e.target.closest('.btn-transparency') || e.target.tagName === 'INPUT') return;
-                e.preventDefault();
-                isDragging = true;
-                startX = e.clientX;
-                startY = e.clientY;
-
-                const style = window.getComputedStyle(content);
-                const matrix = new WebKitCSSMatrix(style.transform);
-                startTransX = matrix.m41;
-                startTransY = matrix.m42;
-
-                document.addEventListener('mousemove', onMouseMove);
-                document.addEventListener('mouseup', onMouseUp);
-            });
-
-            function onMouseMove(e) {
-                if (!isDragging) return;
-                const dx = e.clientX - startX;
-                const dy = e.clientY - startY;
-                content.style.transform = `translate(${startTransX + dx}px, ${startTransY + dy}px)`;
-            }
-
-            function onMouseUp() {
-                isDragging = false;
-                document.removeEventListener('mousemove', onMouseMove);
-                document.removeEventListener('mouseup', onMouseUp);
-            }
-        }
 
         const bind = (id, event, fn) => {
             const el = document.getElementById(id);
@@ -1018,96 +797,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
         // Backup Tool (Available in Production & Dev)
-        bind('btn-backup', 'click', async () => {
-            const btn = document.getElementById('btn-backup');
-            if (btn) {
-                btn.disabled = true;
-                btn.style.opacity = '0.5';
-                btn.style.cursor = 'wait';
-            }
-
-            try {
-                console.log("📦 Starting Backup...");
-                const colRef = collection(db, "kv-store");
-                const snap = await getDocs(colRef);
-                const data = snap.docs.map(doc => ({ _id: doc.id, ...doc.data() }));
-
-                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `CRUDX-BACKUP-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                console.log(`✅ Backup complete: ${data.length} records.`);
-            } catch (e) {
-                console.error("Backup failed:", e);
-                alert("Backup failed: " + e.message);
-            } finally {
-                if (btn) {
-                    btn.disabled = false;
-                    btn.style.opacity = '1';
-                    btn.style.cursor = 'pointer';
-                }
-            }
-        });
-
+        bind('btn-backup', 'click', () => backupData('btn-backup'));
         // Restore Tool (Available in Production & Dev)
-        bind('btn-restore', 'click', () => {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = 'application/json';
-            input.onchange = e => {
-                const file = e.target.files[0];
-                if (!file) return;
-                
-                const reader = new FileReader();
-                reader.onload = async (event) => {
-                    try {
-                        const json = JSON.parse(event.target.result);
-                        if (!Array.isArray(json)) {
-                            alert("Invalid backup file format.");
-                            return;
-                        }
+        bind('btn-restore', 'click', restoreData);
 
-                        if (!confirm(`⚠️ RESTORE WARNING\n\nThis will overwrite/add ${json.length} documents.\nExisting documents with the same ID will be replaced.\n\nContinue?`)) return;
-
-                        console.log(`♻️ Restoring ${json.length} items...`);
-                        const batchSize = 500;
-                        let batch = writeBatch(db);
-                        let count = 0;
-
-                        for (const item of json) {
-                            if (!item._id) continue;
-                            const { _id, ...data } = item;
-                            const docRef = doc(db, "kv-store", _id);
-                            batch.set(docRef, data);
-                            count++;
-
-                            if (count % batchSize === 0) {
-                                await batch.commit();
-                                batch = writeBatch(db);
-                                console.log(`📦 Restored ${count} items...`);
-                            }
-                        }
-                        
-                        if (count % batchSize !== 0) await batch.commit();
-                        
-                        console.log("✅ Restore complete.");
-                        alert(`Successfully restored ${count} documents.`);
-                        fetchRealData();
-
-                    } catch (err) {
-                        console.error("Restore failed", err);
-                        alert("Error parsing backup file: " + err.message);
-                    }
-                };
-                reader.readAsText(file);
-            };
-            input.click();
-        });
 
         // JSON Modal Close
         bind('btn-close-json', 'click', () => {
@@ -1137,84 +830,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
 
         // Delete by Tag Tool (Available in Production & Dev)
-        bind('btn-delete-by-tag', 'click', async () => {
-            const tag = prompt("Enter the tag to delete documents by:");
-            if (!tag) return;
+        bind('btn-delete-by-tag', 'click', deleteByTag);
 
-            const colRef = collection(db, "kv-store");
-            const q = query(colRef, where("user_tags", "array-contains", tag));
-            
-            try {
-                const snap = await getDocs(q);
-                if (snap.empty) {
-                    alert(`No documents found with tag "${tag}".`);
-                    return;
-                }
-
-                if (!confirm(`⚠️ WARNING: This will delete ${snap.size} documents with tag "${tag}".\n\nAre you sure?`)) return;
-
-                console.log(`🗑️ Deleting ${snap.size} items with tag "${tag}"...`);
-                const batchSize = 500;
-                let batch = writeBatch(db);
-                let count = 0;
-
-                for (const docSnap of snap.docs) {
-                    batch.delete(docSnap.ref);
-                    count++;
-                    if (count % batchSize === 0) {
-                        await batch.commit();
-                        batch = writeBatch(db);
-                    }
-                }
-                if (count % batchSize !== 0) await batch.commit();
-
-                console.log("✅ Deletion complete.");
-                alert(`Successfully deleted ${count} documents.`);
-                fetchRealData();
-            } catch (e) {
-                console.error("Delete by tag failed:", e);
-                alert("Error: " + e.message);
-            }
-        });
 
         if (isLocal) {
             bind('btn-inject', 'click', () => import(`./seed.js?t=${Date.now()}`).then(m => m.seedData(db)));
             bind('btn-inject-core', 'click', () => import(`./seed.js?t=${Date.now()}`).then(m => m.seedCoreData(db)));
 
-            bind('btn-delete', 'click', async () => {
-                if (!confirm("Really delete all documents?")) return;
-
-                const colRef = collection(db, "kv-store");
-                const snap = await getDocs(colRef);
-
-                if (snap.empty) {
-                    alert("Nothing to delete.");
-                    return;
-                }
-
-                console.log(`🗑️ Starting batch deletion of ${snap.size} documents...`);
-
-                let count = 0;
-                let batch = writeBatch(db);
-
-                for (const docSnap of snap.docs) {
-                    batch.delete(docSnap.ref);
-                    count++;
-
-                    if (count % 500 === 0) {
-                        await batch.commit();
-                        batch = writeBatch(db);
-                        console.log(`📦 Progress: ${count} deleted.`);
-                    }
-                }
-
-                if (count % 500 !== 0) {
-                    await batch.commit();
-                }
-
-                console.log("✅ All documents removed.");
-                fetchRealData(); // UI aktualisieren
-            });
+            bind('btn-delete', 'click', deleteAllDocuments);
         } else {
             const btnInject = document.getElementById('btn-inject');
             if (btnInject) btnInject.style.display = 'none';
@@ -1599,6 +1222,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         let currentTags = []; 
         let currentWhitelists = { read: [], update: [], delete: [], execute: [] };
         let currentSystemInfo = {};
+        let originalDocData = null;
 
         function openUpdateModal(key, value, label, cardElement, isNew = false) {
             if (!updateModal) return;
@@ -1619,6 +1243,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             currentWhitelists = { read: [], update: [], delete: [], execute: [] }; 
             currentOwner = "";
             currentSystemInfo = {};
+            originalDocData = null;
 
             if (isNew) {
                 // Defaults for New Card (Initialize here so they show up in "Prepare Tags")
@@ -1641,6 +1266,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             getDoc(doc(db, "kv-store", key)).then(snap => {
                 if (snap.exists()) {
                     const d = snap.data();
+                    originalDocData = d;
                     currentLabel = d.label || ""; 
                     currentTags = d.user_tags || [];
                     currentOwner = d.owner || "";
@@ -2442,6 +2068,12 @@ document.addEventListener("DOMContentLoaded", async () => {
             saveActionBtn.addEventListener('click', async () => {
             const key = currentUpdateKey;
             const newValue = updateEditor.value;
+
+            if (currentIsNew && (!newValue || newValue.trim() === "")) {
+                alert("Request rejected: This is a Key-Value Store - If there is no value given your request is rejected - please provide a value.");
+                return;
+            }
+
             const btn = document.getElementById('btn-create-update');
             const originalText = btn.textContent;
 
@@ -2543,7 +2175,36 @@ document.addEventListener("DOMContentLoaded", async () => {
                         inputData.last_update_ts = new Date().toISOString();
                     }
 
-                    const payload = buildFirestoreCreatePayload(inputData);
+                    // --- OPTIMIZATION: Send only changed fields for Updates ---
+                    let payloadData = inputData;
+                    
+                    if (!isNew && originalDocData) {
+                        payloadData = { key: key }; // Key is strictly required
+                        
+                        Object.keys(inputData).forEach(k => {
+                            if (k === 'key') return;
+                            const newVal = inputData[k];
+                            const oldVal = originalDocData[k];
+                            
+                            let isChanged = false;
+                            
+                            if (Array.isArray(newVal)) {
+                                // Compare Arrays (Set-like: Sort + Stringify)
+                                const n = [...newVal].sort();
+                                const o = Array.isArray(oldVal) ? [...oldVal].sort() : [];
+                                if (JSON.stringify(n) !== JSON.stringify(o)) isChanged = true;
+                            } else if (oldVal && typeof oldVal === 'object' && oldVal.toDate) {
+                                // Compare Timestamp vs String
+                                if (newVal !== oldVal.toDate().toISOString()) isChanged = true;
+                            } else {
+                                if (newVal !== oldVal) isChanged = true;
+                            }
+                            
+                            if (isChanged) payloadData[k] = newVal;
+                        });
+                    }
+
+                    const payload = buildFirestoreCreatePayload(payloadData);
                     payload.action = action;
 
                     const response = await fetch("https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977", {
