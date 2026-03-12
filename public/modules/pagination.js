@@ -3,6 +3,7 @@ import { db, auth } from './firebase.js';
 import { collection, query, limit, getDocs, getCountFromServer, orderBy, startAfter, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { renderDataFromDocs } from './ui.js';
 import { detectMimetype } from './mime.js';
+import { matchSystemTag, SYSTEM_TAG_PREFIXES } from './system-tags.js';
 
 // ---------- Zustand ----------
 export let currentPage = 1;
@@ -121,80 +122,6 @@ export function applyLayout(val, initialLoad = false, skipFetch = false) {
     }
 }
 
-// Helper: System Tag Matching (repliziert die Logik aus tagscanner.js)
-function matchSystemTag(d, searchTag) {
-    const parts = searchTag.split(': ');
-    if (parts.length < 2) return false;
-    const key = parts[0];
-    const value = parts.slice(1).join(': ');
-
-    // 1. Zähler (Reads, Updates, Executes)
-    const checkCounter = (field) => {
-        const v = d[field] || 0;
-        if (value === 'Never') return v === 0;
-        if (value === 'Rarely') return v > 0 && v < 10;
-        if (value === 'Mean') return v >= 10 && v < 50;
-        if (value === 'Top 5') return v >= 50;
-        return false;
-    };
-
-    if (key === 'Reads') return checkCounter('reads');
-    if (key === 'Updates') return checkCounter('updates');
-    if (key === 'Executes') return checkCounter('executes');
-
-    // 2. Größe (Size)
-    if (key === 'Size') {
-        if (!d.size) return false;
-        let bytes = 0;
-        const match = d.size.match(/([\d.]+)\s*([a-zA-Z]+)/);
-        if (match) {
-            const num = parseFloat(match[1]);
-            const unit = match[2].toUpperCase();
-            if (unit === 'KB') bytes = num * 1024;
-            else if (unit === 'MB') bytes = num * 1024 * 1024;
-            else if (unit === 'GB') bytes = num * 1024 * 1024 * 1024;
-            else bytes = num;
-        }
-        if (value === 'Small') return bytes < 1024; // < 1KB
-        if (value === 'Medium') return bytes >= 1024 && bytes < 500 * 1024;
-        if (value === 'Large') return bytes >= 500 * 1024 && bytes < 10 * 1024 * 1024;
-        if (value === 'Huge') return bytes >= 10 * 1024 * 1024;
-        return false;
-    }
-
-    // 3. Zeitstempel
-    const checkTime = (field) => {
-        if (!d[field]) return value === 'Beyond this Year' || value === 'Unknown';
-        const date = new Date(d[field]);
-        if (isNaN(date.getTime())) return value === 'Beyond this Year' || value === 'Unknown';
-        
-        const now = new Date();
-        const diffMs = now - date;
-        const diffDays = diffMs / (1000 * 60 * 60 * 24);
-        
-        let label = '';
-        if (diffMs < 3600 * 1000) label = 'Last Hour';
-        else if (now.toDateString() === date.toDateString()) label = 'Today';
-        else {
-            const yesterday = new Date(now);
-            yesterday.setDate(yesterday.getDate() - 1);
-            if (yesterday.toDateString() === date.toDateString()) label = 'Yesterday';
-            else if (diffDays <= 30) label = 'Last Month';
-            else if (diffDays <= 90) label = 'Last 3 Months';
-            else if (date.getFullYear() === now.getFullYear()) label = 'This Year';
-            else label = 'Beyond this Year';
-        }
-        return value === label;
-    };
-
-    if (key === 'Created') return checkTime('created_at');
-    if (key === 'Read') return checkTime('last_read_ts');
-    if (key === 'Updated') return checkTime('last_update_ts');
-    if (key === 'Executed') return checkTime('last_execute_ts');
-
-    return false;
-}
-
 // ---------- Daten laden (aktuelle Seite) ----------
 export async function fetchRealData(resetPage = false) {
     const container = document.getElementById('data-container');
@@ -206,8 +133,7 @@ export async function fetchRealData(resetPage = false) {
     const isTagSearch = searchTerm && searchTerm.startsWith('tag:');
     const isMimeSearch = searchTerm && searchTerm.startsWith('mime:');
     
-    const systemTagPrefixes = ['Reads:', 'Updates:', 'Executes:', 'Size:', 'Created:', 'Read:', 'Updated:', 'Executed:'];
-    const isSystemTagSearch = isTagSearch && systemTagPrefixes.some(prefix => searchTerm.substring(4).startsWith(prefix));
+    const isSystemTagSearch = isTagSearch && SYSTEM_TAG_PREFIXES.some(prefix => searchTerm.substring(4).startsWith(prefix));
     
     const needsClientSideFiltering = (user && !filterOwnerOnly && isTagSearch) || isMimeSearch || isSystemTagSearch;
 

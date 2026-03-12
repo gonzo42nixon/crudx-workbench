@@ -3,6 +3,7 @@ import { fetchRealData, getAccessTokens, applyLayout } from './pagination.js';
 import { detectMimetype, getMimeInfo } from './mime.js';
 import { auth, db } from './firebase.js';
 import { getTagSector, setManualTagState, getTagRules, setTagRules } from './tag-state.js';
+import { generateSystemTags, SYSTEM_TAG_PREFIXES } from './system-tags.js';
 
 let dockState = 3; // 3: bottom-right, 2: center, 1: left, 0: floating
 let dockCycleDirection = 'forward'; // 'forward' or 'backward'
@@ -605,77 +606,6 @@ function initGroupRulesEvents() {
     });
 }
 
-// Helper: Generiert abstrakte System-Tags (Klassen statt Rohwerte)
-function generateAbstractSystemTags(d, addTagFn, id) {
-    // 1. Zähler (Reads, Updates, Executes) -> Small (<10), Medium (<100), Large (>=100)
-    const getCounterClass = (val) => {
-        const v = val || 0;
-        if (v === 0) return 'Never';
-        if (v < 10) return 'Rarely';
-        if (v < 50) return 'Mean';
-        return 'Top 5';
-    };
-    
-    // Instantiierung erzwingen (Default auf 0/Small)
-    addTagFn(`Reads: ${getCounterClass(d.reads || 0)}`, id, d);
-    addTagFn(`Updates: ${getCounterClass(d.updates || 0)}`, id, d);
-    addTagFn(`Executes: ${getCounterClass(d.executes || 0)}`, id, d);
-
-    // 2. Größe (Size) -> Small (<10KB), Medium (<1MB), Large (>=1MB)
-    let bytes = 0;
-    if (d.size) {
-        const match = d.size.match(/([\d.]+)\s*([a-zA-Z]+)/);
-        if (match) {
-            const num = parseFloat(match[1]);
-            const unit = match[2].toUpperCase();
-            if (unit === 'KB') bytes = num * 1024;
-            else if (unit === 'MB') bytes = num * 1024 * 1024;
-            else if (unit === 'GB') bytes = num * 1024 * 1024 * 1024;
-            else bytes = num;
-        }
-    }
-    let sizeClass = 'Small';
-    if (bytes >= 10 * 1024 * 1024) sizeClass = 'Huge'; // > 10 MB
-    else if (bytes >= 500 * 1024) sizeClass = 'Large'; // > 500 KB
-    else if (bytes >= 1024) sizeClass = 'Medium'; // > few Bytes
-    
-    addTagFn(`Size: ${sizeClass}`, id, d);
-
-    // 3. Zeitstempel -> Relative Klassen
-    const getTimeClass = (prefix, ts) => {
-        let label = 'Beyond this Year'; // Default fallback
-        if (ts) {
-            const date = new Date(ts);
-            if (!isNaN(date.getTime())) {
-                const now = new Date();
-                const diffMs = now - date;
-                const diffDays = diffMs / (1000 * 60 * 60 * 24);
-                
-                if (diffMs < 3600 * 1000) label = 'Last Hour';
-                else if (now.toDateString() === date.toDateString()) label = 'Today';
-                else {
-                    const yesterday = new Date(now);
-                    yesterday.setDate(yesterday.getDate() - 1);
-                    if (yesterday.toDateString() === date.toDateString()) label = 'Yesterday';
-                    else if (diffDays <= 30) label = 'Last Month';
-                    else if (diffDays <= 90) label = 'Last 3 Months';
-                    else if (date.getFullYear() === now.getFullYear()) label = 'This Year';
-                    else label = 'Beyond this Year';
-                }
-            }
-        }
-        // Bei Create wollen wir immer einen Tag, auch wenn kein Datum da ist (Fallback)
-        if (prefix === 'Created' && !ts) label = 'Unknown'; 
-        
-        if (label) addTagFn(`${prefix}: ${label}`, id, d);
-    };
-
-    getTimeClass('Created', d.created_at);
-    getTimeClass('Read', d.last_read_ts);
-    getTimeClass('Updated', d.last_update_ts);
-    getTimeClass('Executed', d.last_execute_ts);
-}
-
 async function scanAndRenderTags(db, contentContainer, force = false) {
     const isLeftDocked = dockState === 1;
 
@@ -760,7 +690,7 @@ async function scanAndRenderTags(db, contentContainer, force = false) {
                 if (!docsByTag.has(tag)) docsByTag.set(tag, []);
                 docsByTag.get(tag).push({ id: id, ...d });
             };
-            generateAbstractSystemTags(d, addSysTag, id);
+            generateSystemTags(d, addSysTag, id);
         };
 
         if (force || !cachedQuerySnapshot) {
@@ -896,8 +826,7 @@ async function scanAndRenderTags(db, contentContainer, force = false) {
             if (tag.startsWith('mime:')) targetSector = 'cloud';
             
             // FORCE GENERATED SYSTEM TAGS TO CLOUD (Right of Mime)
-            const systemPrefixes = ['Created:', 'Read:', 'Reads:', 'Updated:', 'Updates:', 'Size:', 'Executed:', 'Executes:'];
-            if (systemPrefixes.some(p => tag.startsWith(p))) targetSector = 'cloud';
+            if (SYSTEM_TAG_PREFIXES.some(p => tag.startsWith(p))) targetSector = 'cloud';
 
             if (targetSector === 'folder' && folderContent) {
                 if (isLeftDocked) {
@@ -1311,8 +1240,7 @@ function createTagPill(tag, count, contentContainer) {
         }
 
         // Check if it's actually one of our known system tags, otherwise fallback to generic sys
-        const knownPrefixes = ['Created:', 'Read:', 'Reads:', 'Updated:', 'Updates:', 'Size:', 'Executed:', 'Executes:'];
-        if (knownPrefixes.some(p => tag.startsWith(p))) {
+        if (SYSTEM_TAG_PREFIXES.some(p => tag.startsWith(p))) {
             item.className = `pill ${sysClass}`;
             item.style.opacity = opacity;
         } else {
