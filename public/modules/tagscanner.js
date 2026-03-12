@@ -4,9 +4,11 @@ import { detectMimetype, getMimeInfo } from './mime.js';
 import { auth, db } from './firebase.js';
 import { getTagSector, setManualTagState, getTagRules, setTagRules } from './tag-state.js';
 
-let dockState = 3; // 3: bottom-right, 2: center, 1: left
+let dockState = 3; // 3: bottom-right, 2: center, 1: left, 0: floating
 let dockCycleDirection = 'forward'; // 'forward' or 'backward'
 let isFolderTreeMode = true; // Default: Tree View
+let isMaximized = false;
+let preMaximizedState = {};
 let cachedQuerySnapshot = null; // Cache für Firestore-Daten
 
 function updateSectorsForDockState(container) {
@@ -37,7 +39,10 @@ function updateSectorsForDockState(container) {
             setDisplay(cloud, true);
             break;
         default: // 0: Floating
-            // Floating state removed, this case is obsolete.
+            setDisplay(folder, true);
+            setDisplay(hidden, true);
+            setDisplay(cloud, true);
+            break;
     }
 }
 
@@ -111,6 +116,7 @@ function dockTagCloudCenter(container) {
     // Apply styles for centered mode
     container.style.width = window.innerWidth < 1000 ? '95vw' : '60vw';
     container.style.height = window.innerHeight < 800 ? '95vh' : '70vh';
+    container.style.maxWidth = '100vw';
     container.style.top = '50%';
     container.style.left = '50%';
     container.style.transform = 'translate(-50%, -50%)';
@@ -152,6 +158,205 @@ function dockTagCloudBottomRight(container) {
     dockState = 3;
 
     if (window.currentDbInstance) refreshTagCloud(window.currentDbInstance);
+}
+
+function setupFloatingDrag(container) {
+    const handle = container.querySelector('.modal-header');
+    if (!handle) return;
+
+    let isDragging = false;
+    let hasMoved = false;
+    const dragThreshold = 5; // pixels
+    let startX, startY;
+    let offsetX, offsetY;
+
+    handle.addEventListener('mousedown', (e) => {
+        // Ignore clicks on buttons inside the header
+        if (e.target.closest('span')) {
+            return;
+        }
+        e.preventDefault();
+        isDragging = true;
+        hasMoved = false;
+
+        startX = e.clientX;
+        startY = e.clientY;
+
+        const rect = container.getBoundingClientRect();
+        offsetX = e.clientX - rect.left;
+        offsetY = e.clientY - rect.top;
+        
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    });
+
+    // --- Double-click to Maximize ---
+    handle.addEventListener('dblclick', (e) => {
+        // Ignore clicks on buttons
+        if (e.target.closest('span')) {
+            return;
+        }
+        e.preventDefault();
+
+        if (!isMaximized) {
+            // Save current state
+            const rect = container.getBoundingClientRect();
+            preMaximizedState = {
+                top: rect.top,
+                left: rect.left,
+                width: rect.width,
+                height: rect.height,
+                maxWidth: container.style.maxWidth || '100vw',
+                maxHeight: container.style.maxHeight || 'none'
+            };
+
+            // Apply maximized styles
+            container.style.transition = 'all 0.3s ease';
+            container.style.top = '2.5vh';
+            container.style.left = '2.5vw';
+            container.style.width = '95vw';
+            container.style.height = '95vh';
+            container.style.maxWidth = '100vw'; // WICHTIG: Begrenzungen aufheben
+            container.style.maxHeight = '100vh'; // WICHTIG: Begrenzungen aufheben
+            container.style.resize = 'none';
+
+            isMaximized = true;
+            setTimeout(() => container.style.transition = '', 300);
+        } else {
+            // Restore previous state
+            container.style.transition = 'all 0.3s ease';
+            container.style.top = `${preMaximizedState.top}px`;
+            container.style.left = `${preMaximizedState.left}px`;
+            container.style.width = `${preMaximizedState.width}px`;
+            container.style.height = `${preMaximizedState.height}px`;
+            container.style.maxWidth = preMaximizedState.maxWidth;
+            container.style.maxHeight = preMaximizedState.maxHeight;
+            container.style.resize = 'both';
+
+            isMaximized = false;
+            setTimeout(() => container.style.transition = '', 300);
+        }
+    });
+
+    function onMouseMove(e) {
+        if (!isDragging) return;
+
+        // SICHERHEITS-CHECK: Wenn keine Maustaste gedrückt ist, Drag sofort stoppen!
+        if (e.buttons === 0) {
+            onMouseUp();
+            return;
+        }
+
+        if (!hasMoved && (Math.abs(e.clientX - startX) > dragThreshold || Math.abs(e.clientY - startY) > dragThreshold)) {
+            hasMoved = true;
+
+            // If we start dragging from a maximized state, just un-flag it and allow resize.
+            if (isMaximized) {
+                isMaximized = false;
+                container.style.resize = 'both';
+            }
+
+            // --- Transition to Floating State (only on first move) ---
+            if (dockState !== 0) {
+                dockState = 0; // Set to floating
+                container.classList.remove('docked', 'docked-center', 'docked-bottom-right', 'snapped-right');
+                document.body.classList.remove('ftc-docked');
+                const rect = container.getBoundingClientRect();
+                container.style.top = `${rect.top}px`;
+                container.style.left = `${rect.left}px`;
+                container.style.width = `${rect.width}px`;
+                container.style.height = `${rect.height}px`;
+                container.style.maxWidth = '100vw';
+                container.style.maxHeight = '100vh'; // WICHTIG: 50vh Limit entfernen beim Loslösen
+                container.style.transform = '';
+                container.style.bottom = 'auto';
+                container.style.right = 'auto';
+                container.style.resize = 'both';
+                updateSectorsForDockState(container);
+            }
+        }
+
+        if (hasMoved) {
+            container.style.left = `${e.clientX - offsetX}px`;
+            container.style.top = `${e.clientY - offsetY}px`;
+        }
+    }
+
+    function onMouseUp() {
+        isDragging = false;
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+    }
+}
+
+function setupCustomResize(container) {
+    const leftHandle = document.createElement('div');
+    leftHandle.className = 'resize-handle resize-handle-left';
+    container.appendChild(leftHandle);
+
+    const rightHandle = document.createElement('div');
+    rightHandle.className = 'resize-handle resize-handle-right';
+    container.appendChild(rightHandle);
+
+    let isResizing = false;
+    let startX, startWidth, startLeft;
+    let activeHandle = null;
+
+    const onMouseDown = (e, handle) => {
+        e.preventDefault();
+        e.stopPropagation();
+        isResizing = true;
+        activeHandle = handle;
+        startX = e.clientX;
+        const rect = container.getBoundingClientRect();
+        startWidth = rect.width;
+        startLeft = rect.left;
+        document.body.style.cursor = 'ew-resize';
+        container.style.transition = 'none'; // Disable transitions during resize for smoothness
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    };
+
+    leftHandle.addEventListener('mousedown', (e) => onMouseDown(e, 'left'));
+    rightHandle.addEventListener('mousedown', (e) => onMouseDown(e, 'right'));
+
+    const onMouseMove = (e) => {
+        if (!isResizing) return;
+        const dx = e.clientX - startX;
+
+        if (activeHandle === 'right') {
+            container.style.width = `${startWidth + dx}px`;
+        } else if (activeHandle === 'left') {
+            container.style.width = `${startWidth - dx}px`;
+            container.style.left = `${startLeft + dx}px`;
+        }
+    };
+
+    const onMouseUp = () => {
+        isResizing = false;
+        activeHandle = null;
+        document.body.style.cursor = '';
+        container.style.transition = ''; // Re-enable transitions
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+    };
+
+    const checkProximity = () => {
+        if (dockState !== 0) { // Only for floating mode
+            leftHandle.style.display = 'none';
+            rightHandle.style.display = 'none';
+            return;
+        }
+        
+        // Always show both handles when floating for maximum resizing flexibility
+        leftHandle.style.display = 'block';
+        rightHandle.style.display = 'block';
+    };
+
+    const observer = new MutationObserver(checkProximity);
+    observer.observe(container, { attributes: true, attributeFilter: ['style', 'class'] });
+    window.addEventListener('resize', checkProximity);
+    checkProximity();
 }
 
 // Helper: Baut eine verschachtelte Struktur aus Tags mit ">"
@@ -400,6 +605,77 @@ function initGroupRulesEvents() {
     });
 }
 
+// Helper: Generiert abstrakte System-Tags (Klassen statt Rohwerte)
+function generateAbstractSystemTags(d, addTagFn, id) {
+    // 1. Zähler (Reads, Updates, Executes) -> Small (<10), Medium (<100), Large (>=100)
+    const getCounterClass = (val) => {
+        const v = val || 0;
+        if (v === 0) return 'Never';
+        if (v < 10) return 'Rarely';
+        if (v < 50) return 'Mean';
+        return 'Top 5';
+    };
+    
+    // Instantiierung erzwingen (Default auf 0/Small)
+    addTagFn(`Reads: ${getCounterClass(d.reads || 0)}`, id, d);
+    addTagFn(`Updates: ${getCounterClass(d.updates || 0)}`, id, d);
+    addTagFn(`Executes: ${getCounterClass(d.executes || 0)}`, id, d);
+
+    // 2. Größe (Size) -> Small (<10KB), Medium (<1MB), Large (>=1MB)
+    let bytes = 0;
+    if (d.size) {
+        const match = d.size.match(/([\d.]+)\s*([a-zA-Z]+)/);
+        if (match) {
+            const num = parseFloat(match[1]);
+            const unit = match[2].toUpperCase();
+            if (unit === 'KB') bytes = num * 1024;
+            else if (unit === 'MB') bytes = num * 1024 * 1024;
+            else if (unit === 'GB') bytes = num * 1024 * 1024 * 1024;
+            else bytes = num;
+        }
+    }
+    let sizeClass = 'Small';
+    if (bytes >= 10 * 1024 * 1024) sizeClass = 'Huge'; // > 10 MB
+    else if (bytes >= 500 * 1024) sizeClass = 'Large'; // > 500 KB
+    else if (bytes >= 1024) sizeClass = 'Medium'; // > few Bytes
+    
+    addTagFn(`Size: ${sizeClass}`, id, d);
+
+    // 3. Zeitstempel -> Relative Klassen
+    const getTimeClass = (prefix, ts) => {
+        let label = 'Beyond this Year'; // Default fallback
+        if (ts) {
+            const date = new Date(ts);
+            if (!isNaN(date.getTime())) {
+                const now = new Date();
+                const diffMs = now - date;
+                const diffDays = diffMs / (1000 * 60 * 60 * 24);
+                
+                if (diffMs < 3600 * 1000) label = 'Last Hour';
+                else if (now.toDateString() === date.toDateString()) label = 'Today';
+                else {
+                    const yesterday = new Date(now);
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    if (yesterday.toDateString() === date.toDateString()) label = 'Yesterday';
+                    else if (diffDays <= 30) label = 'Last Month';
+                    else if (diffDays <= 90) label = 'Last 3 Months';
+                    else if (date.getFullYear() === now.getFullYear()) label = 'This Year';
+                    else label = 'Beyond this Year';
+                }
+            }
+        }
+        // Bei Create wollen wir immer einen Tag, auch wenn kein Datum da ist (Fallback)
+        if (prefix === 'Created' && !ts) label = 'Unknown'; 
+        
+        if (label) addTagFn(`${prefix}: ${label}`, id, d);
+    };
+
+    getTimeClass('Created', d.created_at);
+    getTimeClass('Read', d.last_read_ts);
+    getTimeClass('Updated', d.last_update_ts);
+    getTimeClass('Executed', d.last_execute_ts);
+}
+
 async function scanAndRenderTags(db, contentContainer, force = false) {
     const isLeftDocked = dockState === 1;
 
@@ -477,6 +753,14 @@ async function scanAndRenderTags(db, contentContainer, force = false) {
                     docsByTag.get(tag).push({ id: id, ...d });
                 }
             }
+
+            // NEU: Abstrakte System-Pills injizieren
+            const addSysTag = (tag, id, d) => {
+                tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
+                if (!docsByTag.has(tag)) docsByTag.set(tag, []);
+                docsByTag.get(tag).push({ id: id, ...d });
+            };
+            generateAbstractSystemTags(d, addSysTag, id);
         };
 
         if (force || !cachedQuerySnapshot) {
@@ -487,7 +771,90 @@ async function scanAndRenderTags(db, contentContainer, force = false) {
             processDoc(doc.data(), doc.id);
         });
 
-        const sortedTags = Array.from(tagCounts.entries()).sort((a, b) => a[0].localeCompare(b[0], 'de', { sensitivity: 'base', numeric: true }));
+        // --- CUSTOM SORTING LOGIC ---
+        const systemTagOrder = {
+            // C - Create (10-19)
+            'Created: Last Hour': 10,
+            'Created: Today': 11,
+            'Created: Yesterday': 12,
+            'Created: Last Month': 13,
+            'Created: Last 3 Months': 14,
+            'Created: This Year': 15,
+            'Created: Beyond this Year': 16,
+            'Created: Unknown': 17,
+
+            // R - Read (20-29)
+            'Read: Last Hour': 20,
+            'Read: Today': 21,
+            'Read: Yesterday': 22,
+            'Read: Last Month': 23,
+            'Read: Last 3 Months': 24,
+            'Read: This Year': 25,
+            'Read: Beyond this Year': 26,
+            'Reads: Top 5': 27,
+            'Reads: Mean': 28,
+            'Reads: Rarely': 29,
+            'Reads: Never': 29.5,
+
+            // U - Update (30-49)
+            'Updated: Last Hour': 30,
+            'Updated: Today': 31,
+            'Updated: Yesterday': 32,
+            'Updated: Last Month': 33,
+            'Updated: Last 3 Months': 34,
+            'Updated: This Year': 35,
+            'Updated: Beyond this Year': 36,
+            'Updates: Top 5': 37,
+            'Updates: Mean': 38,
+            'Updates: Rarely': 39,
+            'Updates: Never': 39.5,
+
+            // Size (40-49)
+            'Size: Huge': 40,
+            'Size: Large': 41,
+            'Size: Medium': 42,
+            'Size: Small': 43,
+            // Size (2-9) - Zwischen MIME (1) und Create (10)
+            'Size: Huge': 2,
+            'Size: Large': 3,
+            'Size: Medium': 4,
+            'Size: Small': 5,
+
+            // X - Execute (50-59)
+            'Executed: Last Hour': 50,
+            'Executed: Today': 51,
+            'Executed: Yesterday': 52,
+            'Executed: Last Month': 53,
+            'Executed: Last 3 Months': 54,
+            'Executed: This Year': 55,
+            'Executed: Beyond this Year': 56,
+            'Executes: Top 5': 57,
+            'Executes: Mean': 58,
+            'Executes: Rarely': 59,
+            'Executes: Never': 59.5
+        };
+
+        const getSortPriority = (tag) => {
+            // System tags have a defined order from 10 upwards
+            if (systemTagOrder[tag]) {
+                return systemTagOrder[tag];
+            }
+            // Mime types come after user tags
+            if (tag.startsWith('mime:')) {
+                return 1;
+            }
+            // User tags are the top priority
+            return 0;
+        };
+
+        const sortedTags = Array.from(tagCounts.entries()).sort((a, b) => {
+            const prioA = getSortPriority(a[0]);
+            const prioB = getSortPriority(b[0]);
+            
+            if (prioA !== prioB) return prioA - prioB;
+            
+            return a[0].localeCompare(b[0], 'de', { sensitivity: 'base', numeric: true });
+        });
         
         // Sektoren leeren, bevor sie neu befüllt werden
         const sectors = contentContainer.querySelectorAll('.sector-content');
@@ -500,6 +867,7 @@ async function scanAndRenderTags(db, contentContainer, force = false) {
         const folderContent = contentContainer.querySelector('.sector-folder .sector-content');
         const hiddenContent = contentContainer.querySelector('.sector-hidden .sector-content');
         const cloudContent = contentContainer.querySelector('.sector-cloud .sector-content');
+
 
         if (sortedTags.length === 0) {
             const noTags = document.createElement('div');
@@ -515,12 +883,21 @@ async function scanAndRenderTags(db, contentContainer, force = false) {
         const hiddenGroupRules = getHiddenGroupRules();
         const folderGroupRules = getFolderGroupRules();
 
+        let lastPrio = -1; // For line break logic
+
         // --- DOCKED MODE: PREPARE DOCUMENT TREE ---
         let firstDocId = null;
 
         sortedTags.forEach(([tag, count]) => {
             // State laden
-            const targetSector = getTagSector(tag);
+            let targetSector = getTagSector(tag);
+
+            // FORCE MIME TO CLOUD: Mime types are essential navigation, not hidden metadata
+            if (tag.startsWith('mime:')) targetSector = 'cloud';
+            
+            // FORCE GENERATED SYSTEM TAGS TO CLOUD (Right of Mime)
+            const systemPrefixes = ['Created:', 'Read:', 'Reads:', 'Updated:', 'Updates:', 'Size:', 'Executed:', 'Executes:'];
+            if (systemPrefixes.some(p => tag.startsWith(p))) targetSector = 'cloud';
 
             if (targetSector === 'folder' && folderContent) {
                 if (isLeftDocked) {
@@ -565,8 +942,34 @@ async function scanAndRenderTags(db, contentContainer, force = false) {
             }
             else if (targetSector === 'cloud' && cloudContent) {
                 if (isLeftDocked) return;
+
+                const currentPrio = getSortPriority(tag);
+
+                // Check if a line break should be inserted before this pill
+                const getBreakMargin = (pA, pB) => {
+                    // Reduced margin breaks for counter groups
+                    if ((pA <= 26 && pB >= 27) || (pA <= 36 && pB >= 37) || (pA <= 56 && pB >= 57)) {
+                        return '1px 0';
+                    }
+                    // Normal margin breaks for main groups
+                    if ((pA < 1 && pB >= 1) || (pA < 2 && pB >= 2) || (pA < 10 && pB >= 10) || (pA < 20 && pB >= 20) || (pA < 30 && pB >= 30) || (pA < 50 && pB >= 50)) {
+                        return '3px 0';
+                    }
+                    return null;
+                };
+
+                const breakMargin = lastPrio !== -1 ? getBreakMargin(lastPrio, currentPrio) : null;
+                if (breakMargin) {
+                    const br = document.createElement('div');
+                    br.style.flexBasis = '100%';
+                    br.style.height = '0';
+                    br.style.margin = breakMargin;
+                    cloudContent.appendChild(br);
+                }
+
                 const item = createTagPill(tag, count, contentContainer);
                 cloudContent.appendChild(item);
+                lastPrio = currentPrio;
             }
         });
 
@@ -818,10 +1221,109 @@ async function scanAndRenderTags(db, contentContainer, force = false) {
 function createTagPill(tag, count, contentContainer) {
     const isMime = tag.startsWith('mime:');
     const displayTag = isMime ? tag.substring(5) : tag;
-
+    
     const item = document.createElement('div');
-    item.className = isMime ? 'pill pill-mime' : 'pill pill-user';
+    let tooltip = ''; // Tooltip-Variable
+
+    if (isMime) {
+        item.className = 'pill pill-mime';
+        tooltip = 'Media/Message/Code Type';
+    } else if (tag.includes(':')) {
+        // Determine System Class & Opacity
+        let sysClass = 'pill-sys';
+        let opacity = 1.0;
+
+        // NEW: Granular Opacity Mapping for Timestamps
+        const timeOpacityMap = {
+            'Last Hour': 0.9,
+            'Today': 0.8,
+            'Yesterday': 0.7,
+            'Last Month': 0.6,
+            'Last 3 Months': 0.5,
+            'This Year': 0.4,
+            'Beyond this Year': 0.3,
+            'Unknown': 0.3
+        };
+
+        const counterOpacityMap = {
+            'Top 5': 1.0,
+            'Mean': 0.8,
+            'Rarely': 0.6,
+            'Never': 0.4
+        };
+
+        const parts = tag.split(': ');
+        if (parts.length > 1) {
+            const category = parts[0];
+            const value = parts.slice(1).join(': ');
+
+            if (timeOpacityMap[value]) {
+                opacity = timeOpacityMap[value];
+            } else if (counterOpacityMap[value] && (category === 'Reads' || category === 'Updates' || category === 'Executes')) {
+                opacity = counterOpacityMap[value];
+            } else if (category === 'Size') {
+                opacity = 1.0; // Size is white, needs to pop
+            }
+        }
+
+        // Color Mapping
+        if (tag.startsWith('Created:')) {
+            sysClass = 'pill-sys-create'; // Blue
+            tooltip = 'Timestamp: Document Creation';
+        }
+        
+        else if (tag.startsWith('Read:')) {
+            sysClass = 'pill-sys-read'; // Green TS
+            tooltip = 'Timestamp: Last Read';
+        }
+        else if (tag.startsWith('Reads:')) {
+            sysClass = 'pill-sys-read'; 
+            item.style.filter = 'brightness(0.6)'; // **Darker Green**
+            tooltip = 'Counter: Read Operations';
+        }
+        
+        else if (tag.startsWith('Updated:')) {
+            sysClass = 'pill-sys-update'; // Orange TS
+            tooltip = 'Timestamp: Last Update';
+        }
+        else if (tag.startsWith('Updates:')) {
+            sysClass = 'pill-sys-update';
+            item.style.filter = 'brightness(0.7) saturate(1.2)'; // **Darker/Richer Orange**
+            tooltip = 'Counter: Update Operations';
+        }
+        
+        else if (tag.startsWith('Size:')) {
+            sysClass = 'pill-sys-size'; // **White** (New Class)
+            tooltip = 'Classification: Document Size';
+        }
+        
+        else if (tag.startsWith('Executed:')) {
+            sysClass = 'pill-sys-execute'; // Black TS
+            tooltip = 'Timestamp: Last Execution';
+        }
+        else if (tag.startsWith('Executes:')) {
+            sysClass = 'pill-sys-execute';
+            item.style.backgroundColor = '#333333'; // **Darker Gray**
+            item.style.borderColor = '#666';
+            tooltip = 'Counter: Execute Operations';
+        } else {
+            tooltip = 'System Tag';
+        }
+
+        // Check if it's actually one of our known system tags, otherwise fallback to generic sys
+        const knownPrefixes = ['Created:', 'Read:', 'Reads:', 'Updated:', 'Updates:', 'Size:', 'Executed:', 'Executes:'];
+        if (knownPrefixes.some(p => tag.startsWith(p))) {
+            item.className = `pill ${sysClass}`;
+            item.style.opacity = opacity;
+        } else {
+            item.className = 'pill pill-sys'; // Generic hidden/system tags
+        }
+    } else {
+        item.className = 'pill pill-user';
+        tooltip = 'User Tag';
+    }
     item.textContent = `${displayTag} (${count})`;
+    item.title = tooltip;
     item.style.cursor = 'pointer';
     item.id = `tag-pill-${tag.replace(/[^a-zA-Z0-9]/g, '-')}`;
     item.dataset.tagName = tag;
@@ -904,6 +1406,8 @@ export function initTagCloud(db) {
     document.body.insertAdjacentHTML('beforeend', cloudHTML);
 
     initGroupRulesEvents();
+    setupFloatingDrag(document.getElementById('tag-cloud-container'));
+    setupCustomResize(document.getElementById('tag-cloud-container'));
 
     const container = document.getElementById('tag-cloud-container');
     const contentContainer = document.getElementById('tag-cloud-content');
@@ -1000,6 +1504,12 @@ export function initTagCloud(db) {
     });
 
     dockBtn.addEventListener('click', () => {
+        // If it was floating, start the cycle from the default position
+        if (dockState === 0) {
+            dockTagCloudBottomRight(container);
+            return;
+        }
+
         // Cycle: Bottom-Right (3) -> Center (2) -> Top-Left (1) -> Center (2) -> ...
         if (dockState === 3) { // is BR
             dockTagCloudCenter(container);

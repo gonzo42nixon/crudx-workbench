@@ -62,12 +62,21 @@
     --user-blur: none;
 
     /* Tags: System */
-    --sys-bg: #ff5252;
+    --sys-bg: #9e9e9e;
     --sys-text: #000000;
-    --sys-border: #333333;
-    --sys-glass: rgba(255, 82, 82, 0.8);
+    --sys-border: #616161;
+    --sys-glass: rgba(158, 158, 158, 0.8);
     --sys-blur: none;
 
+    /* Tags: CRUDX System Colors */
+    --sys-create-bg: #2979ff;
+    --sys-read-bg: #00e676;
+    --sys-update-bg: #ff9100;
+    --sys-delete-bg: #ff1744;
+    --sys-execute-bg: #000000;
+
+    /* Tags: MIME Detection */
+    --mime-bg: #f7df1e;
     /* Tags: MIME Detection */
     --mime-bg: #f7df1e;
     --mime-text: #000000;
@@ -682,6 +691,36 @@ body.ftc-docked.layout-grid-1 .card-kv[data-mime="MD"] .tl-group {
     color: var(--sys-text) !important;
     border-color: var(--sys-border) !important;
     font-size: 0.65em;
+}
+.pill-sys-create {
+    background-color: var(--sys-create-bg) !important;
+    color: #ffffff !important;
+    border-color: rgba(255,255,255,0.3) !important;
+}
+.pill-sys-read {
+    background-color: var(--sys-read-bg) !important;
+    color: #000000 !important;
+    border-color: rgba(0,0,0,0.2) !important;
+}
+.pill-sys-update {
+    background-color: var(--sys-update-bg) !important;
+    color: #000000 !important;
+    border-color: rgba(0,0,0,0.2) !important;
+}
+.pill-sys-delete {
+    background-color: var(--sys-delete-bg) !important;
+    color: #ffffff !important;
+    border-color: rgba(255,255,255,0.3) !important;
+}
+.pill-sys-execute {
+    background-color: var(--sys-execute-bg) !important;
+    color: #ffffff !important;
+    border-color: rgba(255,255,255,0.3) !important;
+}
+.pill-sys-size {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    border-color: rgba(255,255,255,0.5) !important;
 }
 .pill-mime {
     /* Die Farben werden direkt per inline-style von detectMimetype gesetzt */
@@ -1439,7 +1478,7 @@ body.ftc-docked.layout-grid-1 .card-kv[data-mime="MD"] .tl-group {
     bottom: 20px;
     right: 20px;
     width: 380px; /* Wider to prevent wrapping */
-    max-width: 90vw;
+    max-width: 100vw;
     z-index: 2500;
     display: none; /* Hidden by default */
     
