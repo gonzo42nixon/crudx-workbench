@@ -1,8 +1,9 @@
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { fetchRealData, getAccessTokens, applyLayout } from './pagination.js';
+import { fetchRealData, applyLayout } from './pagination.js';
+import { getAccessTokens } from './utils.js';
 import { detectMimetype, getMimeInfo } from './mime.js';
 import { auth, db } from './firebase.js';
-import { getTagSector, setManualTagState, getTagRules, setTagRules } from './tag-state.js';
+import { getTagSector, setManualTagState, getTagRules, setTagRules, getHiddenGroupRules, saveHiddenGroupRules, getFolderGroupRules, saveFolderGroupRules } from './tag-state.js';
 import { generateSystemTags, SYSTEM_TAG_PREFIXES } from './system-tags.js';
 
 class TagCloud {
@@ -1309,27 +1310,6 @@ class TagCloud {
         this.container.style.maxHeight = '';
         this.container.style.resize = '';
     }
-}
-
-// ---------- Hidden Grouping Logic (Module Scope) ----------
-function getHiddenGroupRules() {
-    try {
-        return JSON.parse(localStorage.getItem('crudx_hidden_group_rules') || '[]');
-    } catch { return []; }
-}
-
-function saveHiddenGroupRules(rules) {
-    localStorage.setItem('crudx_hidden_group_rules', JSON.stringify(rules));
-}
-
-function getFolderGroupRules() {
-    try {
-        return JSON.parse(localStorage.getItem('crudx_folder_group_rules') || '["Created>", "Last Read>", "Last Updated>", "Last Executed>"]');
-    } catch { return []; }
-}
-
-function saveFolderGroupRules(rules) {
-    localStorage.setItem('crudx_folder_group_rules', JSON.stringify(rules));
 }
 
 

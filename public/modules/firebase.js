@@ -1,7 +1,7 @@
 // public/modules/firebase.js
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getFirestore, connectFirestoreEmulator } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { setupAuth } from '../auth-helper.js';
+import { setupAuth } from './auth-helper.js';
 
 // Configuration for Production (Paste your real keys here)
 const firebaseConfig = {

@@ -6,6 +6,17 @@ export function encodeOCR(id) {
     return `CRUDX-${groups.join('-')}`.toUpperCase();
 }
 
+export function getAccessTokens(email) {
+    if (!email) return ["*@*"]; // Fallback für öffentliche Dokumente
+    const [local, domain] = email.split('@');
+    return [
+        email,
+        `*@${domain}`,
+        `${local}@*`,
+        `*@*`
+    ];
+}
+
 export function getEmailWarning(email) {
     const FREEMAIL_DOMAINS = new Set([
         'gmail.com', 'googlemail.com', 'outlook.com', 'hotmail.com', 'live.com',

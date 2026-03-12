@@ -111,7 +111,7 @@ export function initAuth() {
                         if (!emailInput || !emailInput.value) return alert("Please enter an email address.");
                         const currentView = gridSelect ? gridSelect.value : '3';
                         const currentContinueUrl = `${window.location.origin}${window.location.pathname}?view=${currentView}`;
-                        const { loginWithEmail } = await import('../auth-helper.js');
+                        const { loginWithEmail } = await import('./auth-helper.js');
                         const success = await loginWithEmail(auth, emailInput.value, currentContinueUrl);
                         if (success) {
                             const status = document.getElementById('login-status');
@@ -124,7 +124,7 @@ export function initAuth() {
                 const btnGoogle = document.getElementById('btn-login-google');
                 if (btnGoogle) {
                     btnGoogle.onclick = async () => {
-                        const { loginWithGoogle } = await import('../auth-helper.js');
+                        const { loginWithGoogle } = await import('./auth-helper.js');
                         await loginWithGoogle(auth);
                     };
                 }

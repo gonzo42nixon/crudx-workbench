@@ -1,6 +1,7 @@
 // public/modules/ui.js
 import { detectMimetype } from './mime.js';
 import { auth, db } from './firebase.js';
+import { getAccessTokens } from './utils.js';
 import { getTagSector } from './tag-state.js';
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
@@ -23,12 +24,7 @@ export async function renderDataFromDocs(docs, container) {
     const searchTerm = searchInput ? searchInput.value.trim() : '';
     const activeTag = searchTerm.startsWith('tag:') ? searchTerm.substring(4) : null;
     
-    const tokens = currentUserEmail ? [
-        currentUserEmail,
-        `*@${currentUserEmail.split('@')[1]}`,
-        `${currentUserEmail.split('@')[0]}@*`,
-        `*@*`
-    ] : [];
+    const tokens = getAccessTokens(currentUserEmail);
 
     const toIso = (val) => {
         if (!val) return null;

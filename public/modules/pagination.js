@@ -1,23 +1,14 @@
 // modules/pagination.js
 import { db, auth } from './firebase.js';
+import { getAccessTokens } from './utils.js';
 import { collection, query, limit, getDocs, getCountFromServer, orderBy, startAfter, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { renderDataFromDocs } from './ui.js';
 import { detectMimetype } from './mime.js';
 import { matchSystemTag, SYSTEM_TAG_PREFIXES } from './system-tags.js';
+import * as UrlManager from './url-manager.js';
 
 // ---------- Zustand ----------
 export let currentPage = 1;
-
-export function getAccessTokens(email) {
-    if (!email) return [];
-    const [local, domain] = email.split('@');
-    return [
-        email,
-        `*@${domain}`,
-        `${local}@*`,
-        `*@*`
-    ];
-}
 
 export let itemsPerPage = 9;
 export let pageCursors = [];
@@ -33,43 +24,16 @@ export function unsubscribeListener() {
 }
 
 // ---------- URL State Management ----------
-export function updateUrlParams() {
-    const params = new URLSearchParams();
-    
-    if (currentPage > 1) params.set('page', currentPage);
-    if (sortDirection !== 'asc') params.set('sort', sortDirection);
-    
-    const gridSelect = document.getElementById('grid-select');
-    if (gridSelect && gridSelect.value !== '3') params.set('view', gridSelect.value);
-    
-    const searchInput = document.getElementById('main-search');
-    if (searchInput && searchInput.value.trim()) params.set('search', searchInput.value.trim());
-    
-    const mineCheck = document.getElementById('filter-owner-only');
-    if (mineCheck && mineCheck.checked) params.set('mine', 'true');
-    
-    const newUrl = `${window.location.pathname}?${params.toString()}`;
-    window.history.replaceState({}, '', newUrl);
-}
-
 export function loadStateFromUrl() {
-    const params = new URLSearchParams(window.location.search);
+    const state = UrlManager.getInitialStateFromUrl();
     
-    const s = params.get('sort');
-    if (s === 'asc' || s === 'desc') sortDirection = s;
+    sortDirection = state.sort;
+    
+    // Update UI Button
     const btnOrder = document.getElementById('btn-order');
     if (btnOrder) btnOrder.textContent = sortDirection === 'asc' ? '↑' : '↓';
 
-    const q = params.get('search');
-    const searchInput = document.getElementById('main-search');
-    if (q !== null && searchInput) searchInput.value = q;
-
-    const m = params.get('mine');
-    const mineCheck = document.getElementById('filter-owner-only');
-    if (mineCheck) mineCheck.checked = (m === 'true');
-
-    const v = params.get('view');
-    return (v && ['1','3','5','7','9','list'].includes(v)) ? v : '3';
+    return state.view;
 }
 
 // ---------- Layout anwenden ----------
@@ -146,7 +110,7 @@ export async function fetchRealData(resetPage = false) {
     if (clearBtn) clearBtn.style.display = searchTerm ? 'block' : 'none';
 
     // URL Update bei jedem Fetch
-    updateUrlParams();
+    UrlManager.updateUrlParams(currentPage, sortDirection);
 
     try {
         unsubscribeListener();

@@ -1,4 +1,4 @@
-import { setupAuth } from './auth-helper.js';
+import { setupAuth } from './modules/auth-helper.js';
 import { detectMimetype } from './modules/mime.js';
 import { themeState, applyTheme, syncModalUI, initThemeEditor, initThemeControls } from './modules/theme.js';
 import { db, auth } from './modules/firebase.js';

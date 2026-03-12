@@ -72,3 +72,25 @@ export function getTagConfigForUrl() {
     };
     return btoa(JSON.stringify(config));
 }
+
+// ---------- Grouping Rules Persistence ----------
+
+export function getHiddenGroupRules() {
+    try {
+        return JSON.parse(localStorage.getItem('crudx_hidden_group_rules') || '[]');
+    } catch { return []; }
+}
+
+export function saveHiddenGroupRules(rules) {
+    localStorage.setItem('crudx_hidden_group_rules', JSON.stringify(rules));
+}
+
+export function getFolderGroupRules() {
+    try {
+        return JSON.parse(localStorage.getItem('crudx_folder_group_rules') || '["Created>", "Last Read>", "Last Updated>", "Last Executed>"]');
+    } catch { return []; }
+}
+
+export function saveFolderGroupRules(rules) {
+    localStorage.setItem('crudx_folder_group_rules', JSON.stringify(rules));
+}
