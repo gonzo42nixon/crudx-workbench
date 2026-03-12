@@ -376,6 +376,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     };
                     await updateDoc(doc(db, "kv-store", payload.key), dataToSave);
                     console.log(`✅ IFrame save for [${payload.key}] successful!`);
+                    refreshTagCloud(true); // Cache leeren und neu laden nach IFrame-Save
                 } catch (e) {
                     console.error(`❌ IFrame save for [${payload.key}] failed:`, e);
                 }

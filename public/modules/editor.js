@@ -969,6 +969,7 @@ async function handleSaveAction() {
         } else {
             const delay = isEmulator ? 100 : 1500;
             setTimeout(() => fetchRealData(), delay);
+            setTimeout(() => refreshTagCloud(true), delay); // Cache leeren und neu laden
         }
     } catch (e) {
         alert("Update failed: " + e.message);
@@ -1028,6 +1029,7 @@ async function handleSaveTags() {
             });
             if (!response.ok) throw new Error(`Webhook returned ${response.status}`);
             setTimeout(() => fetchRealData(), 1000);
+            setTimeout(() => refreshTagCloud(true), 1000); // Cache leeren und neu laden
         }
         closeTagModal();
     } catch (e) {
@@ -1126,6 +1128,7 @@ async function handleSaveWhitelist() {
             btn.title = "Add Entry";
             btn.style.backgroundColor = "var(--user-bg)";
             document.getElementById('whitelist-warning').classList.remove('visible');
+            refreshTagCloud(true); // Tag Cloud aktualisieren
             fetchRealData();
         } catch (e) {
             console.error("Firestore Update Error:", e);
@@ -1182,6 +1185,7 @@ function renderWhitelistChips(list) {
                         renderTagsInModal(document.getElementById('tag-list-container'));
                     }
                 }
+                refreshTagCloud(true); // Tag Cloud aktualisieren
                 fetchRealData(); 
             } catch (e) {
                 console.error("Removal failed:", e);

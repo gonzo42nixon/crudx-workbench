@@ -5,173 +5,188 @@ import { auth, db } from './firebase.js';
 import { getTagSector, setManualTagState, getTagRules, setTagRules } from './tag-state.js';
 import { generateSystemTags, SYSTEM_TAG_PREFIXES } from './system-tags.js';
 
-let dockState = 3; // 3: bottom-right, 2: center, 1: left, 0: floating
-let dockCycleDirection = 'forward'; // 'forward' or 'backward'
-let isFolderTreeMode = true; // Default: Tree View
-let isMaximized = false;
-let preMaximizedState = {};
-let cachedQuerySnapshot = null; // Cache für Firestore-Daten
+class TagCloud {
+    constructor(db) {
+        this.db = db;
+        this.dockState = 3; // 3: bottom-right, 2: center, 1: left, 0: floating
+        this.dockCycleDirection = 'forward'; // 'forward' or 'backward'
+        this.isFolderTreeMode = true; // Default: Tree View
+        this.isMaximized = false;
+        this.preMaximizedState = {};
+        this.cachedQuerySnapshot = null; // Cache für Firestore-Daten
 
-function updateSectorsForDockState(container) {
-    if (!container) return;
+        this._createDOM();
+        this._getElements();
+        this._bindEvents();
 
-    const folder = container.querySelector('.sector-folder');
-    const hidden = container.querySelector('.sector-hidden');
-    const cloud = container.querySelector('.sector-cloud');
-
-    const setDisplay = (el, show) => {
-        if (el) el.style.display = show ? 'flex' : 'none';
-    };
-
-    switch (dockState) {
-        case 1: // Left (Folder Explorer)
-            setDisplay(folder, true);
-            setDisplay(hidden, false);
-            setDisplay(cloud, false);
-            break;
-        case 2: // Center (Config)
-            setDisplay(folder, true);
-            setDisplay(hidden, true);
-            setDisplay(cloud, true);
-            break;
-        case 3: // Bottom-Right (Cloud Viewer)
-            setDisplay(folder, false);
-            setDisplay(hidden, false);
-            setDisplay(cloud, true);
-            break;
-        default: // 0: Floating
-            setDisplay(folder, true);
-            setDisplay(hidden, true);
-            setDisplay(cloud, true);
-            break;
-    }
-}
-
-function dockTagCloudLeft(container, targetDocId = null) {
-    container.classList.add('active'); // Ensure visibility before getting rect
-    void container.offsetWidth; // Force reflow
-
-    // Reset inline styles from other dock modes
-    container.style.transform = '';
-    container.style.top = '';
-    container.style.left = '';
-    container.style.bottom = '';
-    container.style.right = '';
-    container.style.width = '';
-    container.style.height = '';
-    container.style.minWidth = '';
-    container.style.maxWidth = '';
-    container.style.maxHeight = '';
-    container.style.resize = '';
-
-    // Set default docked width to ensure title fits
-    document.documentElement.style.setProperty('--docked-width', '380px');
-
-    // Clean up other states
-    container.classList.remove('docked-center', 'docked-bottom-right', 'snapped-right');
-    container.style.transform = '';
-    document.body.classList.remove('ftc-docked');
-
-    dockState = 1;
-    container.classList.add('docked');
-    document.body.classList.add('ftc-docked');
-    updateSectorsForDockState(container); // Force sector visibility update immediately
-    
-    // Capture current selection (First Doc in Grid)
-    const firstCardKey = document.querySelector('#data-container .card-kv .pill-key');
-    let selectedDocId = targetDocId;
-    if (!selectedDocId && firstCardKey) {
-        selectedDocId = firstCardKey.textContent.trim();
+        // Initial state
+        this.dockBottomRight();
+        this._updateSectorsForDockState();
     }
 
-    // Animation Sequence: Wait for dock transition, then transform content & layout
-    setTimeout(async () => {
-        const db = window.currentDbInstance || window.db; // Use global/window db as fallback
-        if (db) {
-            // Set search to specific doc ID if found, so tree expands correctly
+    // --- PUBLIC API ---
+
+    refresh(force = false) {
+        if (!this.container.classList.contains('active')) {
+            this.container.classList.add('active');
+            void this.container.offsetWidth; // Force Reflow
+        }
+        this._scanAndRenderTags(force);
+        this._updateSectorsForDockState();
+    }
+
+    updateSelection() {
+        this._updateSelectionState();
+    }
+
+    reset() {
+        this.dockBottomRight();
+    }
+
+    locateDocument(docId) {
+        const searchInput = document.getElementById('main-search');
+        if (searchInput) searchInput.value = docId;
+
+        if (this.dockState !== 1) {
+            this.dockLeft(docId);
+        } else {
+            applyLayout('1');
+            this.refresh(true);
+        }
+    }
+
+    // --- DOCKING & STATE ---
+
+    _updateSectorsForDockState() {
+        const setDisplay = (el, show) => {
+            if (el) el.style.display = show ? 'flex' : 'none';
+        };
+
+        switch (this.dockState) {
+            case 1: // Left (Folder Explorer)
+                setDisplay(this.folderSector, true);
+                setDisplay(this.hiddenSector, false);
+                setDisplay(this.cloudSector, false);
+                break;
+            case 2: // Center (Config)
+                setDisplay(this.folderSector, true);
+                setDisplay(this.hiddenSector, true);
+                setDisplay(this.cloudSector, true);
+                break;
+            case 3: // Bottom-Right (Cloud Viewer)
+                setDisplay(this.folderSector, false);
+                setDisplay(this.hiddenSector, false);
+                setDisplay(this.cloudSector, true);
+                break;
+            default: // 0: Floating
+                setDisplay(this.folderSector, true);
+                setDisplay(this.hiddenSector, true);
+                setDisplay(this.cloudSector, true);
+                break;
+        }
+    }
+
+    _updateHeaderTooltip() {
+        let tooltip = "";
+        switch (this.dockState) {
+            case 3: tooltip = "1/3 Bottom/Right - Tag Cloud - 50% x 50% y"; break;
+            case 2: tooltip = "2/3 Center - Config - 85% x 85% y"; break;
+            case 1: tooltip = "3/3 Top/Left - Folder - 20% x 100% y"; break;
+            default: tooltip = "Floating - User Defined"; break;
+        }
+        if (this.header) this.header.title = tooltip;
+    }
+
+    dockLeft(targetDocId = null) {
+        this.container.classList.add('active');
+        this._updateHeaderTooltip();
+        void this.container.offsetWidth;
+
+        this._resetInlineStyles();
+        document.documentElement.style.setProperty('--docked-width', '380px');
+        this.container.classList.remove('docked-center', 'docked-bottom-right', 'snapped-right');
+        document.body.classList.remove('ftc-docked');
+
+        this.dockState = 1;
+        this.container.classList.add('docked');
+        document.body.classList.add('ftc-docked');
+        this._updateSectorsForDockState();
+        this._updateHeaderTooltip();
+
+        const firstCardKey = document.querySelector('#data-container .card-kv .pill-key');
+        let selectedDocId = targetDocId || (firstCardKey ? firstCardKey.textContent.trim() : null);
+
+        setTimeout(async () => {
             const searchInput = document.getElementById('main-search');
             if (selectedDocId && searchInput) {
                 searchInput.value = selectedDocId;
-                // Note: fetchRealData will be triggered by applyLayout or refreshTagCloud logic
             }
-
-            // 1. Refresh Cloud first (Transforms Pills to Doc List & Expands Tree to selected Doc)
-            await refreshTagCloud(db, true); // FORCE REFRESH to find new documents immediately
-            
-            // 2. Then Switch Main Grid to 1x1 (showing the selected doc)
+            await this.refresh(true);
             applyLayout('1');
-        }
-    }, 400); // Wait slightly longer than CSS transition (0.3s)
-}
+        }, 400);
+    }
 
-function dockTagCloudCenter(container) {
-    container.classList.add('active'); // Ensure visibility before getting rect
-    void container.offsetWidth; // Force reflow
+    dockCenter() {
+        this.container.classList.add('active');
+        void this.container.offsetWidth;
 
-    // Clean up other states
-    container.classList.remove('docked', 'docked-left', 'docked-bottom-right', 'snapped-right');
-    document.body.classList.remove('ftc-docked');
+        this.container.classList.remove('docked', 'docked-left', 'docked-bottom-right', 'snapped-right');
+        document.body.classList.remove('ftc-docked');
+        this.container.classList.add('docked-center');
 
-    container.classList.add('docked-center');
+        this.container.style.width = '85vw';
+        this.container.style.height = '85vh';
+        this._updateHeaderTooltip();
+        this.container.style.maxWidth = '100vw';
+        this.container.style.maxHeight = '100vh'; // FIX: CSS max-height: 70vh überschreiben
+        this.container.style.top = '50%';
+        this.container.style.left = '50%';
+        this.container.style.transform = 'translate(-50%, -50%)';
+        this.container.style.right = 'auto';
+        this.container.style.bottom = 'auto';
+        this.container.style.resize = 'both';
+        this.dockState = 2;
 
-    // Apply styles for centered mode
-    container.style.width = window.innerWidth < 1000 ? '95vw' : '60vw';
-    container.style.height = window.innerHeight < 800 ? '95vh' : '70vh';
-    container.style.maxWidth = '100vw';
-    container.style.top = '50%';
-    container.style.left = '50%';
-    container.style.transform = 'translate(-50%, -50%)';
-    container.style.right = 'auto';
-    container.style.bottom = 'auto';
-    container.style.resize = 'both';
-    dockState = 2;
+        const gridSelect = document.getElementById('grid-select');
+        if (gridSelect && gridSelect.value === '1') applyLayout('3');
 
-    // Restore main layout to 3x3 if it was 1x1
-    const gridSelect = document.getElementById('grid-select');
-    if (gridSelect && gridSelect.value === '1') applyLayout('3');
+        this._updateHeaderTooltip();
+        this.refresh();
+    }
 
-    // Re-render to show correct sectors
-    if (window.currentDbInstance) refreshTagCloud(window.currentDbInstance);
-}
+    dockBottomRight() {
+        this.container.classList.add('active');
+        void this.container.offsetWidth;
 
-function dockTagCloudBottomRight(container) {
-    container.classList.add('active'); // Ensure visibility before getting rect
-    void container.offsetWidth; // Force reflow
+        this.container.classList.remove('docked', 'docked-left', 'docked-center', 'snapped-right');
+        document.body.classList.remove('ftc-docked');
+        this.container.classList.add('docked-bottom-right');
+        this._updateHeaderTooltip();
+        this.container.style.top = 'auto';
+        this.container.style.left = 'auto';
+        this.container.style.bottom = '20px';
+        this.container.style.right = '20px';
+        this.container.style.transform = '';
+        this.container.style.width = 'auto';
+        this.container.style.height = 'auto';
+        this.container.style.minWidth = '500px';
+        this.container.style.maxWidth = '50vw';
+        this.container.style.maxHeight = '50vh';
+        this.container.style.resize = 'both';
+        this.dockState = 3;
 
-    // Clean up other states
-    container.classList.remove('docked', 'docked-left', 'docked-center', 'snapped-right');
-    document.body.classList.remove('ftc-docked');
+        this._updateHeaderTooltip();
+        this.refresh();
+    }
 
-    container.classList.add('docked-bottom-right');
+    // --- UI & EVENT HANDLING ---
 
-    // Apply styles
-    container.style.top = 'auto';
-    container.style.left = 'auto';
-    container.style.bottom = '20px';
-    container.style.right = '20px';
-    container.style.transform = '';
-    container.style.width = 'auto';
-    container.style.height = 'auto';
-    container.style.minWidth = '250px';
-    container.style.maxWidth = '40vw';
-    container.style.maxHeight = '50vh';
-    container.style.resize = 'both';
-    dockState = 3;
+    _setupFloatingDrag() {
+        let isDragging = false, hasMoved = false;
+        const dragThreshold = 5;
+        let startX, startY, offsetX, offsetY;
 
-    if (window.currentDbInstance) refreshTagCloud(window.currentDbInstance);
-}
-
-function setupFloatingDrag(container) {
-    const handle = container.querySelector('.modal-header');
-    if (!handle) return;
-
-    let isDragging = false;
-    let hasMoved = false;
-    const dragThreshold = 5; // pixels
-    let startX, startY;
-    let offsetX, offsetY;
-
-    handle.addEventListener('mousedown', (e) => {
+        this.header.addEventListener('mousedown', (e) => {
         // Ignore clicks on buttons inside the header
         if (e.target.closest('span')) {
             return;
@@ -183,121 +198,116 @@ function setupFloatingDrag(container) {
         startX = e.clientX;
         startY = e.clientY;
 
-        const rect = container.getBoundingClientRect();
+        const rect = this.container.getBoundingClientRect();
         offsetX = e.clientX - rect.left;
         offsetY = e.clientY - rect.top;
         
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
+        document.addEventListener('mousemove', this._onDragMouseMove);
+        document.addEventListener('mouseup', this._onDragMouseUp);
     });
 
     // --- Double-click to Maximize ---
-    handle.addEventListener('dblclick', (e) => {
+        this.header.addEventListener('dblclick', (e) => {
         // Ignore clicks on buttons
         if (e.target.closest('span')) {
             return;
         }
         e.preventDefault();
 
-        if (!isMaximized) {
+            if (!this.isMaximized) {
             // Save current state
-            const rect = container.getBoundingClientRect();
-            preMaximizedState = {
+                const rect = this.container.getBoundingClientRect();
+                this.preMaximizedState = {
                 top: rect.top,
                 left: rect.left,
                 width: rect.width,
                 height: rect.height,
-                maxWidth: container.style.maxWidth || '100vw',
-                maxHeight: container.style.maxHeight || 'none'
+                    maxWidth: this.container.style.maxWidth || '100vw',
+                    maxHeight: this.container.style.maxHeight || 'none'
             };
 
             // Apply maximized styles
-            container.style.transition = 'all 0.3s ease';
-            container.style.top = '2.5vh';
-            container.style.left = '2.5vw';
-            container.style.width = '95vw';
-            container.style.height = '95vh';
-            container.style.maxWidth = '100vw'; // WICHTIG: Begrenzungen aufheben
-            container.style.maxHeight = '100vh'; // WICHTIG: Begrenzungen aufheben
-            container.style.resize = 'none';
+                this.container.style.transition = 'all 0.3s ease';
+                this.container.style.top = '2.5vh';
+                this.container.style.left = '2.5vw';
+                this.container.style.width = '95vw';
+                this.container.style.height = '95vh';
+                this.container.style.maxWidth = '100vw';
+                this.container.style.maxHeight = '100vh';
+                this.container.style.resize = 'none';
+                this.container.style.transform = ''; // FIX: Zentrierungs-Transform entfernen, sonst fliegt es raus
 
-            isMaximized = true;
-            setTimeout(() => container.style.transition = '', 300);
+                this.isMaximized = true;
+                setTimeout(() => this.container.style.transition = '', 300);
         } else {
             // Restore previous state
-            container.style.transition = 'all 0.3s ease';
-            container.style.top = `${preMaximizedState.top}px`;
-            container.style.left = `${preMaximizedState.left}px`;
-            container.style.width = `${preMaximizedState.width}px`;
-            container.style.height = `${preMaximizedState.height}px`;
-            container.style.maxWidth = preMaximizedState.maxWidth;
-            container.style.maxHeight = preMaximizedState.maxHeight;
-            container.style.resize = 'both';
+                this.container.style.transition = 'all 0.3s ease';
+                this.container.style.top = `${this.preMaximizedState.top}px`;
+                this.container.style.left = `${this.preMaximizedState.left}px`;
+                this.container.style.width = `${this.preMaximizedState.width}px`;
+                this.container.style.height = `${this.preMaximizedState.height}px`;
+                this.container.style.maxWidth = this.preMaximizedState.maxWidth;
+                this.container.style.maxHeight = this.preMaximizedState.maxHeight;
+                this.container.style.resize = 'both';
+                this.container.style.transform = ''; // FIX: Sicherstellen, dass keine alten Transforms stören
 
-            isMaximized = false;
-            setTimeout(() => container.style.transition = '', 300);
+                this.isMaximized = false;
+                setTimeout(() => this.container.style.transition = '', 300);
         }
     });
 
-    function onMouseMove(e) {
-        if (!isDragging) return;
+        this._onDragMouseMove = (e) => {
+            if (!isDragging) return;
+            if (e.buttons === 0) { this._onDragMouseUp(); return; }
 
-        // SICHERHEITS-CHECK: Wenn keine Maustaste gedrückt ist, Drag sofort stoppen!
-        if (e.buttons === 0) {
-            onMouseUp();
-            return;
-        }
-
-        if (!hasMoved && (Math.abs(e.clientX - startX) > dragThreshold || Math.abs(e.clientY - startY) > dragThreshold)) {
-            hasMoved = true;
-
-            // If we start dragging from a maximized state, just un-flag it and allow resize.
-            if (isMaximized) {
-                isMaximized = false;
-                container.style.resize = 'both';
+            if (!hasMoved && (Math.abs(e.clientX - startX) > dragThreshold || Math.abs(e.clientY - startY) > dragThreshold)) {
+                hasMoved = true;
+                if (this.isMaximized) {
+                    this.isMaximized = false;
+                    this.container.style.resize = 'both';
+                }
+                if (this.dockState !== 0) {
+                    this.dockState = 0;
+                    this._updateHeaderTooltip();
+                    this.container.classList.remove('docked', 'docked-center', 'docked-bottom-right', 'snapped-right');
+                    document.body.classList.remove('ftc-docked');
+                    const rect = this.container.getBoundingClientRect();
+                    this.container.style.top = `${rect.top}px`;
+                    this.container.style.left = `${rect.left}px`;
+                    this.container.style.width = `${rect.width}px`;
+                    this.container.style.height = `${rect.height}px`;
+                    this.container.style.maxWidth = '100vw';
+                    this.container.style.maxHeight = '100vh';
+                    this.container.style.transform = '';
+                    this.container.style.bottom = 'auto';
+                    this.container.style.right = 'auto';
+                    this.container.style.resize = 'both';
+                    this._updateSectorsForDockState();
+                    this._updateHeaderTooltip();
+                }
             }
 
-            // --- Transition to Floating State (only on first move) ---
-            if (dockState !== 0) {
-                dockState = 0; // Set to floating
-                container.classList.remove('docked', 'docked-center', 'docked-bottom-right', 'snapped-right');
-                document.body.classList.remove('ftc-docked');
-                const rect = container.getBoundingClientRect();
-                container.style.top = `${rect.top}px`;
-                container.style.left = `${rect.left}px`;
-                container.style.width = `${rect.width}px`;
-                container.style.height = `${rect.height}px`;
-                container.style.maxWidth = '100vw';
-                container.style.maxHeight = '100vh'; // WICHTIG: 50vh Limit entfernen beim Loslösen
-                container.style.transform = '';
-                container.style.bottom = 'auto';
-                container.style.right = 'auto';
-                container.style.resize = 'both';
-                updateSectorsForDockState(container);
+            if (hasMoved) {
+                this.container.style.left = `${e.clientX - offsetX}px`;
+                this.container.style.top = `${e.clientY - offsetY}px`;
             }
-        }
+        };
 
-        if (hasMoved) {
-            container.style.left = `${e.clientX - offsetX}px`;
-            container.style.top = `${e.clientY - offsetY}px`;
-        }
+        this._onDragMouseUp = () => {
+            isDragging = false;
+            document.removeEventListener('mousemove', this._onDragMouseMove);
+            document.removeEventListener('mouseup', this._onDragMouseUp);
+        };
     }
 
-    function onMouseUp() {
-        isDragging = false;
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
-    }
-}
-
-function setupCustomResize(container) {
+    _setupCustomResize() {
     const leftHandle = document.createElement('div');
     leftHandle.className = 'resize-handle resize-handle-left';
-    container.appendChild(leftHandle);
+        this.container.appendChild(leftHandle);
 
     const rightHandle = document.createElement('div');
     rightHandle.className = 'resize-handle resize-handle-right';
-    container.appendChild(rightHandle);
+        this.container.appendChild(rightHandle);
 
     let isResizing = false;
     let startX, startWidth, startLeft;
@@ -309,12 +319,12 @@ function setupCustomResize(container) {
         isResizing = true;
         activeHandle = handle;
         startX = e.clientX;
-        const rect = container.getBoundingClientRect();
+        const rect = this.container.getBoundingClientRect();
         startWidth = rect.width;
         startLeft = rect.left;
         document.body.style.cursor = 'ew-resize';
-        container.style.transition = 'none'; // Disable transitions during resize for smoothness
-        document.addEventListener('mousemove', onMouseMove);
+        this.container.style.transition = 'none';
+        document.addEventListener('mousemove', onMouseMove); // These can be local
         document.addEventListener('mouseup', onMouseUp);
     };
 
@@ -326,10 +336,10 @@ function setupCustomResize(container) {
         const dx = e.clientX - startX;
 
         if (activeHandle === 'right') {
-            container.style.width = `${startWidth + dx}px`;
+            this.container.style.width = `${startWidth + dx}px`;
         } else if (activeHandle === 'left') {
-            container.style.width = `${startWidth - dx}px`;
-            container.style.left = `${startLeft + dx}px`;
+            this.container.style.width = `${startWidth - dx}px`;
+            this.container.style.left = `${startLeft + dx}px`;
         }
     };
 
@@ -337,13 +347,13 @@ function setupCustomResize(container) {
         isResizing = false;
         activeHandle = null;
         document.body.style.cursor = '';
-        container.style.transition = ''; // Re-enable transitions
+        this.container.style.transition = '';
         document.removeEventListener('mousemove', onMouseMove);
         document.removeEventListener('mouseup', onMouseUp);
     };
 
     const checkProximity = () => {
-        if (dockState !== 0) { // Only for floating mode
+        if (this.dockState !== 0) { // Only for floating mode
             leftHandle.style.display = 'none';
             rightHandle.style.display = 'none';
             return;
@@ -355,13 +365,14 @@ function setupCustomResize(container) {
     };
 
     const observer = new MutationObserver(checkProximity);
-    observer.observe(container, { attributes: true, attributeFilter: ['style', 'class'] });
+    observer.observe(this.container, { attributes: true, attributeFilter: ['style', 'class'] });
     window.addEventListener('resize', checkProximity);
     checkProximity();
 }
 
-// Helper: Baut eine verschachtelte Struktur aus Tags mit ">"
-function buildTagTree(items) {
+    // --- DATA PROCESSING & RENDERING ---
+
+    _buildTagTree(items) {
     const root = {};
     
     items.forEach(({ tag, count, element, isDoc, docData }) => {
@@ -388,8 +399,7 @@ function buildTagTree(items) {
     return root;
 }
 
-// Helper: Rendert den Baum rekursiv
-function renderTreeRecursive(node, container, isDocked = false, activeTagPath = null, currentPathPrefix = '', expandedSet = null) {
+    _renderTreeRecursive(node, container, isDocked = false, activeTagPath = null, currentPathPrefix = '', expandedSet = null) {
     const keys = Object.keys(node).sort((a, b) => a.localeCompare(b, 'de', { sensitivity: 'base', numeric: true }));
 
     for (const key of keys) {
@@ -443,20 +453,19 @@ function renderTreeRecursive(node, container, isDocked = false, activeTagPath = 
             });
 
             // Dann Unterordner rendern
-            renderTreeRecursive(entry._children, details, isDocked, activeTagPath, fullPath, expandedSet);
+            this._renderTreeRecursive(entry._children, details, isDocked, activeTagPath, fullPath, expandedSet);
             container.appendChild(details);
         }
     }
 }
 
-function updateCloudSelectionState(contentContainer) {
-    if (!contentContainer) return;
+    _updateSelectionState() {
     const searchInput = document.getElementById('main-search');
     const searchTerm = searchInput ? searchInput.value.trim() : '';
     
     let activeFilter = null;
     if (searchTerm.startsWith('tag:')) activeFilter = searchTerm.substring(4);
-    else if (searchTerm.startsWith('mime:')) activeFilter = 'mime:' + searchTerm.substring(5);
+        else if (searchTerm.startsWith('mime:')) activeFilter = searchTerm;
 
     const clearBtn = document.getElementById('btn-clear-tag-filter');
     if (clearBtn) {
@@ -464,7 +473,7 @@ function updateCloudSelectionState(contentContainer) {
         clearBtn.style.color = activeFilter ? '#ff5252' : '';
     }
 
-    const pills = contentContainer.querySelectorAll('.pill-user, .pill-mime');
+    const pills = this.contentContainer.querySelectorAll('.pill-user, .pill-mime');
     pills.forEach(pill => {
         const tag = pill.dataset.tagName;
         if (activeFilter && tag !== activeFilter) {
@@ -475,60 +484,7 @@ function updateCloudSelectionState(contentContainer) {
     });
 }
 
-export function updateTagCloudSelection() {
-    const contentContainer = document.getElementById('tag-cloud-content');
-    updateCloudSelectionState(contentContainer);
-}
-
-/**
- * Setzt die Tag Cloud in den Standard-Zustand (unten rechts) zurück.
- * Wird verwendet, wenn der Confluence-Mode verlassen wird (z.B. nach Delete).
- */
-export function resetTagCloud() {
-    const container = document.getElementById('tag-cloud-container');
-    if (container) {
-        dockTagCloudBottomRight(container);
-    }
-}
-
-export function locateDocumentInCloud(docId) {
-    const container = document.getElementById('tag-cloud-container');
-    if (!container) return;
-
-    const searchInput = document.getElementById('main-search');
-    if (searchInput) searchInput.value = docId;
-
-    if (dockState !== 1) {
-        dockTagCloudLeft(container, docId);
-    } else {
-        // Already docked, just refresh to update tree selection
-        applyLayout('1');
-        if (window.currentDbInstance) refreshTagCloud(window.currentDbInstance, true); // Force refresh here too
-    }
-}
-
-// ---------- Hidden Grouping Logic ----------
-function getHiddenGroupRules() {
-    try {
-        return JSON.parse(localStorage.getItem('crudx_hidden_group_rules') || '[]');
-    } catch { return []; }
-}
-
-function saveHiddenGroupRules(rules) {
-    localStorage.setItem('crudx_hidden_group_rules', JSON.stringify(rules));
-}
-
-function getFolderGroupRules() {
-    try {
-        return JSON.parse(localStorage.getItem('crudx_folder_group_rules') || '["Created>", "Last Read>", "Last Updated>", "Last Executed>"]');
-    } catch { return []; }
-}
-
-function saveFolderGroupRules(rules) {
-    localStorage.setItem('crudx_folder_group_rules', JSON.stringify(rules));
-}
-
-function renderGroupRulesUI() {
+    _renderGroupRulesUI() {
     const renderList = (containerId, getRulesFn, saveRulesFn) => {
         const container = document.getElementById(containerId);
         if (!container) return;
@@ -547,7 +503,7 @@ function renderGroupRulesUI() {
         div.querySelector('.btn-remove-rule').onclick = () => {
             rules.splice(index, 1);
             saveRulesFn(rules);
-            renderGroupRulesUI();
+                this._renderGroupRulesUI();
         };
         div.querySelector('input').onchange = (e) => {
             rules[index] = e.target.value;
@@ -561,7 +517,7 @@ function renderGroupRulesUI() {
     renderList('folder-group-rules-list', getFolderGroupRules, saveFolderGroupRules);
 }
 
-function initGroupRulesEvents() {
+    _initGroupRulesEvents() {
     const addBtn = document.getElementById('btn-add-hidden-group-rule');
     if (addBtn) {
         // Event-Listener nur einmal hinzufügen (Check via Attribut)
@@ -570,7 +526,7 @@ function initGroupRulesEvents() {
                 const rules = getHiddenGroupRules();
                 rules.push('');
                 saveHiddenGroupRules(rules);
-                renderGroupRulesUI();
+                this._renderGroupRulesUI();
             });
             addBtn.dataset.hasListener = 'true';
         }
@@ -583,7 +539,7 @@ function initGroupRulesEvents() {
                 const rules = getFolderGroupRules();
                 rules.push('');
                 saveFolderGroupRules(rules);
-                renderGroupRulesUI();
+                this._renderGroupRulesUI();
             });
             addFolderBtn.dataset.hasListener = 'true';
         }
@@ -593,25 +549,23 @@ function initGroupRulesEvents() {
     const saveBtn = document.getElementById('btn-save-rules');
     if (saveBtn && !saveBtn.dataset.hasHiddenGroupListener) {
         saveBtn.addEventListener('click', () => {
-            // Speichern passiert bereits onchange, aber hier könnte man Feedback geben oder Reload triggern
-            const db = window.currentDbInstance; // Hack: DB-Instanz global verfügbar machen oder neu holen
-            if (db) refreshTagCloud(db);
+            this.refresh();
         });
         saveBtn.dataset.hasHiddenGroupListener = 'true';
     }
 
     // Beim Öffnen des Modals UI rendern
     document.addEventListener('open-tag-rules', () => {
-        renderGroupRulesUI();
+        this._renderGroupRulesUI();
     });
 }
 
-async function scanAndRenderTags(db, contentContainer, force = false) {
-    const isLeftDocked = dockState === 1;
+    async _scanAndRenderTags(force = false) {
+        const isLeftDocked = this.dockState === 1;
 
     // Struktur wiederherstellen, falls sie durch vorherige Fehler gelöscht wurde
-    if (!contentContainer.querySelector('.tag-sector')) {
-        contentContainer.innerHTML = `
+        if (!this.contentContainer.querySelector('.tag-sector')) {
+            this.contentContainer.innerHTML = `
             <div class="tag-sector sector-folder" data-sector="folder">
                 <div class="sector-header" style="display:flex; justify-content:space-between; align-items:center;">
                     <span>Folder</span>
@@ -631,21 +585,17 @@ async function scanAndRenderTags(db, contentContainer, force = false) {
     }
     
     // Toggle Button Listener erneuern (da HTML ggf. neu gesetzt wurde)
-    const toggleBtn = contentContainer.querySelector('#btn-toggle-folder-view');
+        const toggleBtn = this.contentContainer.querySelector('#btn-toggle-folder-view');
     if (toggleBtn) {
-        toggleBtn.textContent = isFolderTreeMode ? '📂' : '📝';
+        toggleBtn.textContent = this.isFolderTreeMode ? '📂' : '📝';
         toggleBtn.onclick = (e) => {
             e.stopPropagation();
-            isFolderTreeMode = !isFolderTreeMode;
-            scanAndRenderTags(db, contentContainer); // Re-Render
-            saveTagCloudState();
+            this.isFolderTreeMode = !this.isFolderTreeMode;
+            this._scanAndRenderTags(); // Re-Render
         };
     }
     
-    // DB Instanz für Reload speichern
-    window.currentDbInstance = db;
-
-    const loadingTarget = contentContainer.querySelector('.sector-cloud .sector-content');
+        const loadingTarget = this.contentContainer.querySelector('.sector-cloud .sector-content');
     if (loadingTarget) loadingTarget.innerHTML = '<div class="pill pill-sys" style="margin: 10px;">Scanning...</div>';
 
     const docsByTag = new Map(); // Tag -> Array of Docs
@@ -693,10 +643,10 @@ async function scanAndRenderTags(db, contentContainer, force = false) {
             generateSystemTags(d, addSysTag, id);
         };
 
-        if (force || !cachedQuerySnapshot) {
-            cachedQuerySnapshot = await getDocs(collection(db, "kv-store"));
+        if (force || !this.cachedQuerySnapshot) {
+            this.cachedQuerySnapshot = await getDocs(collection(this.db, "kv-store"));
         }
-        const querySnapshot = cachedQuerySnapshot;
+        const querySnapshot = this.cachedQuerySnapshot;
         querySnapshot.forEach(doc => {
             processDoc(doc.data(), doc.id);
         });
@@ -704,46 +654,44 @@ async function scanAndRenderTags(db, contentContainer, force = false) {
         // --- CUSTOM SORTING LOGIC ---
         const systemTagOrder = {
             // C - Create (10-19)
-            'Created: Last Hour': 10,
-            'Created: Today': 11,
-            'Created: Yesterday': 12,
-            'Created: Last Month': 13,
-            'Created: Last 3 Months': 14,
-            'Created: This Year': 15,
-            'Created: Beyond this Year': 16,
-            'Created: Unknown': 17,
+            'C: Last Hour': 10,
+            'C: Today': 11,
+            'C: Yesterday': 12,
+            'C: This Week': 12.5,
+            'C: This Month': 13,
+            'C: Last 3 Months': 14,
+            'C: This Year': 15,
+            'C: Beyond this Year': 16,
+            'C: Unknown': 17,
 
             // R - Read (20-29)
-            'Read: Last Hour': 20,
-            'Read: Today': 21,
-            'Read: Yesterday': 22,
-            'Read: Last Month': 23,
-            'Read: Last 3 Months': 24,
-            'Read: This Year': 25,
-            'Read: Beyond this Year': 26,
-            'Reads: Top 5': 27,
-            'Reads: Mean': 28,
-            'Reads: Rarely': 29,
-            'Reads: Never': 29.5,
+            'R: Last Hour': 20,
+            'R: Today': 21,
+            'R: Yesterday': 22,
+            'R: This Week': 22.5,
+            'R: This Month': 23,
+            'R: Last 3 Months': 24,
+            'R: This Year': 25,
+            'R: Beyond this Year': 26,
+            'R-Σ: Top 5': 27,
+            'R-Σ: Mean': 28,
+            'R-Σ: Rarely': 29,
+            'R-Σ: Never': 29.5,
 
             // U - Update (30-49)
-            'Updated: Last Hour': 30,
-            'Updated: Today': 31,
-            'Updated: Yesterday': 32,
-            'Updated: Last Month': 33,
-            'Updated: Last 3 Months': 34,
-            'Updated: This Year': 35,
-            'Updated: Beyond this Year': 36,
-            'Updates: Top 5': 37,
-            'Updates: Mean': 38,
-            'Updates: Rarely': 39,
-            'Updates: Never': 39.5,
+            'U: Last Hour': 30,
+            'U: Today': 31,
+            'U: Yesterday': 32,
+            'U: This Week': 32.5,
+            'U: This Month': 33,
+            'U: Last 3 Months': 34,
+            'U: This Year': 35,
+            'U: Beyond this Year': 36,
+            'U-Σ: Top 5': 37,
+            'U-Σ: Mean': 38,
+            'U-Σ: Rarely': 39,
+            'U-Σ: Never': 39.5,
 
-            // Size (40-49)
-            'Size: Huge': 40,
-            'Size: Large': 41,
-            'Size: Medium': 42,
-            'Size: Small': 43,
             // Size (2-9) - Zwischen MIME (1) und Create (10)
             'Size: Huge': 2,
             'Size: Large': 3,
@@ -751,29 +699,53 @@ async function scanAndRenderTags(db, contentContainer, force = false) {
             'Size: Small': 5,
 
             // X - Execute (50-59)
-            'Executed: Last Hour': 50,
-            'Executed: Today': 51,
-            'Executed: Yesterday': 52,
-            'Executed: Last Month': 53,
-            'Executed: Last 3 Months': 54,
-            'Executed: This Year': 55,
-            'Executed: Beyond this Year': 56,
-            'Executes: Top 5': 57,
-            'Executes: Mean': 58,
-            'Executes: Rarely': 59,
-            'Executes: Never': 59.5
+            'X: Last Hour': 50,
+            'X: Today': 51,
+            'X: Yesterday': 52,
+            'X: This Week': 52.5,
+            'X: This Month': 53,
+            'X: Last 3 Months': 54,
+            'X: This Year': 55,
+            'X: Beyond this Year': 56,
+            'X-Σ: Top 5': 57,
+            'X-Σ: Mean': 58,
+            'X-Σ: Rarely': 59,
+            'X-Σ: Never': 59.5,
+
+            // Whitelists (60-89)
+            'WL-R: Many': 60,
+            'WL-R: Mean': 61,
+            'WL-R: Few': 62,
+            'WL-R: None': 62.5,
+            'WL-U: Many': 70,
+            'WL-U: Mean': 71,
+            'WL-U: Few': 72,
+            'WL-U: None': 72.5,
+            'WL-X: Many': 80,
+            'WL-X: Mean': 81,
+            'WL-X: Few': 82,
+            'WL-X: None': 82.5,
         };
 
         const getSortPriority = (tag) => {
-            // System tags have a defined order from 10 upwards
+            // 1. Defined System Order
             if (systemTagOrder[tag]) {
                 return systemTagOrder[tag];
             }
-            // Mime types come after user tags
+            // 2. Mime types (Anchor at 1)
             if (tag.startsWith('mime:')) {
                 return 1;
             }
-            // User tags are the top priority
+            // 3. Owner tags (Right of Mime)
+            if (tag.startsWith('Owner:')) {
+                return 1.5;
+            }
+            // 4. Fallback for any other System Tag (Right of Mime)
+            if (SYSTEM_TAG_PREFIXES.some(p => tag.startsWith(p))) {
+                return 99;
+            }
+            
+            // 5. User tags (Leftmost)
             return 0;
         };
 
@@ -787,16 +759,16 @@ async function scanAndRenderTags(db, contentContainer, force = false) {
         });
         
         // Sektoren leeren, bevor sie neu befüllt werden
-        const sectors = contentContainer.querySelectorAll('.sector-content');
+        const sectors = this.contentContainer.querySelectorAll('.sector-content');
         sectors.forEach(s => {
             s.innerHTML = '';
             s.style.display = ''; // Reset display (falls vorher block gesetzt wurde)
         });
         
         // Referenzen auf die Sektoren holen
-        const folderContent = contentContainer.querySelector('.sector-folder .sector-content');
-        const hiddenContent = contentContainer.querySelector('.sector-hidden .sector-content');
-        const cloudContent = contentContainer.querySelector('.sector-cloud .sector-content');
+        const folderContent = this.contentContainer.querySelector('.sector-folder .sector-content');
+        const hiddenContent = this.contentContainer.querySelector('.sector-hidden .sector-content');
+        const cloudContent = this.contentContainer.querySelector('.sector-cloud .sector-content');
 
 
         if (sortedTags.length === 0) {
@@ -847,26 +819,26 @@ async function scanAndRenderTags(db, contentContainer, force = false) {
                                 searchInput.value = doc.id;
                                 fetchRealData(true);
                                 // Highlight active
-                                contentContainer.querySelectorAll('.doc-item').forEach(el => el.classList.remove('active'));
+                                this.contentContainer.querySelectorAll('.doc-item').forEach(el => el.classList.remove('active'));
                                 docItem.classList.add('active');
                             }
                         };
                         
                         folderItems.push({ tag, count: 1, element: docItem, isDoc: true, docData: doc });
                     });
-                } else if (isFolderTreeMode) {
-                    // NORMAL TREE: Tag Pills
-                    const item = createTagPill(tag, count, contentContainer);
+                } else if (this.isFolderTreeMode) {
+                    // NORMAL TREE: Tag Pills (this refers to the class instance)
+                    const item = this._createTagPill(tag, count);
                     folderItems.push({ tag, count, element: item });
                 } else {
                     // FLAT LIST
-                    const item = createTagPill(tag, count, contentContainer);
+                    const item = this._createTagPill(tag, count);
                     folderContent.appendChild(item);
                 }
             }
             else if (targetSector === 'hidden' && hiddenContent) {
                 if (isLeftDocked) return;
-                const item = createTagPill(tag, count, contentContainer);
+                const item = this._createTagPill(tag, count);
                 hiddenItems.push({ tag, count, element: item });
             }
             else if (targetSector === 'cloud' && cloudContent) {
@@ -881,7 +853,15 @@ async function scanAndRenderTags(db, contentContainer, force = false) {
                         return '1px 0';
                     }
                     // Normal margin breaks for main groups
-                    if ((pA < 1 && pB >= 1) || (pA < 2 && pB >= 2) || (pA < 10 && pB >= 10) || (pA < 20 && pB >= 20) || (pA < 30 && pB >= 30) || (pA < 50 && pB >= 50)) {
+                    // User(0) -> Mime(1) -> Owner(1.5) -> Size(2) -> Create(10) ...
+                    if ((pA < 1 && pB >= 1) ||      // User -> Mime
+                        (pA < 1.5 && pB >= 1.5) ||  // Mime -> Owner
+                        (pA < 2 && pB >= 2) ||      // Owner -> Size
+                        (pA < 10 && pB >= 10) ||    // Size -> Create
+                        (pA < 20 && pB >= 20) ||    // Create -> Read
+                        (pA < 30 && pB >= 30) ||    // Read -> Update
+                        (pA < 50 && pB >= 50) ||    // Update -> Execute
+                        (pA < 60 && pB >= 60)) {    // Execute -> Whitelists
                         return '3px 0';
                     }
                     return null;
@@ -896,14 +876,14 @@ async function scanAndRenderTags(db, contentContainer, force = false) {
                     cloudContent.appendChild(br);
                 }
 
-                const item = createTagPill(tag, count, contentContainer);
+                const item = this._createTagPill(tag, count);
                 cloudContent.appendChild(item);
                 lastPrio = currentPrio;
             }
         });
 
         // --- Hidden Sector Grouping ---
-        if (hiddenContent && (dockState === 0 || dockState === 2)) {
+        if (hiddenContent && (this.dockState === 0 || this.dockState === 2)) {
             const groups = {};
             const looseItems = [];
 
@@ -975,7 +955,7 @@ async function scanAndRenderTags(db, contentContainer, force = false) {
                             if (searchInput) {
                                 searchInput.value = (searchInput.value.trim() === `tag:${tag}`) ? '' : `tag:${tag}`;
                                 fetchRealData(true);
-                                updateCloudSelectionState(contentContainer);
+                                this._updateSelectionState();
                             }
                             menu.remove();
                         };
@@ -1009,7 +989,7 @@ async function scanAndRenderTags(db, contentContainer, force = false) {
             const folderLooseItems = [];
 
             // 1. Grouping Logic (ähnlich Hidden)
-            if (dockState === 0 || dockState === 2) {
+            if (this.dockState === 0 || this.dockState === 2) {
                 folderItems.forEach(entry => {
                     let matchedRule = null;
                     for (const rule of folderGroupRules) {
@@ -1068,7 +1048,7 @@ async function scanAndRenderTags(db, contentContainer, force = false) {
                                 if (searchInput) {
                                     searchInput.value = `tag:${tag}`;
                                     fetchRealData(true);
-                                    updateCloudSelectionState(contentContainer);
+                                    this._updateSelectionState();
                                 }
                                 menu.remove();
                             };
@@ -1091,8 +1071,8 @@ async function scanAndRenderTags(db, contentContainer, force = false) {
             }
             
             // 2. Render Remaining Items as Tree or List
-            if (isFolderTreeMode && folderLooseItems.length > 0) {
-                const treeRoot = buildTagTree(folderLooseItems);
+            if (this.isFolderTreeMode && folderLooseItems.length > 0) {
+                const treeRoot = this._buildTagTree(folderLooseItems);
                 
                 // Determine active document ID from search input (if it's a direct ID)
                 const searchInput = document.getElementById('main-search');
@@ -1104,7 +1084,7 @@ async function scanAndRenderTags(db, contentContainer, force = false) {
                 // Mark active in UI & Scroll to it
                 if (activeDocId) {
                     setTimeout(() => {
-                        const activeItem = Array.from(contentContainer.querySelectorAll('.doc-item')).find(el => el.title === activeDocId);
+                        const activeItem = Array.from(this.contentContainer.querySelectorAll('.doc-item')).find(el => el.title === activeDocId);
                         if (activeItem) {
                             activeItem.classList.add('active');
                             activeItem.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -1131,25 +1111,25 @@ async function scanAndRenderTags(db, contentContainer, force = false) {
                     }
                 } catch (e) {}
 
-                renderTreeRecursive(treeRoot, folderContent, isLeftDocked, activeTagPath, '', expandedSet);
-            } else if (!isFolderTreeMode && folderLooseItems.length > 0) {
+                this._renderTreeRecursive(treeRoot, folderContent, isLeftDocked, activeTagPath, '', expandedSet);
+            } else if (!this.isFolderTreeMode && folderLooseItems.length > 0) {
                 // Flat List for loose items
                 folderLooseItems.forEach(i => folderContent.appendChild(i.element));
             }
         }
 
         // Initialen Selektionsstatus anwenden
-        updateCloudSelectionState(contentContainer);
+        this._updateSelectionState();
 
     } catch (error) {
         console.error("Error scanning tags:", error);
-        contentContainer.innerHTML = `<div class="pill pill-sys" style="margin: 10px; background:red;color:white;">Error: ${error.message}</div>`;
+        this.contentContainer.innerHTML = `<div class="pill pill-sys" style="margin: 10px; background:red;color:white;">Error: ${error.message}</div>`;
     }
 }
 
-function createTagPill(tag, count, contentContainer) {
+    _createTagPill(tag, count) {
     const isMime = tag.startsWith('mime:');
-    const displayTag = isMime ? tag.substring(5) : tag;
+        const displayTag = isMime ? tag.substring(5) : (tag.startsWith("Owner: ") ? tag.substring(7) : tag);
     
     const item = document.createElement('div');
     let tooltip = ''; // Tooltip-Variable
@@ -1167,7 +1147,8 @@ function createTagPill(tag, count, contentContainer) {
             'Last Hour': 0.9,
             'Today': 0.8,
             'Yesterday': 0.7,
-            'Last Month': 0.6,
+            'This Week': 0.65,
+            'This Month': 0.6,
             'Last 3 Months': 0.5,
             'This Year': 0.4,
             'Beyond this Year': 0.3,
@@ -1181,60 +1162,98 @@ function createTagPill(tag, count, contentContainer) {
             'Never': 0.4
         };
 
+        const sizeOpacityMap = {
+            'Huge': 1.0,
+            'Large': 0.8,
+            'Medium': 0.6,
+            'Small': 0.4
+        };
+
+        const whitelistOpacityMap = {
+            'Many': 1.0,
+            'Mean': 0.8,
+            'Few': 0.6,
+            'None': 0.4
+        };
+
         const parts = tag.split(': ');
         if (parts.length > 1) {
             const category = parts[0];
             const value = parts.slice(1).join(': ');
 
-            if (timeOpacityMap[value]) {
+            if (timeOpacityMap[value] && ['C', 'R', 'U', 'X'].includes(category)) {
                 opacity = timeOpacityMap[value];
-            } else if (counterOpacityMap[value] && (category === 'Reads' || category === 'Updates' || category === 'Executes')) {
+            } else if (counterOpacityMap[value] && ['R-Σ', 'U-Σ', 'X-Σ'].includes(category)) {
                 opacity = counterOpacityMap[value];
-            } else if (category === 'Size') {
-                opacity = 1.0; // Size is white, needs to pop
+            } else if (sizeOpacityMap[value] && category === 'Size') {
+                opacity = sizeOpacityMap[value];
+            } else if (whitelistOpacityMap[value] && category.startsWith('WL-')) {
+                opacity = whitelistOpacityMap[value];
             }
         }
 
         // Color Mapping
-        if (tag.startsWith('Created:')) {
+        if (tag.startsWith('C:')) {
             sysClass = 'pill-sys-create'; // Blue
-            tooltip = 'Timestamp: Document Creation';
+            tooltip = 'Creation Timestamp';
         }
         
-        else if (tag.startsWith('Read:')) {
+        else if (tag.startsWith('R:')) {
             sysClass = 'pill-sys-read'; // Green TS
-            tooltip = 'Timestamp: Last Read';
+            tooltip = 'Last Read Timestamp';
         }
-        else if (tag.startsWith('Reads:')) {
+        else if (tag.startsWith('R-Σ:')) {
             sysClass = 'pill-sys-read'; 
             item.style.filter = 'brightness(0.6)'; // **Darker Green**
-            tooltip = 'Counter: Read Operations';
+            tooltip = 'Read Counter';
         }
         
-        else if (tag.startsWith('Updated:')) {
+        else if (tag.startsWith('U:')) {
             sysClass = 'pill-sys-update'; // Orange TS
-            tooltip = 'Timestamp: Last Update';
+            tooltip = 'Last Update Timestamp';
         }
-        else if (tag.startsWith('Updates:')) {
+        else if (tag.startsWith('U-Σ:')) {
             sysClass = 'pill-sys-update';
             item.style.filter = 'brightness(0.7) saturate(1.2)'; // **Darker/Richer Orange**
-            tooltip = 'Counter: Update Operations';
+            tooltip = 'Update Counter';
         }
         
         else if (tag.startsWith('Size:')) {
             sysClass = 'pill-sys-size'; // **White** (New Class)
-            tooltip = 'Classification: Document Size';
+            tooltip = 'Document Size';
         }
         
-        else if (tag.startsWith('Executed:')) {
+        else if (tag.startsWith('X:')) {
             sysClass = 'pill-sys-execute'; // Black TS
-            tooltip = 'Timestamp: Last Execution';
+            tooltip = 'Last Execution Timestamp';
         }
-        else if (tag.startsWith('Executes:')) {
+        else if (tag.startsWith('X-Σ:')) {
             sysClass = 'pill-sys-execute';
-            item.style.backgroundColor = '#333333'; // **Darker Gray**
-            item.style.borderColor = '#666';
-            tooltip = 'Counter: Execute Operations';
+            item.style.setProperty('background-color', '#ffd700', 'important'); // **Gold**
+            item.style.setProperty('color', '#000000', 'important');
+            item.style.setProperty('border-color', '#b29400', 'important');
+            tooltip = 'Execution Counter';
+        } 
+        else if (tag.startsWith('WL-')) {
+            // Whitelist Pills: White
+            sysClass = 'pill-sys'; // Base class
+            item.style.setProperty('background-color', '#ffffff', 'important');
+            item.style.setProperty('color', '#000000', 'important');
+            item.style.setProperty('border-color', '#cccccc', 'important');
+            
+            if (tag.startsWith('WL-R:')) {
+                tooltip = 'Whitelist Count: READ';
+                item.style.setProperty('border-color', '#388e3c', 'important'); // Green hint border
+            } else if (tag.startsWith('WL-U:')) {
+                tooltip = 'Whitelist Count: UPDATE';
+                item.style.setProperty('border-color', '#f57c00', 'important'); // Orange hint border
+            } else if (tag.startsWith('WL-X:')) {
+                tooltip = 'Whitelist Count: EXECUTE';
+                item.style.setProperty('border-color', '#333333', 'important'); // Black/Dark hint border
+            }
+        } else if (tag.startsWith('Owner:')) {
+            sysClass = 'pill-sys-owner';
+            tooltip = 'Owner';
         } else {
             tooltip = 'System Tag';
         }
@@ -1271,28 +1290,82 @@ function createTagPill(tag, count, contentContainer) {
             const searchVal = isMime ? `mime:${displayTag}` : `tag:${displayTag}`;
             searchInput.value = (currentSearch === searchVal) ? '' : searchVal;
             fetchRealData(true);
-            updateCloudSelectionState(contentContainer);
+            this._updateSelectionState();
         }
     });
     return item;
 }
 
-export async function refreshTagCloud(db, force = false) {
-    const container = document.getElementById('tag-cloud-container');
-    const contentContainer = document.getElementById('tag-cloud-content');
-    if (container && contentContainer) {
-        if (!container.classList.contains('active')) {
-            container.classList.add('active');
-            // Force Reflow to ensure dimensions are correct for sector updates immediately after display:flex
-            void container.offsetWidth;
-        }
-        await scanAndRenderTags(db, contentContainer, force);
-        updateSectorsForDockState(container);
+    _resetInlineStyles() {
+        this.container.style.transform = '';
+        this.container.style.top = '';
+        this.container.style.left = '';
+        this.container.style.bottom = '';
+        this.container.style.right = '';
+        this.container.style.width = '';
+        this.container.style.height = '';
+        this.container.style.minWidth = '';
+        this.container.style.maxWidth = '';
+        this.container.style.maxHeight = '';
+        this.container.style.resize = '';
     }
 }
 
+// ---------- Hidden Grouping Logic (Module Scope) ----------
+function getHiddenGroupRules() {
+    try {
+        return JSON.parse(localStorage.getItem('crudx_hidden_group_rules') || '[]');
+    } catch { return []; }
+}
+
+function saveHiddenGroupRules(rules) {
+    localStorage.setItem('crudx_hidden_group_rules', JSON.stringify(rules));
+}
+
+function getFolderGroupRules() {
+    try {
+        return JSON.parse(localStorage.getItem('crudx_folder_group_rules') || '["Created>", "Last Read>", "Last Updated>", "Last Executed>"]');
+    } catch { return []; }
+}
+
+function saveFolderGroupRules(rules) {
+    localStorage.setItem('crudx_folder_group_rules', JSON.stringify(rules));
+}
+
+
+// --- SINGLETON INSTANCE & EXPORTS ---
+
+let tagCloudInstance = null;
+
+/**
+ * Initializes the singleton TagCloud component.
+ * @param {object} db - The Firestore database instance.
+ * @returns {TagCloud} The singleton instance.
+ */
 export function initTagCloud(db) {
-    window.currentDbInstance = db; // DB-Instanz sofort verfügbar machen
+    if (!tagCloudInstance) {
+        tagCloudInstance = new TagCloud(db);
+    }
+    return tagCloudInstance;
+}
+
+export function refreshTagCloud(force = false) {
+    if (tagCloudInstance) tagCloudInstance.refresh(force);
+}
+
+export function updateTagCloudSelection() {
+    if (tagCloudInstance) tagCloudInstance.updateSelection();
+}
+
+export function resetTagCloud() {
+    if (tagCloudInstance) tagCloudInstance.reset();
+}
+
+export function locateDocumentInCloud(docId) {
+    if (tagCloudInstance) tagCloudInstance.locateDocument(docId);
+}
+
+function _createDOM() {
     // Erzwinge Neu-Initialisierung: Altes Element entfernen, falls vorhanden
     const existing = document.getElementById('tag-cloud-container');
     if (existing) {
@@ -1332,22 +1405,30 @@ export function initTagCloud(db) {
         </div>
     `;
     document.body.insertAdjacentHTML('beforeend', cloudHTML);
+}
 
-    initGroupRulesEvents();
-    setupFloatingDrag(document.getElementById('tag-cloud-container'));
-    setupCustomResize(document.getElementById('tag-cloud-container'));
+function _getElements() {
+    this.container = document.getElementById('tag-cloud-container');
+    this.contentContainer = document.getElementById('tag-cloud-content');
+    this.header = this.container.querySelector('.modal-header');
+    this.closeBtn = document.getElementById('btn-close-tag-cloud');
+    this.refreshBtn = document.getElementById('btn-refresh-tags');
+    this.transBtn = document.getElementById('btn-toggle-cloud-transparency');
+    this.clearFilterBtn = document.getElementById('btn-clear-tag-filter');
+    this.rulesBtn = document.getElementById('btn-open-tag-rules');
+    this.dockBtn = document.getElementById('btn-dock-cloud');
+    this.folderSector = this.container.querySelector('.sector-folder');
+    this.hiddenSector = this.container.querySelector('.sector-hidden');
+    this.cloudSector = this.container.querySelector('.sector-cloud');
+}
 
-    const container = document.getElementById('tag-cloud-container');
-    const contentContainer = document.getElementById('tag-cloud-content');
-    const closeBtn = document.getElementById('btn-close-tag-cloud');
-    const refreshBtn = document.getElementById('btn-refresh-tags');
-    const transBtn = document.getElementById('btn-toggle-cloud-transparency');
-    const clearFilterBtn = document.getElementById('btn-clear-tag-filter');
-    const rulesBtn = document.getElementById('btn-open-tag-rules');
-    const dockBtn = document.getElementById('btn-dock-cloud');
+function _bindEvents() {
+    this._initGroupRulesEvents();
+    this._setupFloatingDrag();
+    this._setupCustomResize();
 
     // Context Menu for Sector Visibility
-    container.querySelector('.modal-header').addEventListener('contextmenu', (e) => {
+    this.header.addEventListener('contextmenu', (e) => {
         e.preventDefault();
 
         // Remove any existing menu
@@ -1372,7 +1453,7 @@ export function initTagCloud(db) {
         `;
 
         ['Folder', 'Hidden', 'Cloud'].forEach(name => {
-            const sectorEl = container.querySelector(`.sector-${name.toLowerCase()}`);
+            const sectorEl = this.container.querySelector(`.sector-${name.toLowerCase()}`);
             if (!sectorEl) return;
 
             const isVisible = window.getComputedStyle(sectorEl).display !== 'none';
@@ -1398,85 +1479,85 @@ export function initTagCloud(db) {
         window.addEventListener('click', closeMenu, { capture: true });
     });
 
-    closeBtn.addEventListener('click', () => {
+    this.closeBtn.addEventListener('click', () => {
         // Exit Confluence mode (docked left) if active
-        if (dockState === 1) {
+        if (this.dockState === 1) {
             document.body.classList.remove('ftc-docked');
         }
 
         // Hide the container
-        container.classList.remove('active');
+        this.container.classList.remove('active');
 
         // --- Reset to default DOCKED BOTTOM RIGHT state for next open ---
-        container.classList.remove('docked', 'docked-left', 'docked-center', 'snapped-right');
-        container.classList.add('docked-bottom-right');
+        this.container.classList.remove('docked', 'docked-left', 'docked-center', 'snapped-right');
+        this.container.classList.add('docked-bottom-right');
         
-        container.style.top = 'auto';
-        container.style.left = 'auto';
-        container.style.bottom = '20px';
-        container.style.right = '20px';
-        container.style.transform = '';
-        container.style.width = 'auto';
-        container.style.height = 'auto';
-        container.style.minWidth = '250px';
-        container.style.maxWidth = '40vw';
-        container.style.maxHeight = '50vh';
-        container.style.resize = 'both';
+        this.container.style.top = 'auto';
+        this.container.style.left = 'auto';
+        this.container.style.bottom = '20px';
+        this.container.style.right = '20px';
+        this.container.style.transform = '';
+        this.container.style.width = 'auto';
+        this.container.style.height = 'auto';
+        this.container.style.minWidth = '250px';
+        this.container.style.maxWidth = '40vw';
+        this.container.style.maxHeight = '50vh';
+        this.container.style.resize = 'both';
 
-        dockState = 3; // Set state variable to default
+        this.dockState = 3; // Set state variable to default
     });
-    refreshBtn.addEventListener('click', () => scanAndRenderTags(db, contentContainer, true)); // Force Refresh
+    this.refreshBtn.addEventListener('click', () => this.refresh(true));
     
-    rulesBtn.addEventListener('click', () => {
+    this.rulesBtn.addEventListener('click', () => {
         document.dispatchEvent(new CustomEvent('open-tag-rules'));
     });
 
-    dockBtn.addEventListener('click', () => {
+    this.dockBtn.addEventListener('click', () => {
         // If it was floating, start the cycle from the default position
-        if (dockState === 0) {
-            dockTagCloudBottomRight(container);
+        if (this.dockState === 0) {
+            this.dockBottomRight();
             return;
         }
 
         // Cycle: Bottom-Right (3) -> Center (2) -> Top-Left (1) -> Center (2) -> ...
-        if (dockState === 3) { // is BR
-            dockTagCloudCenter(container);
-            dockCycleDirection = 'forward';
-        } else if (dockState === 1) { // is TL
-            dockTagCloudCenter(container);
-            dockCycleDirection = 'backward';
-        } else if (dockState === 2) { // is Center
-            if (dockCycleDirection === 'forward') {
-                dockTagCloudLeft(container);
+        if (this.dockState === 3) { // is BR
+            this.dockCenter();
+            this.dockCycleDirection = 'forward';
+        } else if (this.dockState === 1) { // is TL
+            this.dockCenter();
+            this.dockCycleDirection = 'backward';
+        } else if (this.dockState === 2) { // is Center
+            if (this.dockCycleDirection === 'forward') {
+                this.dockLeft();
             } else { // direction is 'backward'
-                dockTagCloudBottomRight(container);
+                this.dockBottomRight();
             }
         }
     });
 
-    clearFilterBtn.addEventListener('click', () => {
+    this.clearFilterBtn.addEventListener('click', () => {
         const searchInput = document.getElementById('main-search');
         if (searchInput) {
             searchInput.value = '';
             fetchRealData(true);
-            updateCloudSelectionState(contentContainer);
+            this._updateSelectionState();
         }
     });
 
     // Transparency Toggle Logic (1 -> 2 -> 3)
     let currentLevel = 0; // Start with 0 (opaque)
-    transBtn.addEventListener('click', () => {
+    this.transBtn.addEventListener('click', () => {
         currentLevel = (currentLevel + 1) % 4; // Cycle 0, 1, 2, 3
         
-        container.classList.remove('cloud-level-0', 'cloud-level-1', 'cloud-level-2', 'cloud-level-3');
-        if (currentLevel > 0) container.classList.add(`cloud-level-${currentLevel}`);
+        this.container.classList.remove('cloud-level-0', 'cloud-level-1', 'cloud-level-2', 'cloud-level-3');
+        if (currentLevel > 0) this.container.classList.add(`cloud-level-${currentLevel}`);
         
         // Visual Feedback on Button
-        transBtn.style.opacity = currentLevel === 1 ? "1" : (currentLevel === 2 ? "0.8" : "0.5");
+        this.transBtn.style.opacity = currentLevel === 1 ? "1" : (currentLevel === 2 ? "0.8" : "0.5");
     });
 
     // Drag & Drop für Sektoren
-    const sectors = container.querySelectorAll('.tag-sector');
+    const sectors = this.container.querySelectorAll('.tag-sector');
     sectors.forEach(sector => {
         sector.addEventListener('dragover', e => {
             e.preventDefault();
@@ -1558,9 +1639,7 @@ export function initTagCloud(db) {
             }
         });
     });
-
-    // --- INITIAL STATE ---
-    // Always start docked at the bottom right.
-    dockTagCloudBottomRight(container);
-    updateSectorsForDockState(container);
 }
+
+// Assign methods to the class prototype
+Object.assign(TagCloud.prototype, { _createDOM, _getElements, _bindEvents });

@@ -43,7 +43,7 @@ export async function seedCoreData(db) {
         value: "# CRUDX Workbench\n\n**CRUDX** is a versatile Key-Value Store interface designed for rapid data management and visualization.\n\n## The CRUDX Model\n* **C**reate: Instantiate new data records.\n* **R**ead: Visualize data (Markdown, Code, JSON, Media).\n* **U**pdate: Modify values and metadata tags.\n* **D**elete: Remove obsolete records.\n* **eX**ecute: Launch applications or scripts directly from data.\n\n## Key Features\n* **Floating Tag Cloud**: Multidimensional navigation.\n* **Dynamic Grid**: 1x1 to 9x9 views.\n* **Granular Security**: Per-action Whitelists.\n\n*Data is the Application.*",
         owner: "info@https://crudx-e0599.web.app/",
         user_tags: [
-            "Info", "CRUDX", "v1", "🛡️ D", "data", "x:CRUDX-CORE_-_APP_-MARKD",
+            "Info", "CRUDX", "v: 1", "🛡️ D", "data", "x:CRUDX-CORE_-_APP_-MARKD",
             `Created${dateTagSuffix}`,
             `Last Read${dateTagSuffix}`,
             `Last Updated${dateTagSuffix}`,
@@ -697,6 +697,13 @@ export async function seedData(db) {
                 // Damit die Test-URLs für jeden sichtbar sind (Public Read)
                 if (payload.type === 'URL_LINK' || payload.type === 'MAPS_LINK') {
                     if (!wlRead.includes('*@*')) wlRead.push('*@*');
+                } else {
+                    // Fast alle Dokumente öffentlich lesbar machen (User Request: Sparsamer mit 'unauthorized')
+                    // Wir erzeugen nur 2 dedizierte "Private/Unauthorized" Beispiele.
+                    const isPrivateExample = (index === 7 || index === 42); 
+                    if (!isPrivateExample && !wlRead.includes('*@*')) {
+                        wlRead.push('*@*');
+                    }
                 }
 
                 // Ensure public execute access for all generated items
@@ -772,11 +779,11 @@ export async function seedData(db) {
                 if (Math.random() < 0.10) tags.push("backup");
                 
                 const vRand = Math.random();
-                if (vRand < 0.08) tags.push("v1");
-                else if (vRand < 0.14) tags.push("v2");
-                else if (vRand < 0.18) tags.push("v3");
-                else if (vRand < 0.21) tags.push("v4");
-                else if (vRand < 0.23) tags.push("v5");
+                if (vRand < 0.08) tags.push("v: 1");
+                else if (vRand < 0.14) tags.push("v: 2");
+                else if (vRand < 0.18) tags.push("v: 3");
+                else if (vRand < 0.21) tags.push("v: 4");
+                else if (vRand < 0.23) tags.push("v: 5");
                 
                 const isEmbed = payload.type === 'YOUTUBE_EMBED' || payload.type === 'MAPS_EMBED' || payload.type === 'IMGUR_EMBED' || payload.type === 'URL_LINK' || payload.type === 'MAPS_LINK';
 
@@ -872,12 +879,12 @@ export async function seedData(db) {
             },
             { 
                 id: "CRUDX-TEST5-00000-00001", label: "TEST_CASE_5_APP_AUX1", 
-                tags: ["app", "d1:CRUDX-DAT01-00000-00001"], 
+                tags: ["app", "data - 1:CRUDX-DAT01-00000-00001"], 
                 desc: "OPTIONAL: App with Aux Data 1.\nExpect: app=<ThisID>, data-1=<RefID>" 
             },
             { 
                 id: "CRUDX-TEST6-00000-00001", label: "TEST_CASE_6_FULL_HOUSE", 
-                tags: ["data", "x:CRUDX-APP00-00000-00001", "s:CRUDX-SET00-00000-00001", "d1:CRUDX-DAT01-00000-00001", "d2:CRUDX-DAT02-00000-00001", "d3:CRUDX-DAT03-00000-00001"], 
+                tags: ["data", "x:CRUDX-APP00-00000-00001", "s:CRUDX-SET00-00000-00001", "data - 1:CRUDX-DAT01-00000-00001", "data - 2:CRUDX-DAT02-00000-00001", "data - 3:CRUDX-DAT03-00000-00001"], 
                 desc: "ALL OPTIONALS: Complex scenario.\nExpect: app, data, settings, data-1, data-2, data-3" 
             },
             { 
@@ -887,16 +894,15 @@ export async function seedData(db) {
             },
             { 
                 id: "CRUDX-TEST8-00000-00001", label: "TEST_CASE_8_APP_D1_D2", 
-                tags: ["app", "d1:CRUDX-DAT01-00000-00001", "d2:CRUDX-DAT02-00000-00001"], 
+                tags: ["app", "data - 1:CRUDX-DAT01-00000-00001", "data - 2:CRUDX-DAT02-00000-00001"], 
                 desc: "COMBINATION: App + D1 + D2 (No Settings)." 
             },
             { 
                 id: "CRUDX-TEST9-00000-00001", label: "TEST_CASE_9_DATA_SET_D3", 
-                tags: ["data", "x:CRUDX-APP00-00000-00001", "s:CRUDX-SET00-00000-00001", "d3:CRUDX-DAT03-00000-00001"], 
+                tags: ["data", "x:CRUDX-APP00-00000-00001", "s:CRUDX-SET00-00000-00001", "data - 3:CRUDX-DAT03-00000-00001"], 
                 desc: "COMBINATION: Data + Settings + D3 (No D1/D2)." 
             }
         ];
-
         scenarios.forEach(s => {
             launcherBatch.set(doc(colRef, s.id), {
                 label: s.label,
@@ -912,7 +918,128 @@ export async function seedData(db) {
         await launcherBatch.commit();
         console.log("✅ Launcher Test Cases injected.");
 
-        alert(`✅ Massen-Injection (Whitelist-Fix) abgeschlossen: ${totalRecords} Records erstellt.`);
+        // --- SYSTEM TAG TEST CASES (Injection) ---
+        console.log("🚀 Injecting System Tag Test Cases...");
+        const systemTagBatch = writeBatch(db);
+        const now = new Date();
+        const oneDay = 24 * 60 * 60 * 1000;
+
+        // Calculate a valid "This Year" date (> 90 days ago, same year)
+        // If today is early in the year, this falls back to 120 days ago (likely last year -> Beyond)
+        let thisYearTarget = new Date(now.getTime() - 95 * oneDay); // Try 95 days ago
+        let thisYearLabel = "Test: Created This Year";
+        
+        if (thisYearTarget.getFullYear() !== now.getFullYear()) {
+            thisYearLabel = "Test: Created This Year (Fallback: Last 3 Months/Beyond)";
+            // Keep it to verify it DOESN'T show "This Year" incorrectly
+        }
+
+        const testCases = [
+            // Counters
+            { id: "SYS-TEST-READS-NEVER", label: "Test: Reads Never", reads: 0, created_at: now.toISOString() },
+            { id: "SYS-TEST-READS-RARE", label: "Test: Reads Rarely", reads: 5, last_read_ts: now.toISOString() },
+            { id: "SYS-TEST-READS-MEAN", label: "Test: Reads Mean", reads: 25, last_read_ts: now.toISOString() },
+            { id: "SYS-TEST-READS-TOP", label: "Test: Reads Top 5", reads: 100, last_read_ts: now.toISOString() },
+            
+            { id: "SYS-TEST-UPDATES-NEVER", label: "Test: Updates Never", updates: 0, created_at: now.toISOString() },
+            { id: "SYS-TEST-UPDATES-RARE", label: "Test: Updates Rarely", updates: 7, last_update_ts: now.toISOString() },
+            { id: "SYS-TEST-UPDATES-MEAN", label: "Test: Updates Mean", updates: 30, last_update_ts: now.toISOString() },
+            { id: "SYS-TEST-UPDATES-TOP", label: "Test: Updates Top 5", updates: 60, last_update_ts: now.toISOString() },
+            
+            { id: "SYS-TEST-EXECUTES-NEVER", label: "Test: Executes Never", executes: 0, created_at: now.toISOString() },
+            { id: "SYS-TEST-EXECUTES-RARE", label: "Test: Executes Rarely", executes: 1, last_execute_ts: now.toISOString() },
+            { id: "SYS-TEST-EXECUTES-MEAN", label: "Test: Executes Mean", executes: 15, last_execute_ts: now.toISOString() },
+            { id: "SYS-TEST-EXECUTES-TOP", label: "Test: Executes Top 5", executes: 55, last_execute_ts: now.toISOString() },
+
+            // Size
+            { id: "SYS-TEST-SIZE-SMALL", label: "Test: Size Small", size: "500B" },
+            { id: "SYS-TEST-SIZE-MEDIUM", label: "Test: Size Medium", size: "150KB" },
+            { id: "SYS-TEST-SIZE-LARGE", label: "Test: Size Large", size: "2.5MB" },
+            { id: "SYS-TEST-SIZE-HUGE", label: "Test: Size Huge", size: "20MB" },
+
+            // Timestamps: Created (C)
+            { id: "SYS-TEST-CREATED-HOUR", label: "Test: Created Last Hour", created_at: new Date(now.getTime() - 30 * 60 * 1000).toISOString() },
+            { id: "SYS-TEST-CREATED-TODAY", label: "Test: Created Today (older)", created_at: new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString() },
+            { id: "SYS-TEST-CREATED-YESTERDAY", label: "Test: Created Yesterday", created_at: new Date(now.getTime() - 25 * 60 * 60 * 1000).toISOString() },
+            { id: "SYS-TEST-CREATED-WEEK", label: "Test: Created This Week", created_at: new Date(now.getTime() - 4 * oneDay).toISOString() }, // 4 days ago
+            { id: "SYS-TEST-CREATED-MONTH", label: "Test: Created This Month", created_at: new Date(now.getTime() - 20 * oneDay).toISOString() }, // 20 days ago
+            { id: "SYS-TEST-CREATED-QUARTER", label: "Test: Created Last 3 Months", created_at: new Date(now.getTime() - 60 * oneDay).toISOString() }, // 60 days ago
+            { id: "SYS-TEST-CREATED-YEAR", label: thisYearLabel, created_at: thisYearTarget.toISOString() },
+            { id: "SYS-TEST-CREATED-START", label: "Test: Created Start of Year", created_at: new Date(now.getFullYear(), 0, 1, 12, 0, 0).toISOString() }, // Jan 1st
+            { id: "SYS-TEST-CREATED-BEYOND", label: "Test: Created Beyond Year", created_at: new Date(now.getTime() - 400 * oneDay).toISOString() },
+            { id: "SYS-TEST-CREATED-UNKNOWN", label: "Test: Created Unknown", created_at: null },
+
+            // Timestamps: Last Read (R)
+            { id: "SYS-TEST-READ-HOUR", label: "Test: Read Last Hour", last_read_ts: new Date(now.getTime() - 30 * 60 * 1000).toISOString(), reads: 1 },
+            { id: "SYS-TEST-READ-TODAY", label: "Test: Read Today", last_read_ts: new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString(), reads: 1 },
+            { id: "SYS-TEST-READ-YESTERDAY", label: "Test: Read Yesterday", last_read_ts: new Date(now.getTime() - 25 * 60 * 60 * 1000).toISOString(), reads: 1 },
+            { id: "SYS-TEST-READ-WEEK", label: "Test: Read This Week", last_read_ts: new Date(now.getTime() - 4 * oneDay).toISOString(), reads: 1 },
+            { id: "SYS-TEST-READ-MONTH", label: "Test: Read This Month", last_read_ts: new Date(now.getTime() - 20 * oneDay).toISOString(), reads: 1 },
+            { id: "SYS-TEST-READ-QUARTER", label: "Test: Read Last 3 Months", last_read_ts: new Date(now.getTime() - 60 * oneDay).toISOString(), reads: 1 },
+            { id: "SYS-TEST-READ-YEAR", label: "Test: Read This Year", last_read_ts: thisYearTarget.toISOString(), reads: 1 },
+            { id: "SYS-TEST-READ-BEYOND", label: "Test: Read Beyond Year", last_read_ts: new Date(now.getTime() - 400 * oneDay).toISOString(), reads: 1 },
+
+            // Timestamps: Last Update (U)
+            { id: "SYS-TEST-UPDATE-HOUR", label: "Test: Updated Last Hour", last_update_ts: new Date(now.getTime() - 30 * 60 * 1000).toISOString(), updates: 1 },
+            { id: "SYS-TEST-UPDATE-TODAY", label: "Test: Updated Today", last_update_ts: new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString(), updates: 1 },
+            { id: "SYS-TEST-UPDATE-YESTERDAY", label: "Test: Updated Yesterday", last_update_ts: new Date(now.getTime() - 25 * 60 * 60 * 1000).toISOString(), updates: 1 },
+            { id: "SYS-TEST-UPDATE-WEEK", label: "Test: Updated This Week", last_update_ts: new Date(now.getTime() - 4 * oneDay).toISOString(), updates: 1 },
+            { id: "SYS-TEST-UPDATE-MONTH", label: "Test: Updated This Month", last_update_ts: new Date(now.getTime() - 20 * oneDay).toISOString(), updates: 1 },
+            { id: "SYS-TEST-UPDATE-QUARTER", label: "Test: Updated Last 3 Months", last_update_ts: new Date(now.getTime() - 60 * oneDay).toISOString(), updates: 1 },
+            { id: "SYS-TEST-UPDATE-YEAR", label: "Test: Updated This Year", last_update_ts: thisYearTarget.toISOString(), updates: 1 },
+            { id: "SYS-TEST-UPDATE-BEYOND", label: "Test: Updated Beyond Year", last_update_ts: new Date(now.getTime() - 400 * oneDay).toISOString(), updates: 1 },
+            
+            // Timestamps: Last Execute (X)
+            { id: "SYS-TEST-EXEC-HOUR", label: "Test: Executed Last Hour", last_execute_ts: new Date(now.getTime() - 30 * 60 * 1000).toISOString(), executes: 1 },
+            { id: "SYS-TEST-EXEC-TODAY", label: "Test: Executed Today", last_execute_ts: new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString(), executes: 1 },
+            { id: "SYS-TEST-EXEC-YESTERDAY", label: "Test: Executed Yesterday", last_execute_ts: new Date(now.getTime() - 25 * 60 * 60 * 1000).toISOString(), executes: 1 },
+            { id: "SYS-TEST-EXEC-WEEK", label: "Test: Executed This Week", last_execute_ts: new Date(now.getTime() - 4 * oneDay).toISOString(), executes: 1 },
+            { id: "SYS-TEST-EXEC-MONTH", label: "Test: Executed This Month", last_execute_ts: new Date(now.getTime() - 20 * oneDay).toISOString(), executes: 1 },
+            { id: "SYS-TEST-EXEC-QUARTER", label: "Test: Executed Last 3 Months", last_execute_ts: new Date(now.getTime() - 60 * oneDay).toISOString(), executes: 1 },
+            { id: "SYS-TEST-EXEC-YEAR", label: "Test: Executed This Year", last_execute_ts: thisYearTarget.toISOString(), executes: 1 },
+            { id: "SYS-TEST-EXEC-BEYOND", label: "Test: Executed Beyond Year", last_execute_ts: new Date(now.getTime() - 400 * oneDay).toISOString(), executes: 1 },
+
+            // Whitelists (WL-R, WL-U, WL-X) - Full Spectrum
+            { id: "SYS-TEST-WLR-NONE", label: "Test: WL-R None", white_list_read: [] },
+            { id: "SYS-TEST-WLR-FEW", label: "Test: WL-R Few", white_list_read: ["a@b.c"] },
+            { id: "SYS-TEST-WLR-MEAN", label: "Test: WL-R Mean", white_list_read: ["a@b.c", "b@c.d", "c@d.e"] },
+            { id: "SYS-TEST-WLR-MANY", label: "Test: WL-R Many", white_list_read: ["a@b.c", "b@c.d", "c@d.e", "d@e.f", "e@f.g", "f@g.h"] },
+            
+            { id: "SYS-TEST-WLU-FEW", label: "Test: WL-U Few", white_list_update: ["a@b.c"] },
+            { id: "SYS-TEST-WLU-MANY", label: "Test: WL-U Many", white_list_update: ["a@b.c", "b@c.d", "c@d.e", "d@e.f", "e@f.g", "f@g.h"] },
+            
+            { id: "SYS-TEST-WLX-FEW", label: "Test: WL-X Few", white_list_execute: ["a@b.c"] },
+            { id: "SYS-TEST-WLX-MANY", label: "Test: WL-X Many", white_list_execute: ["a@b.c", "b@c.d", "c@d.e", "d@e.f", "e@f.g", "f@g.h"] }
+        ];
+
+        testCases.forEach(tc => {
+            // --- CONSISTENCY CHECK ---
+            // Wenn Zähler > 0, muss auch ein Zeitstempel existieren.
+            const nowISO = new Date().toISOString();
+            
+            // FIX: Default Created Date (außer bei explizitem Test für Unknown)
+            if (tc.created_at === undefined) tc.created_at = nowISO;
+
+            if (tc.reads > 0 && !tc.last_read_ts) tc.last_read_ts = nowISO;
+            if (tc.updates > 0 && !tc.last_update_ts) tc.last_update_ts = nowISO;
+            if (tc.executes > 0 && !tc.last_execute_ts) tc.last_execute_ts = nowISO;
+
+            const docRef = doc(colRef, tc.id);
+            const data = {
+                label: tc.label,
+                value: `This document is a test case for system tags.\nDetails: ${JSON.stringify(tc, null, 2)}`,
+                owner: "tester@crudx.io",
+                user_tags: ["SYS_TEST_CASE"],
+                access_control: ["*@*"],
+                ...tc
+            };
+            systemTagBatch.set(docRef, data);
+        });
+
+        await systemTagBatch.commit();
+        console.log(`✅ ${testCases.length} System Tag Test Cases injected.`);
+
+        alert(`✅ Massen-Injection abgeschlossen: ${totalRecords} Records erstellt.\n✅ Launcher Test Cases injected.\n✅ System Tag Test Cases injected.`);
         location.reload();
     } catch (error) {
         console.error("❌ Mass-Seed Fehler:", error);
