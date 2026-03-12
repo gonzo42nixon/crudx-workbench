@@ -970,7 +970,6 @@ export function initTagCloud(db) {
         // Exit Confluence mode (docked left) if active
         if (dockState === 1) {
             document.body.classList.remove('ftc-docked');
-            applyLayout('3'); // Revert to default 3x3 layout
         }
 
         // Hide the container

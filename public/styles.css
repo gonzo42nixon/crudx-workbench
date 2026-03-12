@@ -398,7 +398,8 @@ header {
     min-height: 0;
     overflow: hidden;
     transition: all 0.2s;
-    padding-top: var(--canvas-padding-top) !important;
+    padding-top: 90px !important;
+    padding-bottom: 70px !important;
 }
 
 /* Padding für alle Ansichten */
@@ -406,7 +407,6 @@ header {
 #data-container.grid-7, #data-container.grid-9, #data-container.list {
     padding-left: var(--app-padding, 10px) !important;
     padding-right: var(--app-padding, 10px) !important;
-    padding-bottom: var(--app-padding, 10px) !important;
 }
 
 /* GRID DEFINITIONEN */
@@ -575,7 +575,8 @@ header {
     overflow-y: auto !important;
 
     /* Hier passiert die Magie: Der Inhalt nutzt das Padding aus dem Editor */
-    padding: var(--card-padding, 20px) !important;
+    padding: 5px !important;
+    width: 100%;
 }
 
 .tl-group {
@@ -1709,23 +1710,6 @@ body.ftc-docked.layout-grid-1:has(.card-kv[data-mime="MD"]) .floating-modal.dock
     box-shadow: none !important;
 }
 
-/* Confluence Look: Hide Paginator in 1x1 Docked view */
-body.ftc-docked.layout-grid-1:has(.card-kv[data-mime="MD"]) #main-paginator {
-    display: none !important;
-}
-
-/* Confluence Look: Auto-hide Header in 1x1 Docked view */
-body.ftc-docked.layout-grid-1:has(.card-kv[data-mime="MD"]) header {
-    transform: translateY(-70px); /* Hide mostly, leave 10px trigger at top */
-    opacity: 0;
-    transition: transform 0.3s ease, opacity 0.3s ease;
-    pointer-events: auto; /* Enable hover trigger on the remaining strip */
-}
-body.ftc-docked.layout-grid-1:has(.card-kv[data-mime="MD"]) header:hover {
-    transform: translateY(0);
-    opacity: 1;
-}
-
 /* Confluence Look: Slightly zoom Markdown content for better readability */
 body.ftc-docked.layout-grid-1 .card-kv[data-mime="MD"] iframe {
     width: 87% !important; /* Compensate for scale(1.15) */
@@ -1864,4 +1848,42 @@ body.ftc-docked.layout-grid-1 .card-kv[data-mime="MD"] .tr-group {
 .pill-inactive:hover {
     opacity: 1 !important;
     filter: grayscale(0%);
+}
+
+/* ========== CONFLUENCE MODE UI (AUTO-HIDE) ========== */
+/* Hide Header and Paginator in Confluence Mode (App View), show on hover */
+
+/* Header Auto-Hide */
+body.ftc-docked.layout-grid-1:not(.no-app-view) header {
+    transform: translateY(-65px); /* Keep ~15px trigger zone at top */
+    opacity: 0;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    pointer-events: auto !important; /* Enable hover detection on the hidden header container */
+    background: transparent !important;
+}
+body.ftc-docked.layout-grid-1:not(.no-app-view) header:hover {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+/* Paginator Auto-Hide */
+body.ftc-docked.layout-grid-1:not(.no-app-view) #main-paginator {
+    transform: translate(-50%, 60px); /* Move down out of view but keep X centered */
+    opacity: 0;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    pointer-events: auto !important;
+}
+body.ftc-docked.layout-grid-1:not(.no-app-view) #main-paginator:hover {
+    transform: translate(-50%, 0);
+    opacity: 1;
+}
+
+/* ========== RAW MODE ========== */
+/* Ensure CRUD Buttons are visible and centered in Raw Mode even for Markdown docs */
+body.layout-grid-1.no-app-view .card-kv .tr-group,
+body.ftc-docked.layout-grid-1.no-app-view .card-kv[data-mime="MD"] .tr-group {
+    display: flex !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) scale(1.2) !important;
 }

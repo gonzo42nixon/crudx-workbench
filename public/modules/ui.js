@@ -44,7 +44,7 @@ export async function renderDataFromDocs(docs, container) {
 
     // Pre-fetch Markdown App if in Grid-1
     let mdAppTemplate = null;
-    if (isGrid1 && isDocked) {
+    if (isGrid1 && isDocked && !document.body.classList.contains('no-app-view')) {
         const hasMd = docs.some(d => detectMimetype(d.data().value).type === 'MD');
         if (hasMd) {
             try {
