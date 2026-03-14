@@ -52,8 +52,8 @@ export async function generateSecureAppBlob(key, d) {
     if (appContent && typeof appContent === 'string' && !appContent.startsWith("<h3>⚠️")) {
         let injectedData = "";
         if (params.has("data")) {
-            const safeJson = JSON.stringify(d).replace(/<\/script>/g, '<\\/script>');
-            injectedData = `<script type="application/json" id="markdown-template">${safeJson}</script>`;
+            const safeJson = JSON.stringify(d).replace(/<\/textarea>/g, '<\\/textarea>');
+            injectedData = `<textarea id="markdown-template" style="display: none;">${safeJson}</textarea>`;
         }
         
         contextData = {

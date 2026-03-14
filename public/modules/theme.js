@@ -141,15 +141,22 @@ export function applyTheme(themeName) {
  */
 export async function loadThemeFromFirestore() {
     const urlParams = new URLSearchParams(window.location.search);
-    const targetId = urlParams.get('search') || "CRUDX-CORE_-DATA_-THEME";
+    // FIX: Nutze 'theme' statt 'search', um Kollisionen mit Dokumenten-Inhalten (HTML) zu vermeiden.
+    const targetId = urlParams.get('theme') || "CRUDX-CORE_-DATA_-THEME";
     
     try {
         const docRef = doc(db, "kv-store", targetId);
         const snap = await getDoc(docRef);
         if (snap.exists()) {
-            const config = JSON.parse(snap.data().value);
-            validateAndApplyTheme(config);
-            console.log("✅ Core Theme Data successfully loaded from Firestore.");
+            const data = snap.data();
+            // Sicherstellen, dass es sich um einen validen JSON-String handelt, der Theme-Daten enthält
+            if (data.value && typeof data.value === 'string' && data.value.trim().startsWith('{')) {
+                const config = JSON.parse(data.value);
+                if (config.themes) {
+                    validateAndApplyTheme(config);
+                    console.log(`✅ Core Theme Data [${targetId}] successfully loaded from Firestore.`);
+                }
+            }
         }
     } catch (err) {
         console.warn("⚠️ Could not load Core Theme from Firestore, using hardcoded defaults:", err);

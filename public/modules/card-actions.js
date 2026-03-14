@@ -1,5 +1,5 @@
 import { db, auth } from './firebase.js';
-import { getDoc, doc, updateDoc, deleteDoc, increment } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getDoc, doc, updateDoc, deleteDoc, increment, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { escapeHtml } from './utils.js';
 import { detectMimetype } from './mime.js';
 import { createExecutionWindow, generateSecureAppBlob } from './launcher.js';
@@ -106,7 +106,7 @@ export function initCardActions(dataContainer, openUpdateModal, openTagModal) {
                         // Update read stats
                         updateDoc(docSnap.ref, {
                             reads: increment(1),
-                            last_read_ts: new Date().toISOString()
+                            last_read_ts: serverTimestamp()
                         }).catch(err => console.error("Read-Stat Update Error:", err));
                     } catch (err) {
                         alert("Read Error: " + err.message);
@@ -235,7 +235,7 @@ export function initCardActions(dataContainer, openUpdateModal, openTagModal) {
                         let blobUrl = URL.createObjectURL(blob);
                         if (contextData) blobUrl += `#ctx=${encodeURIComponent(JSON.stringify(contextData))}`;
                         createExecutionWindow(blobUrl, d.value, key);
-                        updateDoc(doc(db, "kv-store", key), { executes: increment(1), last_execute_ts: new Date().toISOString() }).catch(console.error);
+                        updateDoc(doc(db, "kv-store", key), { executes: increment(1), last_execute_ts: serverTimestamp() }).catch(console.error);
                     } else {
                         alert("⚠️ Launcher Error: Could not resolve App logic. Check tags (app/data/x:...).");
                     }
@@ -337,6 +337,59 @@ export function initCardActions(dataContainer, openUpdateModal, openTagModal) {
                 }
                 openUpdateModal(data.key, data.currentValue, data.label, data.card, false);
             }
+            return;
+        }
+
+        // 5. Summary Pill Click (Dropdown for grouped tags on cards)
+        const summaryPill = e.target.closest('.summary-pill');
+        if (summaryPill) {
+            e.stopPropagation();
+            const tags = JSON.parse(summaryPill.dataset.tags || '[]');
+            if (tags.length === 0) return;
+
+            // Close existing dropdowns
+            const existing = document.querySelector('.tag-dropdown-menu');
+            if (existing) existing.remove();
+
+            const menu = document.createElement('div');
+            menu.className = 'tag-dropdown-menu';
+            
+            const searchInput = document.getElementById('main-search');
+            const currentSearch = searchInput ? searchInput.value.trim() : '';
+            const activeTag = currentSearch.startsWith('tag:') ? currentSearch.substring(4) : null;
+
+            tags.forEach(tag => {
+                const item = document.createElement('div');
+                item.className = 'pill pill-user';
+                item.textContent = tag;
+                item.style.cursor = 'pointer';
+                
+                if (activeTag === tag) {
+                    item.style.border = '1px solid var(--burger-text)';
+                }
+
+                item.onclick = (ev) => {
+                    ev.stopPropagation();
+                    if (searchInput) {
+                        const searchVal = `tag:${tag}`;
+                        searchInput.value = (currentSearch === searchVal) ? '' : searchVal;
+                        fetchRealData(true);
+                        updateTagCloudSelection();
+                    }
+                    menu.remove();
+                };
+                menu.appendChild(item);
+            });
+
+            document.body.appendChild(menu);
+            const rect = summaryPill.getBoundingClientRect();
+            const menuRect = menu.getBoundingClientRect();
+            const spaceBelow = window.innerHeight - rect.bottom;
+
+            // Intelligente Positionierung: Wenn unten zu wenig Platz ist, nach oben klappen
+            const topPos = (spaceBelow < menuRect.height && rect.top > menuRect.height) ? rect.top - menuRect.height - 5 : rect.bottom + 5;
+            menu.style.top = `${topPos}px`;
+            menu.style.left = `${Math.min(rect.left, window.innerWidth - menuRect.width - 10)}px`;
             return;
         }
 

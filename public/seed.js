@@ -1,4 +1,4 @@
-import { doc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 /**
  * Seeds general user data.
@@ -28,7 +28,7 @@ export async function seedCoreData(db) {
 
             await setDoc(doc(db, "kv-store", _id), {
                 ...payload,
-                created_at: payload.created_at || new Date().toISOString(),
+                created_at: payload.created_at || serverTimestamp(),
                 access_control: payload.access_control || ["*@*"]
             });
             console.log(`✅ Injected Core Object: ${_id}`);

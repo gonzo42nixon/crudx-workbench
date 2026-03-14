@@ -82,7 +82,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         // 2. Real-time Theme Loader (System Theme + Dynamic override)
         (() => {
-            const searchKey = urlParams.get('search');
+            const themeOverrideKey = urlParams.get('theme');
             const systemThemeKey = "CRUDX-CORE_-DATA_-THEME";
 
             const processThemeSnapshot = (snap, label, key) => {
@@ -116,11 +116,11 @@ document.addEventListener("DOMContentLoaded", async () => {
             });
 
             // Override if a specific theme key is provided in the URL (and it's not the system theme)
-            if (searchKey && searchKey.startsWith('CRUDX-') && searchKey !== systemThemeKey) {
-                onSnapshot(doc(db, "kv-store", searchKey), (snap) => {
-                    processThemeSnapshot(snap, "Dynamic Override Theme", searchKey);
+            if (themeOverrideKey && themeOverrideKey.startsWith('CRUDX-') && themeOverrideKey !== systemThemeKey) {
+                onSnapshot(doc(db, "kv-store", themeOverrideKey), (snap) => {
+                    processThemeSnapshot(snap, "Dynamic Override Theme", themeOverrideKey);
                 }, (err) => {
-                    console.warn(`Override Theme listener failed:`, err);
+                    console.warn(`Override Theme listener failed for [${themeOverrideKey}]:`, err);
                 });
             }
         })();

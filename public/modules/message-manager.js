@@ -1,5 +1,5 @@
 import { db } from './firebase.js';
-import { doc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { doc, updateDoc, increment, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { refreshTagCloud } from './tagscanner.js';
 
 export function initMessageListeners() {
@@ -38,7 +38,7 @@ export function initMessageListeners() {
                         white_list_delete: payload.white_list_delete?.arrayValue?.values?.map(v => v.stringValue) || [],
                         white_list_execute: payload.white_list_execute?.arrayValue?.values?.map(v => v.stringValue) || [],
                         updates: increment(1),
-                        last_update_ts: new Date().toISOString()
+                        last_update_ts: serverTimestamp()
                     };
                     await updateDoc(doc(db, "kv-store", payload.key), dataToSave);
                     console.log(`✅ IFrame save for [${payload.key}] successful (SDK).`);

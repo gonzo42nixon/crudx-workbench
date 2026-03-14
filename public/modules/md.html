@@ -98,9 +98,10 @@
     </main>
 
     <script>
-        const editor = document.getElementById('editor');
-        const previewContent = document.getElementById('preview-content');
-        const appBody = document.getElementById('app-body');
+        // Globale Variablen sicher deklarieren
+        window.editor = window.editor || document.getElementById('editor');
+        window.previewContent = window.previewContent || document.getElementById('preview-content');
+        window.appBody = window.appBody || document.getElementById('app-body');
 
         // Initialize Mermaid for Diagrams
         mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
@@ -120,8 +121,8 @@
 
         // Toggle View Modes
         function setMode(mode) {
-            appBody.classList.remove('mode-split', 'mode-editor', 'mode-preview');
-            appBody.classList.add('mode-' + mode);
+            window.appBody.classList.remove('mode-split', 'mode-editor', 'mode-preview');
+            window.appBody.classList.add('mode-' + mode);
             ['editor', 'split', 'preview'].forEach(m => {
                 const btn = document.getElementById('btn-' + m);
                 if (m === mode) {
@@ -137,13 +138,13 @@
 
         // Main Rendering Logic
         async function updatePreview() {
-            const rawText = editor.value;
+            const rawText = window.editor.value;
             
             // 1. Basic Markdown Rendering
-            previewContent.innerHTML = marked.parse(rawText);
+            window.previewContent.innerHTML = marked.parse(rawText);
 
             // 2. Math (KaTeX) - Block & Inline
-            renderMathInElement(previewContent, {
+            renderMathInElement(window.previewContent, {
                 delimiters: [
                     {left: '$$', right: '$$', display: true},
                     {left: '$', right: '$', display: false}
@@ -152,7 +153,7 @@
             });
 
             // 3. Music (ABCjs)
-            const abcBlocks = previewContent.querySelectorAll('pre code.language-abc');
+            const abcBlocks = window.previewContent.querySelectorAll('pre code.language-abc');
             abcBlocks.forEach((block, index) => {
                 const container = document.createElement('div');
                 const id = 'abc-' + index;
@@ -163,7 +164,7 @@
             });
 
             // 4. Diagrams & Charts (Mermaid)
-            const mermaidBlocks = previewContent.querySelectorAll('pre code.language-mermaid');
+            const mermaidBlocks = window.previewContent.querySelectorAll('pre code.language-mermaid');
             for (let i = 0; i < mermaidBlocks.length; i++) {
                 const block = mermaidBlocks[i];
                 const code = block.textContent;
@@ -173,7 +174,7 @@
                 block.parentElement.replaceWith(container);
             }
             
-            if (previewContent.querySelectorAll('.mermaid').length > 0) {
+            if (window.previewContent.querySelectorAll('.mermaid').length > 0) {
                 try {
                     await mermaid.run();
                 } catch (err) { console.error("Mermaid error:", err); }
@@ -182,38 +183,44 @@
 
         window.onload = () => {
             const template = document.getElementById('markdown-template');
-            if (template && template.textContent) {
-                try {
-                    // Pre-check for a context injected by the calling environment (app.js)
-                    const preInjectedKey = window.CRUDX_CONTEXT ? window.CRUDX_CONTEXT.key : null;
+            if (template) {
+                const content = template.textContent.trim();
+                if (content) {
+                    try {
+                        // 1. Versuch: Als JSON parsen (Vollständiges Dokument-Objekt vom Emulator)
+                        const docData = JSON.parse(content);
+                        
+                        const preInjectedKey = window.CRUDX_CONTEXT ? window.CRUDX_CONTEXT.key : null;
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const docKey = preInjectedKey || urlParams.get('data') || urlParams.get('key') || "UNKNOWN_KEY";
 
-                    // 1. Parse the full document data from the template script
-                    const docData = JSON.parse(template.textContent.trim());
-                    
-                    // 2. Determine the document key. Prioritize the pre-injected key,
-                    // as blob URLs in the emulator won't have URL parameters.
-                    const urlParams = new URLSearchParams(window.location.search);
-                    const docKey = preInjectedKey || urlParams.get('data') || urlParams.get('key') || "UNKNOWN_KEY";
+                        window.CRUDX_CONTEXT = {
+                            ...(window.CRUDX_CONTEXT || {}),
+                            key: docKey,
+                            action: "U",
+                            webhookUrl: "https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977",
+                            documentData: docData 
+                        };
 
-                    // 3. Build/rebuild the global context in the structure this app expects.
-                    window.CRUDX_CONTEXT = {
-                        ...(window.CRUDX_CONTEXT || {}),
-                        key: docKey,
-                        action: "U",
-                        webhookUrl: "https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977",
-                        documentData: docData 
-                    };
-
-                    console.log("✅ Context successfully loaded/rebuilt:", window.CRUDX_CONTEXT);
-
-                    // 4. Inject ONLY the Markdown value into the editor
-                    if (docData.value) {
-                        editor.value = docData.value;
+                        if (docData.value) {
+                            editor.value = docData.value;
+                        }
+                    } catch (e) {
+                        // 2. Fallback: Inhalt ist reiner Markdown-Text (Produktions-Modus via Webhook)
+                        console.log("📝 Data is not JSON, treating as raw Markdown.");
+                        editor.value = content;
+                        
+                        // Minimal-Kontext für die Speicher-Funktion aufbauen
+                        if (!window.CRUDX_CONTEXT) {
+                            const urlParams = new URLSearchParams(window.location.search);
+                            window.CRUDX_CONTEXT = {
+                                key: urlParams.get('data') || urlParams.get('key') || "UNKNOWN_KEY",
+                                action: "U",
+                                webhookUrl: "https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977"
+                            };
+                        }
                     }
                     updatePreview();
-                } catch (e) {
-                    console.error("❌ Failed to parse injected JSON. Is it valid JSON?", e);
-                    editor.value = "# Error loading data\nCould not parse the injected data.";
                 }
             }
         };

@@ -10,6 +10,10 @@ function renderSysTags(d, currentUserEmail) {
         if (!val) return null;
         if (typeof val === 'string') return val;
         if (val.toDate && typeof val.toDate === 'function') return val.toDate().toISOString();
+        // Fallback für Plain Objects {seconds, nanoseconds}, die oft aus dem Emulator-Cache kommen
+        if (typeof val === 'object' && val.seconds !== undefined) {
+            return new Date(val.seconds * 1000).toISOString();
+        }
         return String(val);
     };
     const fD = (ts) => { const s = toIso(ts); return s ? s.split('T')[0] : '--'; };
