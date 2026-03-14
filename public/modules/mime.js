@@ -78,7 +78,7 @@ export function detectMimetype(value) {
         (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
         try {
             JSON.parse(trimmed);
-            scores.JSON += 100; // sicher erkannt
+            scores.JSON += 1000; // sicher erkannt - Overrides greedy CSS detection
         } catch (e) {
             // kein JSON
         }

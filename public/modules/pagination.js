@@ -23,6 +23,15 @@ export function unsubscribeListener() {
     }
 }
 
+export function resetPagination() {
+    currentPage = 1;
+    pageCursors = [];
+}
+
+export function setItemsPerPage(val) {
+    itemsPerPage = val;
+}
+
 // ---------- URL State Management ----------
 export function loadStateFromUrl() {
     const state = UrlManager.getInitialStateFromUrl();
@@ -34,56 +43,6 @@ export function loadStateFromUrl() {
     if (btnOrder) btnOrder.textContent = sortDirection === 'asc' ? '↑' : '↓';
 
     return state.view;
-}
-
-// ---------- Layout anwenden ----------
-export function applyLayout(val, initialLoad = false, skipFetch = false) {
-    const dataContainer = document.getElementById('data-container');
-    if (!dataContainer) return;
-
-    // FIX: Ensure the dropdown reflects the actual layout state
-    const gridSelect = document.getElementById('grid-select');
-    if (gridSelect && gridSelect.value !== val) {
-        gridSelect.value = val;
-    }
-
-    // Helper class on body for specific styling in 1x1 mode (e.g. Confluence Look)
-    if (val === '1') document.body.classList.add('layout-grid-1');
-    else document.body.classList.remove('layout-grid-1');
-
-    dataContainer.classList.remove(
-        'grid-1', 'grid-3', 'grid-4', 'grid-5', 'grid-7', 'grid-9', 'list',
-        'density-compact', 'density-minimal', 'density-nano'
-    );
-    dataContainer.style = '';
-
-    if (val === 'list') {
-        itemsPerPage = 500;
-        dataContainer.classList.add('list');
-        const navi = document.querySelector('.navi-container');
-        if (navi) navi.style.display = 'none';
-        console.log("🚀 List mode activated.");
-    } else {
-        const s = parseInt(val);
-        itemsPerPage = s * s;
-        dataContainer.classList.add(`grid-${s}`);
-
-        if (s >= 5) dataContainer.classList.add('density-compact');
-        if (s >= 7) dataContainer.classList.add('density-minimal');
-        if (s >= 9) dataContainer.classList.add('density-nano');
-
-        const navi = document.querySelector('.navi-container');
-        if (navi) navi.style.display = 'flex';
-        console.log(`Square mode: ${s}x${s} grid activated.`);
-    }
-
-    if (!initialLoad) {
-        currentPage = 1;
-        pageCursors = [];
-    }
-    if (!skipFetch) {
-        fetchRealData();
-    }
 }
 
 // ---------- Daten laden (aktuelle Seite) ----------
@@ -99,7 +58,8 @@ export async function fetchRealData(resetPage = false) {
     
     const isSystemTagSearch = isTagSearch && SYSTEM_TAG_PREFIXES.some(prefix => searchTerm.substring(4).startsWith(prefix));
     
-    const needsClientSideFiltering = (user && !filterOwnerOnly && isTagSearch) || isMimeSearch || isSystemTagSearch;
+    // Client-seitige Filterung ist auch für Gäste nötig, wenn nach Tags gesucht wird (wegen der Firestore "one array-contains" Limitation)
+    const needsClientSideFiltering = (!filterOwnerOnly && isTagSearch) || isMimeSearch || isSystemTagSearch;
 
     if (resetPage) {
         currentPage = 1;
@@ -113,8 +73,6 @@ export async function fetchRealData(resetPage = false) {
     UrlManager.updateUrlParams(currentPage, sortDirection);
 
     try {
-        unsubscribeListener();
-
         let countQuery;
         let mineCount = 0;
 
@@ -217,12 +175,17 @@ export async function fetchRealData(resetPage = false) {
             if (filterOwnerOnly) {
                 constraints.push(where("owner", "==", user.email));
             } else {
-                const tokens = getAccessTokens(user.email);
+                const tokens = getAccessTokens(user ? user.email : null);
                 // FIX: Firestore erlaubt nur ein "array-contains" pro Query.
                 // Wenn wir nach Tags suchen, müssen wir die Access-Control client-seitig filtern.
                 if (!isTagSearch) {
                     constraints.push(where("access_control", "array-contains-any", tokens));
                 }
+            }
+        } else {
+            // GAST-ZUGRIFF: Nur öffentliche Dokumente laden
+            if (!isTagSearch) {
+                constraints.push(where("access_control", "array-contains", "*@*"));
             }
         }
         
@@ -260,15 +223,13 @@ export async function fetchRealData(resetPage = false) {
             let docs = snap.docs;
 
             if (needsClientSideFiltering) {
-                const tokens = getAccessTokens(user.email);
+                const tokens = getAccessTokens(user ? user.email : null);
                 docs = docs.filter(doc => {
                     const d = doc.data();
                     
-                    // 1. Access Control Check (if user exists)
-                    if (user) {
-                        const ac = d.access_control || [];
-                        if (!ac.some(t => tokens.includes(t))) return false;
-                    }
+                    // 1. Access Control Check (Immer prüfen, auch für Gäste)
+                    const ac = d.access_control || [];
+                    if (!ac.some(t => tokens.includes(t))) return false;
 
                     // 2. Mime Type Check
                     if (isMimeSearch) {
@@ -419,14 +380,6 @@ export function initPaginationControls() {
             sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
             btnOrder.textContent = sortDirection === 'asc' ? '↑' : '↓';
             fetchRealData(true);
-        });
-    }
-
-    // Grid-Auswahl
-    const gridSelect = document.getElementById('grid-select');
-    if (gridSelect) {
-        gridSelect.addEventListener('change', (e) => {
-            applyLayout(e.target.value);
         });
     }
 

@@ -1,5 +1,6 @@
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { fetchRealData, applyLayout } from './pagination.js';
+import { fetchRealData } from './pagination.js';
+import { applyLayout } from './layout-manager.js';
 import { getAccessTokens } from './utils.js';
 import { detectMimetype, getMimeInfo } from './mime.js';
 import { auth, db } from './firebase.js';
@@ -47,6 +48,7 @@ class TagCloud {
     locateDocument(docId) {
         const searchInput = document.getElementById('main-search');
         if (searchInput) searchInput.value = docId;
+        document.body.classList.remove('no-app-view'); 
 
         if (this.dockState !== 1) {
             this.dockLeft(docId);
@@ -485,82 +487,6 @@ class TagCloud {
     });
 }
 
-    _renderGroupRulesUI() {
-    const renderList = (containerId, getRulesFn, saveRulesFn) => {
-        const container = document.getElementById(containerId);
-        if (!container) return;
-        container.innerHTML = '';
-        const rules = getRulesFn();
-
-        rules.forEach((rule, index) => {
-        const div = document.createElement('div');
-        div.style.display = 'flex';
-        div.style.gap = '10px';
-        div.style.marginBottom = '5px';
-        div.innerHTML = `
-            <input type="text" value="${rule}" class="rule-input" style="flex: 1; background: #222; border: 1px solid #444; color: #ccc; padding: 4px;">
-            <button class="btn-remove-rule" style="background: #500; color: #fff; border: none; cursor: pointer; padding: 0 8px;">×</button>
-        `;
-        div.querySelector('.btn-remove-rule').onclick = () => {
-            rules.splice(index, 1);
-            saveRulesFn(rules);
-                this._renderGroupRulesUI();
-        };
-        div.querySelector('input').onchange = (e) => {
-            rules[index] = e.target.value;
-            saveRulesFn(rules);
-        };
-        container.appendChild(div);
-    });
-    };
-
-    renderList('hidden-group-rules-list', getHiddenGroupRules, saveHiddenGroupRules);
-    renderList('folder-group-rules-list', getFolderGroupRules, saveFolderGroupRules);
-}
-
-    _initGroupRulesEvents() {
-    const addBtn = document.getElementById('btn-add-hidden-group-rule');
-    if (addBtn) {
-        // Event-Listener nur einmal hinzufügen (Check via Attribut)
-        if (!addBtn.dataset.hasListener) {
-            addBtn.addEventListener('click', () => {
-                const rules = getHiddenGroupRules();
-                rules.push('');
-                saveHiddenGroupRules(rules);
-                this._renderGroupRulesUI();
-            });
-            addBtn.dataset.hasListener = 'true';
-        }
-    }
-
-    const addFolderBtn = document.getElementById('btn-add-folder-group-rule');
-    if (addFolderBtn) {
-        if (!addFolderBtn.dataset.hasListener) {
-            addFolderBtn.addEventListener('click', () => {
-                const rules = getFolderGroupRules();
-                rules.push('');
-                saveFolderGroupRules(rules);
-                this._renderGroupRulesUI();
-            });
-            addFolderBtn.dataset.hasListener = 'true';
-        }
-    }
-
-    // Hook in den Save-Button des Modals (existiert bereits für andere Regeln)
-    const saveBtn = document.getElementById('btn-save-rules');
-    if (saveBtn && !saveBtn.dataset.hasHiddenGroupListener) {
-        saveBtn.addEventListener('click', () => {
-            this.refresh();
-        });
-        saveBtn.dataset.hasHiddenGroupListener = 'true';
-    }
-
-    // Beim Öffnen des Modals UI rendern
-    document.addEventListener('open-tag-rules', () => {
-        this._renderGroupRulesUI();
-    });
-}
-
     async _scanAndRenderTags(force = false) {
         const isLeftDocked = this.dockState === 1;
 
@@ -772,7 +698,7 @@ class TagCloud {
         const cloudContent = this.contentContainer.querySelector('.sector-cloud .sector-content');
 
 
-        if (sortedTags.length === 0) {
+        if (sortedTags.length === 0 && cloudContent) {
             const noTags = document.createElement('div');
             noTags.className = 'pill pill-sys';
             noTags.style.margin = '10px';
@@ -787,7 +713,7 @@ class TagCloud {
         const folderGroupRules = getFolderGroupRules();
 
         let lastPrio = -1; // For line break logic
-
+        
         // --- DOCKED MODE: PREPARE DOCUMENT TREE ---
         let firstDocId = null;
 
@@ -884,7 +810,7 @@ class TagCloud {
         });
 
         // --- Hidden Sector Grouping ---
-        if (hiddenContent && (this.dockState === 0 || this.dockState === 2)) {
+        if (hiddenContent && (this.dockState === 0 || this.dockState === 2 || this.dockState === 3)) {
             const groups = {};
             const looseItems = [];
 
@@ -908,7 +834,7 @@ class TagCloud {
             // Render Groups
             for (const [rule, items] of Object.entries(groups)) {
                 const groupPill = document.createElement('div');
-                groupPill.className = 'pill pill-sys';
+                groupPill.className = 'pill pill-sys summary-pill';
                 groupPill.style.cursor = 'pointer';
                 groupPill.style.border = '1px solid var(--sys-border)';
                 groupPill.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
@@ -990,7 +916,7 @@ class TagCloud {
             const folderLooseItems = [];
 
             // 1. Grouping Logic (ähnlich Hidden)
-            if (this.dockState === 0 || this.dockState === 2) {
+            if (this.dockState === 0 || this.dockState === 2 || this.dockState === 3) {
                 folderItems.forEach(entry => {
                     let matchedRule = null;
                     for (const rule of folderGroupRules) {
@@ -1011,7 +937,7 @@ class TagCloud {
                 // Render Folder Groups (Summary Pills)
                 for (const [rule, items] of Object.entries(folderGroups)) {
                     const groupPill = document.createElement('div');
-                    groupPill.className = 'pill pill-user'; // User style for folders
+                    groupPill.className = 'pill pill-user summary-pill'; // User style for folders
                     groupPill.style.cursor = 'pointer';
                     groupPill.style.border = '1px solid var(--user-border)';
                     groupPill.style.backgroundColor = 'rgba(64, 196, 255, 0.1)';
@@ -1403,7 +1329,6 @@ function _getElements() {
 }
 
 function _bindEvents() {
-    this._initGroupRulesEvents();
     this._setupFloatingDrag();
     this._setupCustomResize();
 

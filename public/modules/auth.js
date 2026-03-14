@@ -1,6 +1,8 @@
 // modules/auth.js
 import { auth, db } from './firebase.js';
-import { applyLayout, fetchRealData, loadStateFromUrl } from './pagination.js';
+import { fetchRealData, loadStateFromUrl } from './pagination.js';
+import { loadThemeFromFirestore } from './theme.js';
+import { applyLayout } from './layout-manager.js';
 import { doc, getDoc, setDoc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // Hilfsfunktion für Event-Listener (wie in app.js)
@@ -33,6 +35,9 @@ export function initAuth() {
             const gridSelect = document.getElementById('grid-select');
             const userModal = document.getElementById('user-modal');
             const modalEmail = document.getElementById('modal-user-email');
+
+            // Core Data (Theme) sofort aus Firestore laden
+            await loadThemeFromFirestore();
 
             if (user) {
                 console.log("✅ Access granted for:", user.email);

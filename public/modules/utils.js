@@ -1,3 +1,12 @@
+export function escapeHtml(unsafe) {
+    if (!unsafe) return '';
+    return unsafe
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
 export function encodeOCR(id) {
     const map = { '0': 'C', '1': 'R', '6': 'U', '7': 'D', '9': 'X' };
     let raw = id.toString().padStart(15, '0'); 
@@ -15,6 +24,17 @@ export function getAccessTokens(email) {
         `${local}@*`,
         `*@*`
     ];
+}
+
+export function calculateAccessControl(owner, whitelists) {
+    const rawAccess = [
+        owner,
+        ...(whitelists.read || []),
+        ...(whitelists.update || []),
+        ...(whitelists.delete || []),
+        ...(whitelists.execute || [])
+    ].filter(item => item && typeof item === 'string' && item.trim() !== "");
+    return rawAccess.length > 0 ? [...new Set(rawAccess)] : ['*@*'];
 }
 
 export function getEmailWarning(email) {
@@ -74,51 +94,42 @@ export function buildFirestoreCreatePayload(input) {
     const docKey = input.key || "";
     const fields = {};
 
-    const fieldConfig = {
-        integers:   ['reads', 'updates', 'executes'],
-        timestamps: ['created_at', 'last_update_ts', 'last_read_ts', 'last_execute_ts'],
-        arrays:     ['user_tags', 'access_control', 'white_list_read', 'white_list_update', 'white_list_delete', 'white_list_execute'],
-        strings:    ['label', 'value', 'owner', 'size']
-    };
+    const timestamps = ['created_at', 'last_update_ts', 'last_read_ts', 'last_execute_ts'];
+    const integers = ['reads', 'updates', 'executes'];
 
     for (const [key, val] of Object.entries(input)) {
         if (key === 'key') continue;
         if (val === undefined || val === null) continue;
 
-        if (fieldConfig.integers.includes(key)) {
-            const num = parseInt(val, 10);
-            if (!isNaN(num)) {
-                fields[key] = { integerValue: String(num) };
-            }
+        // 1. Arrays verarbeiten
+        if (Array.isArray(val)) {
+            const firestoreValues = val
+                .filter(item => item !== null && item !== undefined)
+                .map(item => ({ stringValue: String(item) }));
+            fields[key] = { arrayValue: { values: firestoreValues } };
             continue;
         }
 
-        if (fieldConfig.timestamps.includes(key)) {
-            // Handle Firestore Timestamp objects directly
-            if (val && val.toDate && typeof val.toDate === 'function') {
-                fields[key] = { timestampValue: val.toDate().toISOString() };
-            } else if (isValidIsoDate(val)) {
-                fields[key] = { timestampValue: val };
-            } else if (typeof val === 'string' && val.trim() !== "") {
-                fields[key] = { stringValue: val };
-            }
+        // 2. Bekannte Integers oder Zahlen verarbeiten
+        if (integers.includes(key) || typeof val === 'number') {
+            fields[key] = { integerValue: String(Math.floor(Number(val))) };
             continue;
         }
 
-        if (fieldConfig.arrays.includes(key)) {
-            if (Array.isArray(val)) {
-                const cleanValues = val.filter(item => item && typeof item === 'string' && item.trim() !== "");
-                const firestoreValues = cleanValues.map(item => ({ stringValue: item }));
-                fields[key] = {
-                    arrayValue: {
-                        values: firestoreValues
-                    }
-                };
-            }
+        // 3. Timestamps (Bekannte Keys oder ISO Strings)
+        if (timestamps.includes(key) || (typeof val === 'string' && isValidIsoDate(val))) {
+            const ts = (val && val.toDate) ? val.toDate().toISOString() : val;
+            fields[key] = { timestampValue: ts };
             continue;
         }
 
-        if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') {
+        // 4. Booleans
+        if (typeof val === 'boolean') {
+            fields[key] = { booleanValue: val };
+            continue;
+        }
+
+        if (typeof val === 'string') {
             fields[key] = { stringValue: String(val) };
         }
     }
@@ -129,5 +140,60 @@ export function buildFirestoreCreatePayload(input) {
     return {
         key: docKey,
         body_raw: bodyRawString
+    };
+}
+
+export function setupModalDrag(modalId) {
+    const modal = document.getElementById(modalId);
+    const content = modal ? modal.querySelector('.modal-content') : null;
+    if (!content) return;
+    const handle = content.querySelector('.modal-drag-handle');
+    if (!handle) return;
+    
+    handle.style.cursor = 'move';
+    let isDragging = false;
+    let startX, startY, startTransX, startTransY;
+    
+    // For whitelist modal specifically (using left/top instead of translate)
+    const isWhitelist = (modalId === 'whitelist-modal');
+    let startLeft, startTop;
+
+    handle.addEventListener('mousedown', (e) => {
+        if (e.target.closest('.close-x') || e.target.closest('button') || e.target.closest('.btn-transparency') || e.target.tagName === 'INPUT') return;
+        e.preventDefault();
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+
+        if (isWhitelist) {
+            startLeft = modal.offsetLeft;
+            startTop = modal.offsetTop;
+        } else {
+            const style = window.getComputedStyle(content);
+            const matrix = new WebKitCSSMatrix(style.transform);
+            startTransX = matrix.m41;
+            startTransY = matrix.m42;
+        }
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    });
+
+    const onMouseMove = (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        
+        if (isWhitelist) {
+            modal.style.left = `${startLeft + dx}px`;
+            modal.style.top = `${startTop + dy}px`;
+        } else {
+            content.style.transform = `translate(${startTransX + dx}px, ${startTransY + dy}px)`;
+        }
+    };
+
+    const onMouseUp = () => {
+        isDragging = false;
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
     };
 }

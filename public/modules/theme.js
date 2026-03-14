@@ -1,4 +1,8 @@
 // modules/theme.js
+import { db } from './firebase.js';
+import { doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { buildFirestoreCreatePayload } from './utils.js';
+
 /**
  * Theme-Modul – verwaltet die Theme-Konfiguration, das Anwenden von Themes
  * und die Live-Bearbeitung im Editor.
@@ -102,7 +106,7 @@ export function applyTheme(themeName) {
     const canvasPadding = (t.canvas && typeof t.canvas.padding === 'number') ? t.canvas.padding : 15;
     root.style.setProperty('--app-padding', canvasPadding + 'px');
 
-    const canvasPaddingTop = (t.canvas && typeof t.canvas.paddingTop === 'number') ? t.canvas.paddingTop : 10;
+    const canvasPaddingTop = (t.canvas && typeof t.canvas.paddingTop === 'number') ? t.canvas.paddingTop : 0;
     root.style.setProperty('--canvas-padding-top', canvasPaddingTop + 'px');
 
     const naviBottom = (t.navi && typeof t.navi.bottom === 'number') ? t.navi.bottom : 25;
@@ -110,6 +114,9 @@ export function applyTheme(themeName) {
 
     const cardPadding = (t.card && typeof t.card.padding === 'number') ? t.card.padding : 20;
     root.style.setProperty('--card-padding', cardPadding + 'px');
+
+    const cardPaddingTop = (t.card && typeof t.card.paddingTop === 'number') ? t.card.paddingTop : 40;
+    root.style.setProperty('--card-padding-top', cardPaddingTop + 'px');
 
     // Burger-Button
     const burgerColor = t.burger?.text || '#00ff00';
@@ -127,6 +134,26 @@ export function applyTheme(themeName) {
     if (editThemeSelect) editThemeSelect.value = themeName;
 
     console.log(`🎨 Theme "${themeName}" applied.`);
+}
+
+/**
+ * Lädt die Theme-Konfiguration (Core Data) direkt aus dem Firestore.
+ */
+export async function loadThemeFromFirestore() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetId = urlParams.get('search') || "CRUDX-CORE_-DATA_-THEME";
+    
+    try {
+        const docRef = doc(db, "kv-store", targetId);
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+            const config = JSON.parse(snap.data().value);
+            validateAndApplyTheme(config);
+            console.log("✅ Core Theme Data successfully loaded from Firestore.");
+        }
+    } catch (err) {
+        console.warn("⚠️ Could not load Core Theme from Firestore, using hardcoded defaults:", err);
+    }
 }
 
 // ---------- Modal-UI synchronisieren ----------
@@ -177,6 +204,11 @@ export function syncModalUI() {
     const cardPaddingInput = document.getElementById('in-card-padding');
     if (cardPaddingInput && t.card && typeof t.card.padding === 'number') {
         cardPaddingInput.value = t.card.padding;
+    }
+
+    const cardPaddingTopInput = document.getElementById('in-card-padding-top');
+    if (cardPaddingTopInput && t.card && typeof t.card.paddingTop === 'number') {
+        cardPaddingTopInput.value = t.card.paddingTop;
     }
 }
 
@@ -236,7 +268,8 @@ export function initThemeEditor() {
             const val = parseInt(e.target.value);
             if (!isNaN(val)) {
                 themeState.appConfig.themes[themeState.currentActiveTheme].canvas.paddingTop = val;
-                document.documentElement.style.setProperty('--canvas-padding-top', val + 'px');
+                console.log(`🎨 UI Feedback: Canvas Padding Top set to ${val}px`);
+                applyTheme(themeState.currentActiveTheme);
             }
         });
     }
@@ -258,6 +291,17 @@ export function initThemeEditor() {
             const val = parseInt(e.target.value);
             if (!isNaN(val)) {
                 themeState.appConfig.themes[themeState.currentActiveTheme].card.padding = val;
+                applyTheme(themeState.currentActiveTheme);
+            }
+        });
+    }
+
+    const cardPaddingTopEl = document.getElementById('in-card-padding-top');
+    if (cardPaddingTopEl) {
+        cardPaddingTopEl.addEventListener('input', (e) => {
+            const val = parseInt(e.target.value);
+            if (!isNaN(val)) {
+                themeState.appConfig.themes[themeState.currentActiveTheme].card.paddingTop = val;
                 applyTheme(themeState.currentActiveTheme);
             }
         });
@@ -305,6 +349,71 @@ export function initThemeControls() {
             syncModalUI();
             document.getElementById('theme-modal').classList.add('active');
             document.getElementById('drawer').classList.remove('open');
+        });
+    }
+
+    // ----- Cloud Save Logic (CRUDX Core) -----
+    const saveCloudBtn = document.getElementById('btn-save-theme-cloud');
+    if (saveCloudBtn) {
+        saveCloudBtn.addEventListener('click', async () => {
+            const originalText = saveCloudBtn.textContent;
+            saveCloudBtn.textContent = "⏳ Saving...";
+            saveCloudBtn.disabled = true;
+
+            try {
+                const config = {
+                    startupTheme: themeState.appConfig.startupTheme,
+                    themes: themeState.appConfig.themes
+                };
+                
+                const urlParams = new URLSearchParams(window.location.search);
+                const targetId = urlParams.get('search') || "CRUDX-CORE_-DATA_-THEME";
+
+                const isEmulator = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+                if (isEmulator) {
+                    // Local Mode: Direct Firestore Write
+                    await setDoc(doc(db, "kv-store", targetId), {
+                        value: JSON.stringify(config, null, 4),
+                        last_update_ts: new Date().toISOString()
+                    }, { merge: true });
+                } else {
+                    // Production Mode: Route through Webhook
+                    const payloadData = {
+                        key: targetId,
+                        value: JSON.stringify(config, null, 4),
+                        last_update_ts: new Date().toISOString()
+                    };
+                    const payload = buildFirestoreCreatePayload(payloadData);
+                    payload.action = "U";
+
+                    const response = await fetch("https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!response.ok) throw new Error(`Webhook Error: ${response.statusText}`);
+                }
+
+                saveCloudBtn.textContent = "✅ Saved!";
+                setTimeout(() => {
+                    saveCloudBtn.textContent = originalText;
+                    saveCloudBtn.disabled = false;
+                }, 2000);
+            } catch (err) {
+                console.error("Cloud Save Error:", err);
+                alert("Save failed: " + err.message);
+                saveCloudBtn.textContent = originalText;
+                saveCloudBtn.disabled = false;
+            }
+        });
+    }
+
+    // Ensure changes to the startup theme selector are captured in state
+    const startupSelect = document.getElementById('in-startup');
+    if (startupSelect) {
+        startupSelect.addEventListener('change', (e) => {
+            themeState.appConfig.startupTheme = e.target.value;
         });
     }
 

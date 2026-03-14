@@ -101,33 +101,38 @@ export function injectGlobalUI() {
     const createFabHTML = `<div id="btn-create-card" class="fab-create" title="Create a Card">+</div>`;
     document.body.insertAdjacentHTML('beforeend', createFabHTML);
 
+    const confluenceFabHTML = `<div id="btn-toggle-confluence" class="fab-confluence" title="Toggle Confluence Mode">📚</div>`;
+    document.body.insertAdjacentHTML('beforeend', confluenceFabHTML);
+
     initFabDragging();
 }
 
 function initFabDragging() {
     const fab = document.getElementById('btn-create-card');
-    if (fab) {
+    const confFab = document.getElementById('btn-toggle-confluence');
+    [fab, confFab].forEach(el => {
+        if (!el) return;
         let isDragging = false;
         let hasMoved = false;
         let startX, startY, initialLeft, initialTop;
 
-        fab.addEventListener('mousedown', (e) => {
+        el.addEventListener('mousedown', (e) => {
             if (e.button !== 0) return; // Only left click
             isDragging = true;
             hasMoved = false;
             startX = e.clientX;
             startY = e.clientY;
             
-            const rect = fab.getBoundingClientRect();
+            const rect = el.getBoundingClientRect();
             initialLeft = rect.left;
             initialTop = rect.top;
             
             // Switch to absolute positioning based on current location
-            fab.style.bottom = 'auto';
-            fab.style.right = 'auto';
-            fab.style.left = `${initialLeft}px`;
-            fab.style.top = `${initialTop}px`;
-            fab.style.transition = 'none'; // Disable transition for instant movement
+            el.style.bottom = 'auto';
+            el.style.right = 'auto';
+            el.style.left = `${initialLeft}px`;
+            el.style.top = `${initialTop}px`;
+            el.style.transition = 'none'; 
             
             document.addEventListener('mousemove', onMouseMove);
             document.addEventListener('mouseup', onMouseUp);
@@ -138,44 +143,44 @@ function initFabDragging() {
             const dx = e.clientX - startX;
             const dy = e.clientY - startY;
             if (Math.abs(dx) > 3 || Math.abs(dy) > 3) hasMoved = true;
-            fab.style.left = `${initialLeft + dx}px`;
-            fab.style.top = `${initialTop + dy}px`;
+            el.style.left = `${initialLeft + dx}px`;
+            el.style.top = `${initialTop + dy}px`;
         }
 
         function onMouseUp() {
             if (!isDragging) return;
             isDragging = false;
-            fab.style.transition = ''; // Restore transition
+            el.style.transition = ''; 
             document.removeEventListener('mousemove', onMouseMove);
             document.removeEventListener('mouseup', onMouseUp);
 
             // Smart Anchoring
-            const rect = fab.getBoundingClientRect();
+            const rect = el.getBoundingClientRect();
             const winW = window.innerWidth;
             const winH = window.innerHeight;
             
             // Horizontal
             if (rect.left + (rect.width / 2) > winW / 2) {
-                fab.style.left = 'auto';
-                fab.style.right = `${winW - rect.right}px`;
+                el.style.left = 'auto';
+                el.style.right = `${winW - rect.right}px`;
             } else {
-                fab.style.right = 'auto';
-                fab.style.left = `${rect.left}px`;
+                el.style.right = 'auto';
+                el.style.left = `${rect.left}px`;
             }
             
             // Vertical
             if (rect.top + (rect.height / 2) > winH / 2) {
-                fab.style.top = 'auto';
-                fab.style.bottom = `${winH - rect.bottom}px`;
+                el.style.top = 'auto';
+                el.style.bottom = `${winH - rect.bottom}px`;
             } else {
-                fab.style.bottom = 'auto';
-                fab.style.top = `${rect.top}px`;
+                el.style.bottom = 'auto';
+                el.style.top = `${rect.top}px`;
             }
 
             if (hasMoved) {
-                fab.dataset.justDragged = "true";
-                setTimeout(() => delete fab.dataset.justDragged, 50);
+                el.dataset.justDragged = "true";
+                setTimeout(() => delete el.dataset.justDragged, 50);
             }
         }
-    }
+    });
 }

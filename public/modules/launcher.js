@@ -25,10 +25,10 @@ export async function generateSecureAppBlob(key, d) {
     // Aux Tags
     tags.forEach(t => {
         if (t.startsWith("s:")) params.set("settings", t.substring(2));
-        if (t.startsWith("data - 1:")) params.set("data-1", t.substring(9));
-        if (t.startsWith("data - 2:")) params.set("data-2", t.substring(9));
-        if (t.startsWith("data - 3:")) params.set("data-3", t.substring(9));
-        if (t.startsWith("data - 4:")) params.set("data-4", t.substring(9));
+        if (t.startsWith("d1:")) params.set("data-1", t.substring(3));
+        if (t.startsWith("d2:")) params.set("data-2", t.substring(3));
+        if (t.startsWith("d3:")) params.set("data-3", t.substring(3));
+        if (t.startsWith("d4:")) params.set("data-4", t.substring(3));
     });
 
     if (!params.has("app")) return null; // Not an app execution

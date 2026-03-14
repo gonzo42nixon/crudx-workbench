@@ -2,21 +2,24 @@ import { setupAuth } from './modules/auth-helper.js';
 import { detectMimetype } from './modules/mime.js';
 import { themeState, applyTheme, syncModalUI, initThemeEditor, initThemeControls } from './modules/theme.js';
 import { db, auth } from './modules/firebase.js';
-import { applyLayout, initPaginationControls, fetchRealData, fetchLastPageData, loadStateFromUrl, unsubscribeListener } from './modules/pagination.js';
-import { renderDataFromDocs, escapeHtml } from './modules/ui.js';
+import { applyLayout, initLayoutControls } from './modules/layout-manager.js';
+import { initPaginationControls, fetchRealData } from './modules/pagination.js';
+import { renderDataFromDocs } from './modules/ui.js';
 import { initTagCloud, refreshTagCloud, updateTagCloudSelection, locateDocumentInCloud, resetTagCloud } from './modules/tagscanner.js';
 import { loadTagConfigFromUrl, getTagConfigForUrl, getTagRules, setTagRules } from './modules/tag-state.js';
 import { initAuth } from './modules/auth.js';
-import { encodeOCR, getEmailWarning, syntaxHighlight, buildFirestoreCreatePayload, isValidIsoDate } from './modules/utils.js';
+import { encodeOCR, getEmailWarning, syntaxHighlight, buildFirestoreCreatePayload, isValidIsoDate, escapeHtml } from './modules/utils.js';
 import { 
     collection, query, limit, getDocs, getCountFromServer, orderBy, startAfter, deleteDoc, doc, 
-    writeBatch, updateDoc, setDoc, arrayUnion, getDoc, arrayRemove, where, increment
+    writeBatch, updateDoc, setDoc, arrayUnion, getDoc, arrayRemove, where, increment, onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { generateSecureAppBlob, createExecutionWindow } from './modules/launcher.js';
 import { backupData, restoreData, deleteByTag, deleteAllDocuments } from './modules/admin.js';
 import { initCardActions } from './modules/card-actions.js';
+import { initMessageListeners } from './modules/message-manager.js';
 import { injectGlobalUI } from './modules/ui-injector.js';
-import { initEditor, openUpdateModal, openTagModal } from './modules/editor.js';
+import { initEditor, openUpdateModal } from './modules/editor.js';
+import { openTagModal } from './modules/tag-manager.js';
 
 document.addEventListener("DOMContentLoaded", async () => {
     try {
@@ -72,22 +75,63 @@ document.addEventListener("DOMContentLoaded", async () => {
             toggleClearBtn();
         }
 
-        // --- THEME CONFIG ---
-        const settingsBlock = document.getElementById('crudx-settings');
-        if (settingsBlock && settingsBlock.textContent.trim() !== "" && settingsBlock.textContent.trim() !== "{}") {
-            try { 
-                themeState.appConfig = { ...themeState.appConfig, ...JSON.parse(settingsBlock.textContent) }; 
-            } catch (e) {}
-        }
-
-        // Theme initialisieren
+        // --- THEME INITIALIZATION ---
+        // 1. Load initial fallback theme from theme.js
         themeState.currentActiveTheme = themeState.appConfig.startupTheme;
         applyTheme(themeState.currentActiveTheme);
+
+        // 2. Real-time Theme Loader (System Theme + Dynamic override)
+        (() => {
+            const searchKey = urlParams.get('search');
+            const systemThemeKey = "CRUDX-CORE_-DATA_-THEME";
+
+            const processThemeSnapshot = (snap, label, key) => {
+                if (snap.exists()) {
+                    const data = snap.data();
+                    try {
+                        const config = (data.value && typeof data.value === 'string' && data.value.includes('"themes"')) 
+                            ? JSON.parse(data.value) 
+                            : data;
+
+                        if (config.themes && config.startupTheme) {
+                            console.log(`🎨 ${label} [${key}] applied.`);
+                            themeState.appConfig = config;
+                            themeState.currentActiveTheme = config.startupTheme;
+                            applyTheme(themeState.currentActiveTheme);
+                            syncModalUI();
+                        }
+                    } catch (e) {
+                        console.error(`Theme parse error for ${label} [${key}]:`, e);
+                    }
+                } else {
+                    console.warn(`Theme document for ${label} [${key}] does not exist.`);
+                }
+            };
+
+            // Always listen to the global system theme
+            onSnapshot(doc(db, "kv-store", systemThemeKey), (snap) => {
+                processThemeSnapshot(snap, "System Theme", systemThemeKey);
+            }, (err) => {
+                console.warn(`System Theme listener failed:`, err);
+            });
+
+            // Override if a specific theme key is provided in the URL (and it's not the system theme)
+            if (searchKey && searchKey.startsWith('CRUDX-') && searchKey !== systemThemeKey) {
+                onSnapshot(doc(db, "kv-store", searchKey), (snap) => {
+                    processThemeSnapshot(snap, "Dynamic Override Theme", searchKey);
+                }, (err) => {
+                    console.warn(`Override Theme listener failed:`, err);
+                });
+            }
+        })();
         initThemeEditor();
         initThemeControls();
 
         // Auth initialisieren
         initAuth();
+
+        // Cross-Window Messaging initialisieren
+        initMessageListeners();
 
         // Tag Config aus URL laden
         loadTagConfigFromUrl();
@@ -95,14 +139,18 @@ document.addEventListener("DOMContentLoaded", async () => {
         // Paginierung initialisieren
         initPaginationControls();
 
+        // Layout Steuerung initialisieren
+        initLayoutControls();
+
         // --- FAB-FUNKTIONEN (SHARE, FULLSCREEN, PRINT) ---
         bind('btn-share', 'click', () => {
             if (navigator.share) {
                 navigator.share({ title: 'CRUDX Data View', url: window.location.href });
             } else {
                 const shareUrl = `${window.location.href.split('?')[0]}?${new URLSearchParams(window.location.search).toString()}&tagConfig=${getTagConfigForUrl()}`;
-                navigator.clipboard.writeText(shareUrl);
-                alert("Link copied to clipboard!");
+                navigator.clipboard.writeText(shareUrl).then(() => {
+                    alert("Link copied to clipboard!");
+                });
             }
         });
 
@@ -115,6 +163,23 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
 
         bind('btn-print', 'click', () => window.print());
+
+        // --- CONFLUENCE MODE TOGGLE ---
+        bind('btn-toggle-confluence', 'click', () => {
+            const btn = document.getElementById('btn-toggle-confluence');
+            if (btn && btn.dataset.justDragged === "true") return;
+
+            const isModeActive = document.body.classList.contains('ftc-docked');
+            const tc = initTagCloud(db);
+
+            if (isModeActive) {
+                tc.dockBottomRight();
+                fetchRealData(); // Re-render to revert Secure Apps to Raw view
+            } else {
+                document.body.classList.remove('no-app-view'); // Sicherstellen, dass App-View aktiv ist
+                tc.dockLeft(); // Dies aktiviert intern Grid-1 und setzt ftc-docked
+            }
+        });
 
         // --- CRUDX WEBHOOK BUTTONS & PILLS ---
         const dataContainer = document.getElementById('data-container');
@@ -325,63 +390,25 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 
         if (isLocal) {
-            bind('btn-inject', 'click', () => import(`./seed.js?t=${Date.now()}`).then(m => m.seedData(db)));
-            bind('btn-inject-core', 'click', () => import(`./seed.js?t=${Date.now()}`).then(m => m.seedCoreData(db)));
+            console.log("🛠️ Dev-Mode detected: Binding Injection Buttons...");
+            
+            bind('btn-inject', 'click', () => {
+                console.log("🚀 Inject Test Data clicked");
+                import(`./seed.js?t=${Date.now()}`).then(m => m.seedData(db)).catch(err => console.error("Import failed:", err));
+            });
+
+            bind('btn-inject-core', 'click', () => {
+                console.log("🧬 Inject Core Data clicked");
+                import(`./seed.js?t=${Date.now()}`).then(m => m.seedCoreData(db)).catch(err => console.error("Import failed:", err));
+            });
 
             bind('btn-delete', 'click', deleteAllDocuments);
         } else {
-            const btnInject = document.getElementById('btn-inject');
-            if (btnInject) btnInject.style.display = 'none';
-            const btnDelete = document.getElementById('btn-delete');
-            if (btnDelete) btnDelete.style.display = 'none';
+            ['btn-inject', 'btn-inject-core', 'btn-delete'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.style.display = 'none';
+            });
         }
-
-        // Global Message Listener (e.g. for Fullscreen from IFrame)
-        window.addEventListener('message', (e) => {
-            if (e.data === 'toggle-fullscreen') {
-                if (!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen().catch(err => console.log(err));
-                } else {
-                    if (document.exitFullscreen) document.exitFullscreen();
-                }
-            }
-        });
-
-        // --- GLOBAL MESSAGE LISTENER FOR IFRAME COMMUNICATION ---
-        // Handles save requests from sandboxed apps (e.g., Markdown Studio in Emulator mode)
-        window.addEventListener('message', async (event) => {
-            // Basic security: check for expected data structure
-            if (event.data && event.data.type === 'CRUDX_SAVE') {
-                const payload = event.data.payload;
-                console.log('📬 Received save request from IFrame:', payload);
-
-                if (!payload || !payload.key) {
-                    console.error("❌ IFrame save failed: Payload is missing a key.");
-                    return;
-                }
-
-                try {
-                    // Reconstruct the data to be saved, similar to the Update Modal
-                    const dataToSave = {
-                        value: payload.value,
-                        label: payload.label,
-                        owner: payload.owner,
-                        user_tags: payload.user_tags?.arrayValue?.values?.map(v => v.stringValue) || [],
-                        white_list_read: payload.white_list_read?.arrayValue?.values?.map(v => v.stringValue) || [],
-                        white_list_update: payload.white_list_update?.arrayValue?.values?.map(v => v.stringValue) || [],
-                        white_list_delete: payload.white_list_delete?.arrayValue?.values?.map(v => v.stringValue) || [],
-                        white_list_execute: payload.white_list_execute?.arrayValue?.values?.map(v => v.stringValue) || [],
-                        updates: increment(1),
-                        last_update_ts: new Date().toISOString()
-                    };
-                    await updateDoc(doc(db, "kv-store", payload.key), dataToSave);
-                    console.log(`✅ IFrame save for [${payload.key}] successful!`);
-                    refreshTagCloud(true); // Cache leeren und neu laden nach IFrame-Save
-                } catch (e) {
-                    console.error(`❌ IFrame save for [${payload.key}] failed:`, e);
-                }
-            }
-        });
 
         // Global ESC Key to close modals
         document.addEventListener('keydown', (e) => {
@@ -418,40 +445,72 @@ document.addEventListener("DOMContentLoaded", async () => {
         // Watches the grid and automatically upgrades Markdown cards to Secure Apps
         const gridObserver = new MutationObserver(async (mutations) => {
             const gridSelect = document.getElementById('grid-select');
-            // Only active in 1x1 mode
-            if (gridSelect && gridSelect.value === '1') {
-                const card = document.querySelector('.card-kv');
-                // Check if it's a Markdown card that hasn't been upgraded yet
-                if (card && card.dataset.mime === 'MD' && !card.dataset.appLoaded) {
-                    card.dataset.appLoaded = "true"; // Mark as processing to prevent loops
-                    
-                    const key = card.querySelector('.pill-key')?.textContent.trim();
-                    if (key) {
-                        try {
-                            const docSnap = await getDoc(doc(db, "kv-store", key));
-                            if (docSnap.exists()) {
-                                const { blob, contextData } = await generateSecureAppBlob(key, docSnap.data()) || {};
-                                if (blob) {
-                                    let blobUrl = URL.createObjectURL(blob);
-                                    if (contextData) {
-                                        blobUrl += `#ctx=${encodeURIComponent(JSON.stringify(contextData))}`;
-                                        console.log("🔗 Attached Context to Blob URL");
-                                    }
-                                    const valueLayer = card.querySelector('.value-layer');
-                                    if (valueLayer) {
-                                        valueLayer.innerHTML = `<iframe src="${blobUrl}" style="width:100%; height:100%; border:none;" id="editor-frame"></iframe>`;
-                                        console.log("✅ Confluence Mode: Auto-Upgraded to Secure App.");
-                                    }
+            const isConfluenceMode = document.body.classList.contains('ftc-docked');
+            // Only active in 1x1 mode AND Confluence Mode is active
+            if (gridSelect && gridSelect.value === '1' && isConfluenceMode) {
+                // Find the first Markdown card that needs an upgrade
+                const card = Array.from(document.querySelectorAll('.card-kv')).find(c => 
+                    c.dataset.mime === 'MD' && (c.dataset.appLoaded !== "true" || c.dataset.loadedKey !== c.querySelector('.pill-key')?.textContent.trim())
+                );
+
+                if (!card) return;
+
+                const currentKey = card.querySelector('.pill-key')?.textContent.trim();
+                const valueLayer = card.querySelector('.value-layer');
+                
+                if (!card.dataset.doc) return;
+
+                card.dataset.appLoaded = "true"; 
+                card.dataset.loadedKey = currentKey;
+
+                if (currentKey) {
+                    try {
+                        const docData = JSON.parse(card.dataset.doc);
+                        const isEmulator = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+                        if (!isEmulator) {
+                            // PRODUKTION: Webhook URL für Auto-Launch (X)
+                            const tags = docData.user_tags || [];
+                            const appTag = tags.find(t => t.startsWith('x:'));
+                            let appKey = appTag ? appTag.substring(2) : (tags.includes('app') ? currentKey : "CRUDX-CORE_-_APP_-MARKD");
+                            
+                            const params = new URLSearchParams();
+                            params.append("action", "X");
+                            params.append("key", currentKey);
+                            params.set("app", appKey);
+                            if (tags.includes("data") || card.dataset.mime === 'MD') params.set("data", currentKey);
+
+                            tags.forEach(t => {
+                                if (t.startsWith("s:")) params.set("settings", t.substring(2));
+                                if (t.startsWith("d1:")) params.set("data-1", t.substring(3));
+                                if (t.startsWith("d2:")) params.set("data-2", t.substring(3));
+                                if (t.startsWith("d3:")) params.set("data-3", t.substring(3));
+                            });
+
+                            const targetUrl = `https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977?${params.toString()}`;
+                            if (valueLayer) {
+                                valueLayer.innerHTML = `<iframe src="${targetUrl}" style="width:100%; height:100%; border:none; display:block; background:var(--canvas-bg);"></iframe>`;
+                                console.log(`✅ Confluence Mode: Upgraded to ${currentKey} via Webhook`);
+                            }
+                        } else {
+                            // EMULATOR: Client-side Blob (SDK)
+                            const { blob } = await generateSecureAppBlob(currentKey, docData) || {};
+                            if (blob) {
+                                const blobUrl = URL.createObjectURL(blob);
+                                if (valueLayer) {
+                                    const newIframe = document.createElement('iframe');
+                                    newIframe.src = blobUrl;
+                                    newIframe.style.cssText = "width:100%; height:100%; border:none; display:block;";
+                                    valueLayer.innerHTML = '';
+                                    valueLayer.appendChild(newIframe);
+                                    console.log(`✅ Confluence Mode: Upgraded to ${currentKey} (Blob)`);
                                 }
                             }
-                        } catch(e) { console.error("Auto-Launch failed", e); }
-                    }
+                        }
+                    } catch(e) { console.error("Auto-Launch failed", e); }
                 }
             }
         });
         gridObserver.observe(document.getElementById('data-container'), { childList: true, subtree: true });
-
-    } catch (e) {
-        console.error("🔥 FATAL:", e);
-    }
+    } catch (e) { console.error("🔥 FATAL:", e); }
 });

@@ -1,15 +1,32 @@
 import { db, auth } from './firebase.js';
 import { getDoc, doc, updateDoc, deleteDoc, increment } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-import { escapeHtml } from './ui.js';
+import { escapeHtml } from './utils.js';
 import { detectMimetype } from './mime.js';
 import { createExecutionWindow, generateSecureAppBlob } from './launcher.js';
-import { fetchRealData, applyLayout, unsubscribeListener } from './pagination.js';
+import { fetchRealData, unsubscribeListener } from './pagination.js';
+import { applyLayout } from './layout-manager.js';
 import { locateDocumentInCloud, resetTagCloud, refreshTagCloud, updateTagCloudSelection } from './tagscanner.js';
 
 export function initCardActions(dataContainer, openUpdateModal, openTagModal) {
     if (!dataContainer) return;
 
     dataContainer.addEventListener('click', async (e) => {
+        // --- Internal Helper: UI Refresh after deletion ---
+        const handlePostDeleteUI = () => {
+            const gridSelect = document.getElementById('grid-select');
+            const searchInput = document.getElementById('main-search');
+            if (gridSelect && gridSelect.value === '1') {
+                console.log("Single document view deletion detected. Switching to list view.");
+                if (searchInput) searchInput.value = ''; 
+                applyLayout('list', false, true);
+                setTimeout(() => fetchRealData(true), 50);
+                resetTagCloud(); 
+            } else {
+                fetchRealData();
+            }
+            refreshTagCloud(db, true);
+        };
+
         // 1. Action Buttons (C, R, U, D, X)
         const btn = e.target.closest('.btn-crudx');
         if (btn) {
@@ -18,13 +35,16 @@ export function initCardActions(dataContainer, openUpdateModal, openTagModal) {
             const card = btn.closest('.card-kv');
             const key = card ? card.querySelector('.pill-key')?.textContent.trim() : '';
             let url = `https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977?action=${action}&key=${encodeURIComponent(key)}`;
-            
+
+            // Umgebung bestimmen
+            const urlParams = new URLSearchParams(window.location.search);
+            const forceProd = urlParams.get('mode') === 'live';
+            const isEmulator = !forceProd && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
             // --- Protection & Authorization Check ---
             const style = window.getComputedStyle(btn);
             const bgColor = style.backgroundColor;
 
-            // Case 1: Protected & Not Authorized (Red Button)
-            // Note: rgb(255, 23, 68) is #ff1744
             if (bgColor === 'rgb(255, 23, 68)') {
                 alert("You are not authorized to perform this protected action!");
                 return;
@@ -66,32 +86,30 @@ export function initCardActions(dataContainer, openUpdateModal, openTagModal) {
                     const top = (window.screen.height - height) / 2;
                     const windowFeatures = `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=yes,location=yes`;
 
-                    const urlParams = new URLSearchParams(window.location.search);
-                    const forceProd = urlParams.get('mode') === 'live';
-                    const isEmulator = !forceProd && ['localhost', '127.0.0.1'].includes(window.location.hostname);
-
-                    if (isEmulator && key) {
-                        // --- EMULATOR SDK PATH ---
-                        try {
-                            const docSnap = await getDoc(doc(db, "kv-store", key));
-                            if (!docSnap.exists()) throw new Error(`Document with key "${key}" not found.`);
-                            
-                            const content = docSnap.data().value || "[No value field]";
-                            const newWindow = window.open('', '_blank', windowFeatures);
-                            newWindow.document.write(`<html><head><title>DEV: ${key}</title><style>body { background-color: #111; color: #eee; font-family: monospace; white-space: pre; }</style></head><body>${escapeHtml(content)}</body></html>`);
-                            newWindow.document.close();
-
-                            // Update read stats (fire and forget)
-                            updateDoc(docSnap.ref, {
-                                reads: increment(1),
-                                last_read_ts: new Date().toISOString()
-                            }).catch(err => console.error("Emulator Read-Stat Update Error:", err));
-                        } catch (err) {
-                            alert("Emulator Read Error: " + err.message);
-                        }
-                    } else {
-                        // --- PRODUCTION WEBHOOK PATH ---
+                    if (!isEmulator) {
+                        // PRODUKTION (R): Webhook nutzen
+                        // Die HTML-Generierung erfolgt ausschließlich extern über Make.com.
                         window.open(url, '_blank', windowFeatures);
+                        return;
+                    }
+
+                    // EMULATOR: Direkter SDK-Zugriff
+                    try {
+                        const docSnap = await getDoc(doc(db, "kv-store", key));
+                        if (!docSnap.exists()) throw new Error(`Document with key "${key}" not found.`);
+                        
+                        const content = docSnap.data().value || "[No value field]";
+                        const newWindow = window.open('', '_blank', windowFeatures);
+                        newWindow.document.write(`<html><head><title>CRUDX: ${key}</title><style>body { background-color: #111; color: #eee; font-family: monospace; white-space: pre-wrap; padding: 20px; }</style></head><body>${escapeHtml(content)}</body></html>`);
+                        newWindow.document.close();
+
+                        // Update read stats
+                        updateDoc(docSnap.ref, {
+                            reads: increment(1),
+                            last_read_ts: new Date().toISOString()
+                        }).catch(err => console.error("Read-Stat Update Error:", err));
+                    } catch (err) {
+                        alert("Read Error: " + err.message);
                     }
                 }
                 return;
@@ -181,34 +199,17 @@ export function initCardActions(dataContainer, openUpdateModal, openTagModal) {
                 btn.style.cursor = "wait";
 
                 try {
-                    // 1. Fetch latest tags to ensure logic is based on current state
-                    const docSnap = await getDoc(doc(db, "kv-store", key));
-                    if (!docSnap.exists()) throw new Error("Document not found");
-                    
-                    const d = docSnap.data();
+                    // 1. Daten direkt aus dem DOM beziehen (Garantie: Identisch mit Raw-Ansicht)
+                    const d = JSON.parse(card.dataset.doc);
                     const tags = d.user_tags || [];
-                    
-                    // Special Case: Bookmark URL -> Open in IFrame directly
-                    const mime = detectMimetype(d.value);
-                    if (tags.includes("bookmark") && mime.type === 'URL') {
-                        createExecutionWindow(d.value, d.value, key);
-                        updateDoc(doc(db, "kv-store", key), { executes: increment(1), last_execute_ts: new Date().toISOString() }).catch(console.error);
-                        
-                        // Reset button state and stop further execution
-                        btn.textContent = originalText;
-                        btn.style.cursor = "pointer";
-                        return;
-                    }
-
-                    // Determine Environment
-                    const urlParams = new URLSearchParams(window.location.search);
-                    const forceProd = urlParams.get('mode') === 'live';
-                    const isEmulator = !forceProd && ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
                     if (!isEmulator) {
-                        // --- PROD: Use Make.com Webhook ---
+                        // PRODUKTION (X): Webhook-Szenario generiert das App-IFrame
+                        // WICHTIG: Das App-HTML (z.B. Markdown Studio) darf KEINE statischen 
+                        // 'markdown-template' IDs enthalten, da diese die dynamische Injection blockieren!
                         const params = new URLSearchParams();
                         params.append("action", "X");
+                        params.append("key", key);
 
                         if (tags.includes("app")) params.set("app", key);
                         if (tags.includes("data")) {
@@ -223,26 +224,20 @@ export function initCardActions(dataContainer, openUpdateModal, openTagModal) {
                             if (t.startsWith("d3:")) params.set("data-3", t.substring(3));
                         });
 
-                        if (!params.has("app")) {
-                            alert("⚠️ Launcher Error: Missing 'app' parameter (Tag 'app' or 'x:AppKey' required).");
-                            return;
-                        }
-
-                        const baseUrl = "https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977";
-                        const targetUrl = `${baseUrl}?${params.toString()}`;
+                        const targetUrl = `https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977?${params.toString()}`;
                         createExecutionWindow(targetUrl, d.value, key);
+                        return;
+                    }
+
+                    // EMULATOR: Client-Side Rendering via Blob (SDK)
+                    const { blob, contextData } = await generateSecureAppBlob(key, d) || {};
+                    if (blob) {
+                        let blobUrl = URL.createObjectURL(blob);
+                        if (contextData) blobUrl += `#ctx=${encodeURIComponent(JSON.stringify(contextData))}`;
+                        createExecutionWindow(blobUrl, d.value, key);
                         updateDoc(doc(db, "kv-store", key), { executes: increment(1), last_execute_ts: new Date().toISOString() }).catch(console.error);
                     } else {
-                        // --- EMULATOR: Client-Side Rendering (Blob) ---
-                        const { blob, contextData } = await generateSecureAppBlob(key, d) || {};
-                        if (blob) {
-                            let blobUrl = URL.createObjectURL(blob);
-                            if (contextData) blobUrl += `#ctx=${encodeURIComponent(JSON.stringify(contextData))}`;
-                            createExecutionWindow(blobUrl, d.value, key);
-                            updateDoc(doc(db, "kv-store", key), { executes: increment(1), last_execute_ts: new Date().toISOString() }).catch(console.error);
-                        } else {
-                            alert("⚠️ Launcher Error: Could not resolve App logic. Check tags (app/data/x:...).");
-                        }
+                        alert("⚠️ Launcher Error: Could not resolve App logic. Check tags (app/data/x:...).");
                     }
 
                 } catch (err) {
@@ -258,59 +253,35 @@ export function initCardActions(dataContainer, openUpdateModal, openTagModal) {
             // --- ACTION: DELETE (Confirm & Fetch) ---
             if (action === 'D' && !e.shiftKey) {
                 if (confirm(`⚠️ Really delete document "${key}"?`)) {
-                    const urlParams = new URLSearchParams(window.location.search);
-                    const forceProd = urlParams.get('mode') === 'live';
-                    const isEmulator = !forceProd && ['localhost', '127.0.0.1'].includes(window.location.hostname);
-
                     // Unsubscribe from any active listener BEFORE deleting the doc
                     unsubscribeListener();
 
-                    if (isEmulator) {
-                        console.log(`🔧 Emulator Mode: Deleting "${key}" via SDK.`);
-                        deleteDoc(doc(db, "kv-store", key))
-                            .then(() => {
-                                console.log(`✅ Document "${key}" deleted.`);
-                                const gridSelect = document.getElementById('grid-select');
-                                const searchInput = document.getElementById('main-search');
-                                
-                                if (gridSelect && gridSelect.value === '1') {
-                                    console.log("Single document view deletion detected. Switching to list view.");
-                                    searchInput.value = ''; 
-                                    applyLayout('list', false, true);
-                                    setTimeout(() => fetchRealData(true), 50);
-                                    resetTagCloud(); 
-                                } else {
-                                    fetchRealData();
-                                }
-                                refreshTagCloud(db, true);
-                            })
-                            .catch(err => alert("Delete failed: " + err.message));
-                    } else {
+                    if (!isEmulator) {
+                        // PRODUKTION: Löschen via Webhook
                         fetch(url)
                             .then(res => {
                                 if (res.ok) {
                                     console.log(`✅ Document "${key}" deleted via Webhook.`);
-                                    // Wait for webhook to process, then refresh UI with correct logic
-                                    setTimeout(() => {
-                                        const gridSelect = document.getElementById('grid-select');
-                                        const searchInput = document.getElementById('main-search');
-                                        if (gridSelect && gridSelect.value === '1') {
-                                            console.log("Single document view deletion detected. Switching to list view.");
-                                            searchInput.value = ''; 
-                                            applyLayout('list', false, true);
-                                            setTimeout(() => fetchRealData(true), 50); // Small delay for UI to clear
-                                            resetTagCloud();
-                                        } else {
-                                            fetchRealData();
-                                        }
-                                        refreshTagCloud(db, true);
-                                    }, 1000);
+                                    setTimeout(() => handlePostDeleteUI(), 1000);
                                 } else {
                                     alert("Delete failed: " + res.statusText);
                                 }
                             })
                             .catch(err => alert("Error: " + err.message));
+                        return;
                     }
+
+                    // EMULATOR: Löschen via SDK
+                    console.log(`🗑️ Deleting "${key}" via Firestore SDK.`);
+                    deleteDoc(doc(db, "kv-store", key))
+                        .then(() => {
+                            console.log(`✅ Document "${key}" deleted.`);
+                            handlePostDeleteUI();
+                        })
+                        .catch(err => {
+                            console.error("Delete failed:", err);
+                            alert("Delete failed: " + err.message);
+                        });
                 }
                 return;
             }

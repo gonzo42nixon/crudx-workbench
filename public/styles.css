@@ -189,6 +189,33 @@ header {
     transform: scale(0.95);
 }
 
+/* ========== CONFLUENCE TOGGLE FAB ========== */
+.fab-confluence {
+    position: fixed;
+    bottom: 105px; /* Über dem Create-Button */
+    left: 30px;
+    width: 60px;
+    height: 60px;
+    background-color: #6366f1; /* Indigo */
+    color: #ffffff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+    cursor: pointer;
+    z-index: 2550;
+    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    user-select: none;
+    border: 2px solid rgba(255,255,255,0.1);
+}
+.fab-confluence:hover { transform: scale(1.1); background-color: #818cf8; }
+.fab-confluence:active { transform: scale(0.95); }
+
+/* Visual state for active mode */
+body.ftc-docked .fab-confluence { background-color: #10b981; border-color: #34d399; }
+
 /* CRUDX Action Buttons in Card */
 .tr-group {
     position: absolute;
@@ -407,7 +434,7 @@ header {
     min-height: 0;
     overflow: hidden;
     transition: all 0.2s;
-    padding-top: 90px !important;
+    padding-top: var(--canvas-padding-top, 0px) !important;
     padding-bottom: 70px !important;
 }
 
@@ -583,8 +610,9 @@ header {
     flex: 1 !important;
     overflow-y: auto !important;
 
-    /* Hier passiert die Magie: Der Inhalt nutzt das Padding aus dem Editor */
-    padding: 5px !important;
+    /* Nutzt das allgemeine Padding für die Seiten/Unten und die neue Variable für Oben */
+    padding: var(--card-padding) !important;
+    padding-top: var(--card-padding-top, 40px) !important;
     width: 100%;
 }
 
@@ -1671,13 +1699,15 @@ body.ftc-docked.layout-grid-1 .card-kv[data-mime="MD"] .tl-group {
     cursor: ew-resize;
     z-index: 9999; /* Maximaler Z-Index, über Header und allem anderen */
     transition: background 0.2s;
+    background: var(--canvas-border); 
+    opacity: 0.3;
 }
 
 .resize-handle-left {
     left: 0;
     /* Visuelle Indikation: Linie links */
-    border-left: 4px solid var(--burger-text) !important; 
-    background: linear-gradient(to right, rgba(0,0,0,0.5), transparent);
+    border-left: 2px solid var(--burger-text) !important; 
+    background: linear-gradient(to right, var(--canvas-glass), transparent);
     display: none; /* Standardmäßig aus */
 }
 .resize-handle-right {
