@@ -305,6 +305,30 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (iframe) iframe.src = 'about:blank';
         });
 
+        // --- INTEGRATED TAG TOGGLE ---
+        bind('btn-toggle-tags-overlay', 'click', () => {
+            const overlay = document.getElementById('update-modal-tag-editor');
+            const btn = document.getElementById('btn-toggle-tags-overlay');
+            const editor = document.getElementById('update-editor');
+            if (!overlay || !btn) return;
+
+            // Wenn es gerade fadet oder unsichtbar ist -> Sofort anzeigen
+            if (overlay.style.display === 'none' || overlay.style.opacity === '0') {
+                overlay.style.display = 'flex';
+                overlay.style.opacity = '1';
+                btn.style.transition = 'none'; // Snappy feedback
+                btn.style.backgroundColor = 'var(--user-bg)';
+                btn.style.color = 'var(--user-text)';
+                if (editor) { editor.style.paddingTop = '50px'; editor.style.paddingBottom = '50px'; }
+            } else {
+                overlay.style.display = 'none';
+                overlay.style.opacity = '0';
+                btn.style.backgroundColor = '';
+                btn.style.color = '';
+                if (editor) { editor.style.paddingTop = '15px'; editor.style.paddingBottom = '15px'; }
+            }
+        });
+
         // IFrame Transparency Toggle
         bind('btn-toggle-iframe-transparency', 'click', () => {
             iframeTransLevel = (iframeTransLevel + 1) % 3;

@@ -15,9 +15,9 @@ const firebaseConfig = {
 
 // Configuration for Emulator (Localhost)
 const emulatorConfig = {
-    apiKey: "fake-api-key-for-emulator",
+    apiKey: "AIzaSyDaEMhzeKaYJEV2INM-pRtUBNW0ZS2LHwE",
     projectId: "crudx-e0599",
-    authDomain: "http://127.0.0.1:9099"
+    authDomain: "crudx-e0599.firebaseapp.com"
 };
 
 // Toggle this to switch environments

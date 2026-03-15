@@ -339,21 +339,25 @@
         <div class="modal-content" style="width: 800px; max-width: 95vw; height: 80vh; display: flex; flex-direction: column;">
             <h3 class="modal-drag-handle" style="display: flex; justify-content: space-between; align-items: center; padding-right: 10px;">
                 <div style="flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; display: flex; align-items: center; gap: 10px;">
-                    <span>✏️</span> <span id="update-label-display" style="font-size: 0.9em;"></span>
+                    <span id="update-modal-title-text">Card Editor</span> <span id="update-label-display" style="font-size: 0.9em;"></span>
                 </div>
                 <div style="flex: 0 0 auto; text-align: center;">
                     <span id="update-mime-display" class="pill pill-mime" title="MIME Type" style="font-size: 0.7em;">TXT</span>
                 </div>
                 <div style="flex: 1; display: flex; justify-content: flex-end; align-items: center; gap: 15px;">
                     <span id="btn-beautify" title="Beautify Code" style="cursor: pointer; font-size: 1.2rem; display: none; opacity: 0.8;">🪄</span>
+                    <span id="btn-toggle-fullscreen-update" title="Toggle Fullscreen" style="cursor: pointer; font-size: 1.2rem; opacity: 0.8;">🔲</span>
                     <span id="btn-toggle-transparency" title="Toggle Transparency" style="cursor: pointer; font-size: 1.2rem; opacity: 0.8;">👁️</span>
                     <span id="btn-close-update-x" class="close-x" title="Close" style="cursor: pointer; font-size: 1.2rem;">✕</span>
                 </div>
             </h3>
-            <textarea id="update-editor" spellcheck="false" placeholder="Enter new value..."></textarea>
-            
+            <div id="update-modal-editor-container" style="position: relative; flex: 1; display: flex; flex-direction: column;">
+                <div id="update-modal-tag-editor"></div>
+                <textarea id="update-editor" spellcheck="false" placeholder="Enter new value..." style="flex: 1;"></textarea>
+            </div>
+
             <div class="modal-actions">
-                <button id="btn-edit-tags">🏷️ Update Tags</button>
+                <button id="btn-toggle-tags-overlay" title="Show/Hide Tags">🏷️ Tags</button>
                 <button id="btn-save-update" style="border-color: #ff9100; color: #ff9100;">💾 SAVE & UPDATE</button>
             </div>
         </div>

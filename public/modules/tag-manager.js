@@ -18,45 +18,37 @@ let localState = {
     systemInfo: {}
 };
 
-export function openTagModal(key, label, isNew = false, docData = null) {
+export function openTagModal(key, label, isNew = false, docData = null, targetContainerOverride = null) {
     currentDocId = key;
     currentIsNew = isNew;
     
-    const tagModal = document.getElementById('tag-modal');
-    const tagListContainer = document.getElementById('tag-list-container');
-    if (!tagModal) return;
+    // Falls ein targetContainerOverride übergeben wurde, nutzen wir diesen statt des separaten Modals
+    const tagModal = targetContainerOverride ? null : document.getElementById('tag-modal');
+    const tagListContainer = targetContainerOverride || document.getElementById('tag-list-container');
+    if (!tagModal && !targetContainerOverride) return;
 
-    const btnSave = document.getElementById('btn-save-tags-modal');
-    if (btnSave) {
-        btnSave.textContent = isNew ? "Done" : "UPDATE";
-        btnSave.style.backgroundColor = isNew ? "#00e676" : "#ff9100";
-        btnSave.style.color = "#000000";
-    }
-
-    if (isNew) {
-        // Bei Neuanlage übernehmen wir den State vom Editor (der bereits vorbereitet wurde)
-        localState.label = label;
-        // Tags/Whitelists werden hier direkt aus dem Editor-Context geladen, 
-        // den wir über docData erhalten könnten, oder wir nutzen den globalen editor state.
-        // Einfacher: Wir mappen docData falls vorhanden.
-        if (docData) {
-            localState.tags = docData.user_tags || [];
-            localState.owner = docData.owner || "";
-            localState.whitelists = docData.whitelists || localState.whitelists;
-            localState.systemInfo = docData.systemInfo || {};
+    // Always sync state first, then render.
+    // For new cards, editor.js already called syncTagManagerState with a clean state.
+    // For existing cards, docData is passed from card-actions.js.
+    if (docData) {
+        // Ensure docData has user_tags, not just tags (for consistency)
+        const dataToSync = { ...docData, key };
+        if (dataToSync.tags && !dataToSync.user_tags) {
+            dataToSync.user_tags = dataToSync.tags;
+            delete dataToSync.tags;
         }
-        renderTagsInModal(tagListContainer);
-    } else {
-        // Existierendes Dokument frisch laden
+        syncTagManagerState(dataToSync);
+    } else if (!isNew) { // Fallback for existing docs if docData wasn't passed (shouldn't happen with current flow)
         getDoc(doc(db, "kv-store", key)).then(snap => {
             if (snap.exists()) {
                 const d = snap.data();
-                localState = {
+                syncTagManagerState({
+                    key: key,
                     label: d.label || "",
                     value: d.value || "",
                     owner: d.owner || "",
                     size: d.size || "0KB",
-                    tags: d.user_tags || [],
+                    user_tags: d.user_tags || [],
                     whitelists: {
                         read: d.white_list_read || [],
                         update: d.white_list_update || [],
@@ -64,22 +56,21 @@ export function openTagModal(key, label, isNew = false, docData = null) {
                         execute: d.white_list_execute || []
                     },
                     systemInfo: {
-                        created_at: d.created_at,
-                        reads: d.reads || 0,
-                        last_read_ts: d.last_read_ts,
-                        updates: d.updates || 0,
-                        last_update_ts: d.last_update_ts,
-                        executes: d.executes || 0,
-                        last_execute_ts: d.last_execute_ts
+                        created_at: d.created_at, reads: d.reads || 0, last_read_ts: d.last_read_ts,
+                        updates: d.updates || 0, last_update_ts: d.last_update_ts,
+                        executes: d.executes || 0, last_execute_ts: d.last_execute_ts
                     }
-                };
+                });
                 renderTagsInModal(tagListContainer);
             }
         });
     }
+    renderTagsInModal(tagListContainer); // Render based on the (now correct) localState
 
-    tagModal.classList.add('active');
-    document.getElementById('new-tag-input')?.focus();
+    if (tagModal) {
+        tagModal.classList.add('active');
+        document.getElementById('new-tag-input')?.focus();
+    }
 }
 
 export function closeTagModal() {
@@ -88,11 +79,16 @@ export function closeTagModal() {
 
 export function addNewTag() {
     const input = document.getElementById('new-tag-input');
-    const val = input?.value.trim();
+    // Prüfe beide potenziellen Inputs (Modal vs. Integriert)
+    const integratedInput = document.querySelector('#update-modal-tag-editor input[placeholder="+ Tag"]');
+    const activeInput = input || integratedInput;
+    
+    const val = activeInput?.value.trim();
     if (val && !localState.tags.includes(val)) {
         localState.tags.push(val);
-        renderTagsInModal(document.getElementById('tag-list-container'));
-        input.value = '';
+        const target = document.getElementById('tag-list-container') || document.getElementById('update-modal-tag-editor');
+        renderTagsInModal(target);
+        if (activeInput) activeInput.value = '';
     }
 }
 
@@ -164,7 +160,7 @@ export function renderTagsInModal(targetContainer) {
     
     const isOverlay = (targetContainer.id === 'update-modal-tag-editor');
     targetContainer.style.cssText = isOverlay 
-        ? "position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 20;"
+        ? "position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 20;" 
         : "position: relative; flex: 1; width: 100%; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; padding: 5px; justify-content: space-between;";
 
     const tlGroup = document.createElement('div');
@@ -248,7 +244,7 @@ export function renderTagsInModal(targetContainer) {
     createSysPill(`U: ${localState.systemInfo.updates || 0}`, sOrange, "Updates");
     createSysPill(`X: ${localState.systemInfo.executes || 0}`, sBlack, "Executes");
 
-    createSysPill(localState.size, "border: 1px solid #555;", "Size");
+    createSysPill(localState.size, sBlack, "Size");
 
     if (localState.owner) {
         const isMe = auth.currentUser?.email === localState.owner;
@@ -311,7 +307,8 @@ export function renderTagsInModal(targetContainer) {
             const val = addInput.value.trim();
             if (val && !localState.tags.includes(val)) {
                 localState.tags.push(val); renderTagsInModal(targetContainer);
-                setTimeout(() => targetContainer.querySelectorAll('input[placeholder="+ Tag"]')[0]?.focus(), 10);
+                // Den neu erstellten Input wieder fokussieren
+                setTimeout(() => targetContainer.querySelector('input[placeholder="+ Tag"]')?.focus(), 50);
             }
         }};
         addPill.appendChild(addInput); brGroup.appendChild(addPill);
@@ -323,7 +320,31 @@ export function renderTagsInModal(targetContainer) {
  */
 export function syncTagManagerState(data) {
     if (data.key) currentDocId = data.key;
-    localState = { ...localState, ...data };
+    
+    // Whitelist Mapping: Unterstütze sowohl Firestore-Namen als auch Editor-Struktur
+    const incomingWl = data.whitelists || {};
+    const wlRead = data.white_list_read || incomingWl.read || [];
+    const wlUpdate = data.white_list_update || incomingWl.update || [];
+    const wlDelete = data.white_list_delete || incomingWl.delete || [];
+    const wlExecute = data.white_list_execute || incomingWl.execute || [];
+
+    // Tags: Falls 'user_tags' oder 'tags' geliefert wird, nutze dies, sonst leeres Array (bei New)
+    const newTags = data.user_tags || data.tags || (currentIsNew ? [] : localState.tags);
+
+    localState = {
+        label: data.label ?? "",
+        value: data.value ?? "",
+        owner: data.owner ?? "",
+        size: data.size ?? "0B",
+        tags: newTags,
+        whitelists: {
+            read: wlRead,
+            update: wlUpdate,
+            delete: wlDelete,
+            execute: wlExecute
+        },
+        systemInfo: data.systemInfo || localState.systemInfo
+    };
 }
 
 export function getTagManagerState() {

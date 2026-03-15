@@ -108,6 +108,20 @@ export function initEditor() {
         });
     }
 
+    const btnFullscreen = document.getElementById('btn-toggle-fullscreen-update');
+    if (btnFullscreen) {
+        btnFullscreen.addEventListener('click', () => {
+            const updateModal = document.getElementById('update-modal');
+            if (updateModal) {
+                if (!updateModal.classList.contains('fullscreen')) {
+                    updateModal.classList.add('fullscreen');
+                } else {
+                    updateModal.classList.remove('fullscreen');
+                }
+            }
+        });
+    }
+
     const btnEditTags = document.getElementById('btn-edit-tags');
     if (btnEditTags) {
         btnEditTags.addEventListener('click', () => {
@@ -249,9 +263,10 @@ export function openUpdateModal(key, value, label, cardElement, isNew = false) {
 
     if (value !== null) {
         updateEditor.value = value;
+        updateEditor.placeholder = isNew ? "Enter content ..." : "";
     } else {
         updateEditor.value = ""; 
-        updateEditor.placeholder = "Loading content...";
+        updateEditor.placeholder = isNew ? "Enter content ..." : "Loading content...";
     }
     
     currentLabel = label || "";
@@ -273,37 +288,103 @@ export function openUpdateModal(key, value, label, cardElement, isNew = false) {
         const dateTagSuffix = `>${y}>${m}>${d}`;
 
         if (!currentTags.some(t => t.startsWith("Created>"))) currentTags.push(`Created${dateTagSuffix}`);
-        currentSystemInfo = { created_at: now.toISOString(), reads: 0, updates: 0, executes: 0 };
-        syncTagManagerState({ key: key, label: currentLabel || "New Card", tags: [...currentTags], owner: currentOwner, whitelists: {...currentWhitelists}, systemInfo: {...currentSystemInfo}, value: "" });
-    }
-    
-    getDoc(doc(db, "kv-store", key)).then(snap => {
-        if (snap.exists()) {
-            const d = snap.data();
-            originalDocData = d;
-            currentLabel = d.label || ""; 
-            currentTags = d.user_tags || [];
-            currentOwner = d.owner || "";
-            currentWhitelists = {
-                read: d.white_list_read || [],
-                update: d.white_list_update || [],
-                delete: d.white_list_delete || [],
-                execute: d.white_list_execute || []
-            };
+        currentSystemInfo = { created_at: now.toISOString(), reads: 0, updates: 0, executes: 0, last_read_ts: null, last_update_ts: null, last_execute_ts: null }; // Ensure all systemInfo fields are reset
 
-            if (value === null && d.value !== undefined) {
-                updateEditor.value = d.value;
-                const mime = detectMimetype(d.value);
+        const initialLabel = currentLabel || "New Card";
+        syncTagManagerState({ 
+            key: key, 
+            label: initialLabel, 
+            user_tags: [...currentTags], 
+            owner: currentOwner, 
+            whitelists: { ...currentWhitelists }, 
+            systemInfo: { ...currentSystemInfo }, 
+            value: "" 
+        });
+        
+        // Trigger render for the integrated tag editor immediately to clear stale data
+        const tagContainer = document.getElementById('update-modal-tag-editor');
+        if (tagContainer) {
+            openTagModal(key, initialLabel, true, null, tagContainer);
+        }
+
+        // Update the display immediately for new cards
+        updateLabelDisplay.textContent = `- ${initialLabel}`; // Display "New Card" with separator
+        updateLabelDisplay.title = `Label: ${initialLabel}\nCRUDX-ID: ${key}`; // Tooltip clarification
+        updateMimeDisplay.textContent = "TXT"; // Default for new empty card
+        updateMimeDisplay.style.backgroundColor = "#aaaaaa";
+        updateMimeDisplay.style.color = "#000";
+        btnBeautify.style.display = 'none';
+
+    } else { // Existing card (Update)
+        // Fetch data for existing card ONLY if not a new card
+        getDoc(doc(db, "kv-store", key)).then(snap => {
+            if (snap.exists()) {
+                const d = snap.data();
+                originalDocData = d;
+                currentLabel = d.label || ""; 
+                currentTags = d.user_tags || [];
+                currentOwner = d.owner || "";
+                currentWhitelists = {
+                    read: d.white_list_read || [],
+                    update: d.white_list_update || [],
+                    delete: d.white_list_delete || [],
+                    execute: d.white_list_execute || []
+                };
+                currentSystemInfo = {
+                    created_at: d.created_at,
+                    reads: d.reads || 0,
+                    last_read_ts: d.last_read_ts,
+                    updates: d.updates || 0,
+                    last_update_ts: d.last_update_ts,
+                    executes: d.executes || 0,
+                    last_execute_ts: d.last_execute_ts
+                };
+
+                if (value === null && d.value !== undefined) {
+                    updateEditor.value = d.value;
+                }
+                const mime = detectMimetype(updateEditor.value); // Detect mime from actual editor content
                 updateMimeDisplay.textContent = mime.type;
                 updateMimeDisplay.style.backgroundColor = mime.color;
                 updateMimeDisplay.style.color = (mime.type === 'TXT' || mime.type === 'BASE64') ? '#000' : '#fff';
-                if (mime.type === 'JSON' || mime.type === 'JS' || mime.type === 'SVG') updateMimeDisplay.style.color = '#000';
-                btnBeautify.style.display = (mime.type === 'JSON') ? 'inline-block' : 'none';
+                if (mime.type === 'JSON' || mime.type === 'JS' || mime.type === 'SVG') btnBeautify.style.display = 'inline-block';
+                else btnBeautify.style.display = 'none';
+
+                // Synchronisiere alle geladenen Daten mit dem Tag-Manager
+                syncTagManagerState({ 
+                    key: key, 
+                    label: currentLabel, 
+                    user_tags: [...currentTags], 
+                    owner: currentOwner, 
+                    whitelists: { ...currentWhitelists }, 
+                    systemInfo: { ...currentSystemInfo }, 
+                    value: updateEditor.value // Use the value that was set to the editor
+                });
+                // Update the display
+                updateLabelDisplay.textContent = `- ${currentLabel || key}`;
+                updateLabelDisplay.title = `Label: ${currentLabel}\nCRUDX-ID: ${key}`;
+
+            } else {
+                console.warn(`Document with key ${key} not found for update.`);
+                updateEditor.value = "Error: Document not found.";
+                updateEditor.placeholder = "";
+                updateLabelDisplay.textContent = `- Error: ${key}`;
+                updateMimeDisplay.textContent = "ERR";
+                updateMimeDisplay.style.backgroundColor = "#ff1744";
+                updateMimeDisplay.style.color = "#fff";
+                btnBeautify.style.display = 'none';
             }
-            // Synchronisiere alle geladenen Daten mit dem Tag-Manager
-            syncTagManagerState({ key: key, label: currentLabel, tags: [...currentTags], owner: currentOwner, whitelists: {...currentWhitelists}, systemInfo: {...currentSystemInfo}, value: d.value });
-        }
-    });
+        }).catch(err => {
+            console.error("Error fetching document for update:", err);
+            updateEditor.value = `Error loading content: ${err.message}`;
+            updateEditor.placeholder = "";
+            updateLabelDisplay.textContent = `- Error: ${key}`;
+            updateMimeDisplay.textContent = "ERR";
+            updateMimeDisplay.style.backgroundColor = "#ff1744";
+            updateMimeDisplay.style.color = "#fff";
+            btnBeautify.style.display = 'none';
+        });
+    }
 
     if (currentHighlightedCard) currentHighlightedCard.classList.remove('card-highlight');
     if (cardElement) {
@@ -311,49 +392,43 @@ export function openUpdateModal(key, value, label, cardElement, isNew = false) {
         currentHighlightedCard.classList.add('card-highlight');
     }
     
-    updateLabelDisplay.textContent = label || key;
-    updateLabelDisplay.title = `CRUDX-ID: ${key}`;
-    
-    const btnEditTags = document.getElementById('btn-edit-tags');
-    const tagEditorContainer = document.getElementById('update-modal-tag-editor');
+    // Einheitlicher Prozess: Overlay ist immer da, aber initial bei "New" sichtbar, bei "Update" optional
+    const overlay = document.getElementById('update-modal-tag-editor');
+    const btnTags = document.getElementById('btn-toggle-tags-overlay');
 
-    // Ensure wrapper exists
-    let wrapper = document.getElementById('update-editor-wrapper');
-    if (!wrapper && updateEditor) {
-        wrapper = document.createElement('div');
-        wrapper.id = 'update-editor-wrapper';
-        wrapper.style.cssText = "position: relative; flex: 1; display: flex; flex-direction: column; min-height: 0; margin-bottom: 15px;";
-        updateEditor.parentNode.insertBefore(wrapper, updateEditor);
-        wrapper.appendChild(updateEditor);
-        updateEditor.style.marginBottom = '0';
-        updateEditor.style.flex = '1';
-    }
-    if (!tagEditorContainer && wrapper) {
-        const div = document.createElement('div');
-        div.id = 'update-modal-tag-editor';
-        div.style.display = 'none';
-        wrapper.appendChild(div);
-    }
+    if (overlay && btnTags) {
+        // 1. Einstiegs-Animation (C & U): Sichtbar & eingefärbt
+        overlay.style.display = 'flex';
+        overlay.style.opacity = '1';
+        
+        // Button einfärben (mit User-Theme Farben)
+        btnTags.style.transition = 'none'; // Sofortige Farbe ohne Delay
+        btnTags.style.backgroundColor = 'var(--user-bg)';
+        btnTags.style.color = 'var(--user-text)';
 
-    if (isNew) {
-        const overlay = document.getElementById('update-modal-tag-editor');
-        if (overlay) {
-            overlay.style.display = 'block';
-            renderTagsInModal(overlay);
-        }
-        if (btnEditTags) btnEditTags.style.display = 'none';
+        // Editor Platz machen
         updateEditor.style.paddingTop = '50px';
         updateEditor.style.paddingBottom = '50px';
-    } else {
-        if (document.getElementById('update-modal-tag-editor')) document.getElementById('update-modal-tag-editor').style.display = 'none';
-        if (btnEditTags) btnEditTags.style.display = 'inline-block';
-        updateEditor.style.paddingTop = '15px';
-        updateEditor.style.paddingBottom = '15px';
-    }
 
-    if (btnEditTags) {
-        btnEditTags.textContent = currentIsNew ? "Prepare Tags" : "Tags";
-        btnEditTags.title = "Maintain Tags";
+        // 2. Langsames Ausblenden nach einer kurzen Pause (1.5s schauen, 2s faden)
+        setTimeout(() => {
+            // Nur ausblenden, wenn das Modal noch offen ist und der Nutzer nicht manuell interagiert hat
+            if (updateModal.classList.contains('active') && overlay.style.opacity === '1') {
+                btnTags.style.transition = 'background-color 2s ease-in-out, color 2s ease-in-out';
+                overlay.style.opacity = '0';
+                btnTags.style.backgroundColor = '';
+                btnTags.style.color = '';
+
+                // Nach der Transition komplett auf 'none' setzen, damit Textarea klickbar ist
+                setTimeout(() => {
+                    if (overlay.style.opacity === '0') {
+                        overlay.style.display = 'none';
+                        updateEditor.style.paddingTop = '15px';
+                        updateEditor.style.paddingBottom = '15px';
+                    }
+                }, 2000);
+            }
+        }, 1500);
     }
 
     let btn = document.getElementById('btn-create-update');
@@ -363,27 +438,21 @@ export function openUpdateModal(key, value, label, cardElement, isNew = false) {
             btn.title = "Create new Card";
             btn.style.backgroundColor = "#00e676";
             btn.style.setProperty('color', '#000000', 'important');
+            // Set the modal title for new cards
+            const updateModalTitleText = document.getElementById('update-modal-title-text');
+            if (updateModalTitleText) updateModalTitleText.textContent = "Card Editor";
         } else {
             btn.textContent = "UPDATE";
             btn.title = "UPDATE Content";
             btn.style.backgroundColor = "#ff9100";
             btn.style.setProperty('color', '#000000', 'important');
+            // Set the modal title for existing cards
+            const updateModalTitleText = document.getElementById('update-modal-title-text');
+            if (updateModalTitleText) updateModalTitleText.textContent = "Card Editor";
         }
     }
 
     updateEditor.style.display = 'block';
-    
-    if (value !== null) {
-        const mime = detectMimetype(value);
-        updateMimeDisplay.textContent = mime.type;
-        updateMimeDisplay.style.backgroundColor = mime.color;
-        updateMimeDisplay.style.color = (mime.type === 'TXT' || mime.type === 'BASE64') ? '#000' : '#fff';
-        if (mime.type === 'JSON' || mime.type === 'JS' || mime.type === 'SVG') updateMimeDisplay.style.color = '#000';
-        btnBeautify.style.display = (mime.type === 'JSON') ? 'inline-block' : 'none';
-    } else {
-        updateMimeDisplay.textContent = "...";
-        updateMimeDisplay.style.backgroundColor = "#555";
-    }
 
     updateModal.classList.add('active');
     updateEditor.focus();

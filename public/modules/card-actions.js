@@ -180,6 +180,13 @@ export function initCardActions(dataContainer, openUpdateModal, openTagModal) {
                 // Call the callback provided by app.js
                 if (openUpdateModal) {
                     openUpdateModal(key, currentValue, label, card, false);
+                    
+                    // Initialisiere den integrierten Tag-Editor auch beim U-Button Click
+                    const docData = JSON.parse(card.dataset.doc);
+                    const tagContainer = document.getElementById('update-modal-tag-editor');
+                    if (tagContainer) {
+                        openTagModal(key, label, false, docData, tagContainer);
+                    }
                 }
                 return;
             }
@@ -336,6 +343,13 @@ export function initCardActions(dataContainer, openUpdateModal, openTagModal) {
                     } catch (e) {}
                 }
                 openUpdateModal(data.key, data.currentValue, data.label, data.card, false);
+            
+            // Initialisiere den integrierten Tag-Editor
+            const docData = JSON.parse(data.card.dataset.doc);
+            const tagContainer = document.getElementById('update-modal-tag-editor');
+            if (tagContainer) {
+                openTagModal(data.key, data.label, false, docData, tagContainer);
+            }
             }
             return;
         }
