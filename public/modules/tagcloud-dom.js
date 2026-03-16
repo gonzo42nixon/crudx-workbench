@@ -14,6 +14,12 @@ export function installDomMethods(TagCloud) {
                 existing.remove();
             }
 
+            // Remove existing mini-term-editor if present, to prevent duplicates
+            const existingMiniTermEditor = document.getElementById('mini-term-editor');
+            if (existingMiniTermEditor) {
+                existingMiniTermEditor.remove();
+            }
+
             const cloudHTML = `
                 <div id="tag-cloud-container" class="floating-modal">
                     <div class="modal-header">
@@ -47,6 +53,39 @@ export function installDomMethods(TagCloud) {
                 </div>
             `;
             document.body.insertAdjacentHTML('beforeend', cloudHTML);
+
+            const miniTermEditorHTML = `
+                <div id="mini-term-editor" class="mini-term-editor" title="Expression Editor">
+                    <div style="display: flex; align-items: flex-start; gap: 8px; width: 100%;">
+                        <span id="mini-term-handle" class="mini-term-handle" style="margin-top: 4px;">⠿</span>
+                        <table style="border-collapse: collapse; border-spacing: 0;">
+                            <tr>
+                                <td style="padding: 0 8px 4px 0; text-align: left; vertical-align: middle;">Expression</td>
+                                <td style="padding: 0 0 4px 0; text-align: left; vertical-align: middle;">
+                                    <label class="toggle-switch" title="Expression Mode: {on|off}">
+                                        <input type="checkbox" id="toggle-expression-mode" data-on-text="on" data-off-text="off">
+                                        <span class="slider round"></span>
+                                    </label>
+                                </td>
+                                <td style="padding: 0 0 4px 8px; text-align: left; vertical-align: middle;">
+                                    <span id="btn-mini-trans" title="Toggle Transparency" style="cursor: pointer; font-size: 1.1em; opacity: 0.7;">👁️</span>
+                                </td>
+                            </tr>
+                            <tr id="operator-toggle-row" style="display: none;">
+                                <td style="padding: 0 8px 0 0; text-align: left; vertical-align: middle;">Operator</td>
+                                <td style="padding: 0; text-align: left; vertical-align: middle;">
+                                    <label class="toggle-switch" title="Operator = {OR|AND} - OR: || AND: &&">
+                                        <input type="checkbox" id="toggle-operator" data-and-text="&&" data-or-text="||">
+                                        <span class="slider round"></span>
+                                    </label>
+                                </td>
+                                <td id="more-info-cell" style="padding: 0 0 0 8px; text-align: left; vertical-align: middle; opacity: 0.7; font-size: 0.8em;" title="Use '!' for NOT, '()' for grouping. Example: tag:!red || (blue && green)">!, ()</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', miniTermEditorHTML);
         },
 
         _getElements() {

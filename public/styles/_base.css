@@ -1,0 +1,25 @@
+/* ========== GLOBAL RESET ========== */
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'JetBrains Mono', monospace;
+    margin: 0;
+    background: var(--canvas-bg);
+    color: var(--canvas-text);
+    height: 100vh;
+    overflow: hidden;
+
+    /* Flexbox-Grundgerüst für automatische Höhenverteilung */
+    display: flex;
+    flex-direction: column;
+}
+
+/* Firebase Emulator Warning - Always hide */
+.firebase-emulator-warning, #firebase-emulator-warning {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}

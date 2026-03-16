@@ -1,0 +1,129 @@
+/* ========== MINI TERM EDITOR ========== */
+.mini-term-editor {
+    position: fixed;
+    top: 60px; /* Angepasst, um die Search Bar leicht zu überlappen */
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2100; /* Über der Search Bar, aber unter der Tag Cloud */
+    
+    background: var(--editor-glass);
+    backdrop-filter: var(--editor-blur);
+    border: 1px solid var(--editor-border);
+    border-radius: 20px; /* Runde Form für vertikales Layout */
+    padding: 8px 12px; /* Padding angepasst */
+    display: flex;
+    flex-direction: column; /* Vertikal statt horizontal */
+    align-items: flex-start;
+    gap: 8px; /* Gap zwischen Zeilen */
+    box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+    color: var(--editor-text);
+    font-size: 0.9em;
+    white-space: nowrap;
+    transition: opacity 0.3s ease, height 0.3s ease;
+}
+
+.mini-term-editor.mini-trans-90 {
+    opacity: 0.9;
+}
+.mini-term-editor.mini-trans-50 {
+    opacity: 0.5;
+}
+
+.mini-term-handle {
+    cursor: grab;
+    color: var(--burger-text);
+    font-size: 1.2em;
+    user-select: none;
+    padding: 0 5px;
+}
+.mini-term-handle:active {
+    cursor: grabbing;
+}
+
+/* Toggle Switch Styling */
+.toggle-switch {
+    position: relative;
+    display: inline-flex; /* Changed from inline-block to inline-flex */
+    align-items: center; /* Vertically center the slider */
+    width: 85px; /* Größere Breite */
+    height: 30px; /* Höhe groß genug für Knopf + Border */
+    flex-shrink: 0; /* Prevent shrinking */
+}
+
+.toggle-switch input { /* The actual checkbox input */
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc; /* Default background, will be overridden by JS */
+    transition: .4s; /* Combined transition for all properties */
+    display: flex;
+    align-items: center;
+    justify-content: center; /* Always center the text content */
+    color: white;
+    font-size: 0.85em;
+    font-weight: bold;
+    text-transform: uppercase;
+    padding: 0; /* Reset padding here, will be set dynamically */
+    overflow: hidden; /* Knob bleibt innerhalb */
+    position: relative; /* Wichtig für die absolute Positionierung des Knobs */
+    border: 1px solid rgba(0,0,0,0.2); /* Rand hinzufügen */
+}
+
+.slider::after { /* This is the moving knob */
+    position: absolute;
+    content: "";
+    height: 10px; /* Sehr kleiner Knob wie gewünscht */
+    width: 10px;  /* Sehr kleiner Knob wie gewünscht */
+    background-color: white;
+    border-radius: 50%;
+    transition: .4s;
+    top: 3px; /* 20% höher als 4px */
+    left: 5px; /* Offset */
+    box-shadow: 0 1px 2px rgba(0,0,0,0.3); /* Shadow angepasst */
+}
+
+/* Text- und Knob-Positionierung, wenn der Schalter NICHT aktiviert ist (OFF) */
+.toggle-switch input:not(:checked) + .slider {
+    padding-left: 19px; /* Knob (10px) + left offset (5px) + kleiner Abstand (4px) = 19px */
+    padding-right: 5px; /* Padding */
+}
+
+/* Text- und Knob-Positionierung, wenn der Schalter aktiviert ist (ON) */
+.toggle-switch input:checked + .slider {
+    padding-right: 19px; /* Knob (10px) + right offset (5px) + kleiner Abstand (4px) = 19px */
+    padding-left: 5px; /* Padding */
+}
+
+input:focus + .slider {
+    box-shadow: 0 0 1px var(--burger-text);
+}
+
+input:checked + .slider::after { /* Knob bewegt sich nach rechts, wenn der Schalter aktiviert ist */
+    left: calc(100% - 15px); /* 100% - (Knob-Breite + linker Offset) = 100% - (10px + 5px) */
+}
+
+/* Specific text colors for better contrast on different backgrounds */
+#toggle-expression-mode + .slider {
+    color: #000; /* 'on' (green) and 'off' (red) usually need dark text */
+}
+#toggle-operator + .slider {
+    color: #fff; /* '&&' (blue) and '||' (orange) usually need light text */
+}
+
+/* Rounded sliders */
+.slider.round {
+    border-radius: 20px;
+}
+
+.slider.round::after { /* Ensure the knob is rounded */
+    border-radius: 50%;
+}

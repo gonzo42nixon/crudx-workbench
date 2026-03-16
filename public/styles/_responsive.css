@@ -1,0 +1,70 @@
+/* Responsive Anpassungen */
+@media (max-width: 1100px) {
+    .editor-three-col {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 700px) {
+    .editor-three-col {
+        grid-template-columns: 1fr;
+    }
+    
+    .actions-bar {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .action-button-wide {
+        width: 100%;
+    }
+}
+
+/* --- STUFE 1: COMPACT (ab 5x5) --- */
+#data-container.density-compact {
+    gap: 6px !important;
+}
+#data-container.density-compact .card-kv {
+    padding: 6px !important;  /* statt 8px */
+}
+#data-container.density-compact .pill {
+    font-size: 0.7rem;
+    padding: 2px 4px;
+}
+
+/* --- STUFE 2: MINIMAL (ab 7x7) --- */
+#data-container.density-minimal .pill {
+    border: none;
+    box-shadow: none;
+    height: 16px;                /* kleinere Höhe */
+    padding: 0 2px;              /* schmaleres Padding */
+    font-size: 0.5rem;          /* etwas kleinere Schrift */
+}
+#data-container.density-minimal .pill-sys,
+#data-container.density-minimal .pill-mime {
+    opacity: 0.8;  /* statt background-opacity (gibt es nicht) */
+}
+/* Icons in Pills ausblenden – Beispiel */
+#data-container.density-minimal .pill .emoji,
+#data-container.density-minimal .pill-sys::before {
+    display: none;
+}
+
+/* --- STUFE 3: NANO (ab 9x9) --- */
+#data-container.density-nano .value-layer {
+    font-size: 0.5rem;
+    max-height: none;
+    padding: 2px !important;
+}
+#data-container.density-nano .br-group {
+    gap: 2px;
+}
+#data-container.density-nano .pill {
+    font-size: 0.5rem;
+    font-size: 0.4rem;
+    letter-spacing: -0.2px;
+    padding: 0px 2px;
+    height: 12px; 
+    padding: 0px 1px;
+    height: 10px; 
+}

@@ -1,0 +1,391 @@
+/* ========== HEADER & UI ELEMENTS ========== */
+header {
+    position: absolute !important; 
+    top: 0;
+    left: 0;
+    width: 100%;
+    /* Eine feste Höhe für den Header-Bereich, damit die Suche Platz hat */
+    height: 80px; 
+    display: flex;
+    /* Zentriert die Suche horizontal, lässt Burger links und FABs rechts */
+    justify-content: center; 
+    align-items: center;
+    z-index: 2001;
+    padding: 0 20px;
+    background: transparent !important;
+    pointer-events: none; 
+}
+
+/* WICHTIG: Die Buttons müssen klickbar bleiben */
+.burger-btn, .search-container, .app-actions {
+    pointer-events: auto;
+}
+
+.burger-btn {
+    position: absolute !important;
+    left: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: auto;
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    background: var(--canvas-glass);
+    backdrop-filter: var(--canvas-blur);
+    border: 1px solid var(--canvas-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+/* Hover-Effekt für den runden Burger-Button */
+.burger-btn:hover {
+    border-color: var(--burger-text);
+    transform: translateY(-50%) scale(1.1);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.search-container {
+    position: relative;               /* Basis für absolute Positionierung des Griffs */
+    background: var(--search-glass) !important;
+    backdrop-filter: var(--search-blur) !important;
+    border: 1px solid var(--search-border) !important;
+    border-radius: 50px;
+    height: 45px;
+    display: flex;
+    align-items: center;
+    width: 100%;                      /* Responsive width */
+    max-width: 600px;                 /* Max width constraint */
+    min-width: unset;                  /* Alte min-width aufheben */
+    margin: 0 auto;
+}
+
+.search-container input {
+    background: transparent !important;
+    border: none !important;
+    color: var(--search-text) !important;
+    font-size: 1em;
+    padding: 12px 40px 12px 35px;  /* Rechts 40px für Clear-Button, links 35px für den Griff */
+    border-radius: 50px !important;
+    width: 100%;
+    height: 100%;
+    outline: none;
+    box-shadow: none !important;
+    box-sizing: border-box; /* Wichtig: Padding in der Breite berücksichtigen */
+}
+
+/* Der Griff (Handle) */
+.search-handle {
+    position: absolute !important;
+    left: 10px;
+    z-index: 10001 !important; /* Forces handle to be the topmost element */
+    cursor: grab;
+    color: var(--burger-text);
+    font-size: 20px;
+    user-select: none;
+    padding: 5px;
+    pointer-events: auto !important; /* Ensures it can be clicked */
+}
+
+.search-handle:active {
+    cursor: grabbing;
+}
+
+#search-grip {
+    cursor: move;
+    font-size: 20px;          /* Deutlich sichtbar */
+    color: var(--burger-text); /* Nutzt die Akzentfarbe (meist Neongrün) */
+    opacity: 0.7;
+    line-height: 1;
+    padding: 5px;
+    z-index: 2101;            /* Liegt über dem Input-Feld */
+    user-select: none;
+    transition: all 0.2s;
+}
+#search-grip:hover {
+    opacity: 1;
+    transform: scale(1.2);    /* Feedback beim Drüberfahren */
+}
+
+.search-clear {
+    position: absolute;
+    right: 15px;
+    cursor: pointer;
+    color: var(--search-text);
+    opacity: 0.5;
+    font-size: 1.1em;
+    user-select: none;
+}
+.search-clear:hover {
+    opacity: 1;
+    color: var(--burger-text);
+}
+
+.app-actions {
+    position: absolute !important;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    pointer-events: auto;
+    height: 45px;
+    padding: 0 20px;
+    border-radius: 50px;
+    background: var(--canvas-glass);
+    backdrop-filter: var(--canvas-blur);
+    border: 1px solid var(--canvas-border);
+}
+.app-actions span {
+    cursor: pointer;
+    opacity: 0.7;
+    font-size: 1.2em;
+    transition: 0.2s;
+}
+.app-actions span:hover {
+    opacity: 1;
+    transform: translateY(-2px);
+}
+
+/* ========== DRAWER ========== */
+.drawer {
+    position: fixed;
+    top: 0;
+    left: -320px;
+    width: 280px;
+    height: 100%;
+    background: var(--canvas-glass);
+    backdrop-filter: var(--canvas-blur);
+    border-right: 1px solid var(--canvas-border);
+    transition: left 0.3s ease;
+    z-index: 2000;
+    padding: 60px 30px 30px 30px;
+}
+.drawer.open {
+    left: 0;
+}
+.drawer h3 {
+    color: var(--user-text);
+    border-bottom: 1px solid var(--canvas-border);
+    padding-bottom: 5px;
+    margin-top: 10px;
+}
+.drawer-item {
+    padding: 10px 0;
+    cursor: pointer;
+    opacity: 0.8;
+    font-size: 0.9em;
+}
+.drawer-item:hover {
+    opacity: 1;
+    color: var(--burger-text);
+}
+.drawer-close {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    font-size: 1.5em;
+    cursor: pointer;
+    color: #888;
+}
+
+/* ========== WORKSPACE & GRID SYSTEM (CLEAN & SCROLLABLE) ========== */
+#data-container {
+    flex-grow: 1;
+    min-height: 0;
+    overflow: hidden;
+    transition: all 0.2s;
+    padding-top: var(--canvas-padding-top, 0px) !important;
+    padding-bottom: 70px !important;
+}
+
+/* Padding für alle Ansichten */
+#data-container.grid-1, #data-container.grid-3, #data-container.grid-5, 
+#data-container.grid-7, #data-container.grid-9, #data-container.list {
+    padding-left: var(--app-padding, 10px) !important;
+    padding-right: var(--app-padding, 10px) !important;
+}
+
+/* GRID DEFINITIONEN */
+#data-container.grid-1 { display: grid !important; grid-template-columns: repeat(1, 1fr); gap: 10px; }
+#data-container.grid-3 { display: grid !important; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: 10px; }
+#data-container.grid-5 { display: grid !important; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(5, 1fr); gap: 8px; }
+#data-container.grid-7 { display: grid !important; grid-template-columns: repeat(7, 1fr); grid-template-rows: repeat(7, 1fr); gap: 6px; }
+#data-container.grid-9 { display: grid !important; grid-template-columns: repeat(9, 1fr); grid-template-rows: repeat(9, 1fr); gap: 4px; }
+
+/* COMPACT LIST VIEW: INFINITE SCROLL & REIHENFOLGE */
+/* ========== FINAL LIST VIEW REPAIR ========== */
+#data-container.list {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0px !important;
+    overflow-y: auto !important;
+    /* Füllt den Bereich genau aus */
+    height: calc(100vh - 120px) !important; 
+    padding-bottom: 100px !important;
+}
+
+/* Dunkle Scrollbar für das Nacht-Theme */
+#data-container.list::-webkit-scrollbar {
+    width: 8px;
+}
+#data-container.list::-webkit-scrollbar-track {
+    background: #0a0a0a;
+}
+#data-container.list::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 10px;
+    border: 2px solid #0a0a0a;
+}
+
+/* Specific normalization for the Top-Left group in List View */
+#data-container.list .tl-group {
+    position: static !important;
+    display: flex !important;
+    align-items: center !important; /* Forces vertical centering */
+    margin: 0 12px 0 0 !important;  /* Resets the negative margin-bottom */
+    height: 100% !important;        /* Ensures it fills the row height */
+    pointer-events: auto !important; /* Ensure clicks are registered in List View */
+}
+
+/* Ensure the wrapper for all rows also aligns children correctly */
+#data-container.list .card-kv {
+    align-items: center !important; /* This is the 'master' vertical center */
+}
+
+/* ========== PAGINATION (FOOTER) ========== */
+#main-paginator {
+    position: fixed;
+    bottom: var(--navi-bottom) !important;
+    left: 50%;
+    transform: translate(-50%, 0px);
+    background: var(--navi-glass) !important;
+    backdrop-filter: var(--navi-blur) !important;
+    border: 1px solid var(--navi-border) !important;
+    border-radius: 50px;
+    display: flex;
+    align-items: center;
+    padding: 5px 20px 5px 5px;
+    gap: 12px;
+    z-index: 1999;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+    width: max-content;
+    color: var(--navi-text) !important;
+
+    /* Im Flexbox-Layout darf der Footer nicht schrumpfen */
+    flex-shrink: 0;
+}
+
+#main-paginator button,
+#main-paginator select {
+    background: var(--navi-bg) !important; /* Nutzt jetzt die dunkle Farbe aus dem Theme */
+    color: var(--navi-text) !important;     /* Korrekter Kontrast */
+    border: 1px solid var(--navi-border) !important;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.9em;
+    outline: none;
+    border-radius: 4px;
+    padding: 2px 6px;
+    /* Entfernt den hässlichen Standard-Browser-Look */
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+/* Custom Checkbox im Paginator */
+#filter-owner-only {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    background-color: rgba(0,0,0,0.3);
+    border: 1px solid var(--navi-border);
+    border-radius: 4px;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.2s;
+}
+#filter-owner-only:hover {
+    border-color: var(--burger-text);
+}
+#filter-owner-only:checked {
+    background-color: var(--burger-text);
+    border-color: var(--burger-text);
+    animation: checkbox-pulse 0.3s ease;
+}
+#filter-owner-only:checked::after {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 1px;
+    width: 4px;
+    height: 9px;
+    border: solid #000000;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+#filter-owner-only:active {
+    transform: scale(0.9);
+}
+@keyframes checkbox-pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.25); }
+    100% { transform: scale(1); }
+}
+
+/* Styling für die Optionen (das eigentliche Pop-up-Menü) */
+#main-paginator select option {
+    background: var(--navi-bg);
+    color: var(--navi-text);
+}
+
+/* ========== DOCKED DOCUMENT LIST ITEMS ========== */
+.doc-item {
+    padding: 6px 10px;
+    cursor: pointer;
+    font-size: 0.85em;
+    color: var(--canvas-text);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    /* Animation for splitting effect */
+    animation: slideInDocItem 0.4s ease-out forwards;
+    opacity: 0;
+}
+.doc-item:hover { background: rgba(255,255,255,0.1); }
+.doc-item.active { background: var(--user-bg); color: var(--user-text); font-weight: bold; }
+
+@keyframes slideInDocItem {
+    from { opacity: 0; transform: translateX(10px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+/* ========== TAG DROPDOWN MENU ========== */
+.tag-dropdown-menu {
+    position: absolute;
+    background: var(--editor-bg);
+    border: 1px solid var(--editor-border);
+    border-radius: 6px;
+    padding: 5px;
+    z-index: 2600;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.tag-dropdown-menu .pill-user {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.tag-dropdown-menu .pill-user:hover {
+    filter: brightness(1.2);
+}

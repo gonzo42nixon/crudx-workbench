@@ -1,0 +1,313 @@
+/* Update this block in your styles.css */
+#data-container.list .card-kv {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    height: 28px !important;
+    min-height: 28px !important;
+    padding: 0 10px !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    
+    /* FIX 1: Use Card BG instead of transparent */
+    background: var(--card-bg) !important; 
+    
+    /* FIX 2: Dynamic border color based on the theme's card border */
+    border-bottom: 1px solid var(--card-border) !important; 
+    
+    /* FIX 3: Ensure text color is inherited from the theme */
+    color: var(--card-text) !important;
+    overflow: visible !important; /* Allow floating menu to pop out */
+}
+
+/* Optional: Add a hover effect so users see it's interactive */
+#data-container.list .card-kv:hover {
+    filter: brightness(1.2);
+    cursor: pointer;
+    z-index: 100; /* Bring row to front so menu overlaps neighbors */
+    position: relative;
+}
+
+/* Pills wieder sichtbar machen */
+#data-container.list .tl-group, 
+#data-container.list .br-group {
+    position: static !important;
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    gap: 4px !important;
+    flex-shrink: 0 !important;
+}
+
+#data-container.list .tl-group { order: 1; margin-right: 12px; }
+#data-container.list .value-layer { 
+    order: 2; 
+    flex: 1; 
+    padding: 0 !important; 
+    font-size: 0.75em !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+#data-container.list .br-group { order: 3; margin-left: 12px; }
+
+/* Winzige Pills für die Liste */
+#data-container.list .pill {
+    height: 16px !important;
+    font-size: 0.6em !important;
+    padding: 0 4px !important;
+    line-height: 14px !important;
+    box-shadow: none !important;
+}
+
+/* List View: Action Buttons Proximity & Layout */
+#data-container.list .tr-group {
+    /* Force centered floating position also for list view */
+    top: 50% !important;
+    left: 50% !important;
+    right: auto !important;
+    bottom: auto !important;
+    transform: translate(-50%, -50%) scale(0.95) !important;
+    
+    /* Reset dimensions and background to match floating pill */
+    height: auto !important;
+    width: auto !important;
+    padding: 6px 14px !important; /* Slightly smaller padding for list view */
+    background: rgba(0, 0, 0, 0.9) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    border-radius: 50px !important;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.8) !important;
+    gap: 8px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    
+    opacity: 0;
+    pointer-events: none;
+}
+#data-container.list .card-kv:hover .tr-group {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate(-50%, -50%) scale(1) !important;
+}
+
+/* ========== KARTEN (CARDS) ========== */
+.card-kv {
+    position: relative;
+    background: var(--card-glass) !important;
+    backdrop-filter: var(--card-blur) !important;
+    border-radius: 12px;
+    border: 1px solid var(--card-border) !important;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    color: var(--card-text);
+
+    /* Wichtig: Karten nehmen 100% der Grid-Zelle ein */
+    height: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+
+    /* Flex-Layout für die innere Struktur */
+    display: flex;
+    flex-direction: column;
+
+    /* Verhindert, dass Inhalte die Karte aufblähen */
+    min-height: 0 !important;
+    min-width: 0 !important;
+    overflow: hidden;
+
+    /* Padding hier auf 0 setzen, damit die Pillen NICHT mitgezogen werden */
+    padding: 0 !important;
+    
+    /* Wichtig für die korrekte Größenberechnung */
+    box-sizing: border-box;
+}
+
+/* ========== KARTEN-INHALTE ========== */
+.value-layer {
+    font-family: 'JetBrains Mono', monospace;
+    white-space: pre-wrap;
+    word-break: break-all;
+    font-size: 0.85em;
+    flex: 1 !important;
+    overflow-y: auto !important;
+
+    /* Nutzt das allgemeine Padding für die Seiten/Unten und die neue Variable für Oben */
+    padding: var(--card-padding) !important;
+    padding-top: var(--card-padding-top, 40px) !important;
+    width: 100%;
+}
+
+.tl-group {
+    position: absolute;
+    top: 12px;
+    bottom: auto;
+    left: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    z-index: 10;
+    max-width: 90%;
+    overflow: visible;
+    pointer-events: none; /* Klicks gehen durch, können aber bei Bedarf angepasst werden */
+    opacity: 1;
+    transition: opacity 0.3s ease;
+}
+.tl-group .pill {
+    pointer-events: auto; /* Pillen bleiben klickbar */
+}
+
+.br-group {
+    position: absolute;
+    top: auto;
+    bottom: 12px;
+    right: 12px;
+    display: flex;
+    flex-wrap: wrap-reverse;
+    flex-direction: row-reverse;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 4px;
+    max-width: 95%;
+    overflow: visible;
+    z-index: 10;
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity 0.3s ease;
+}
+.br-group .pill {
+    pointer-events: auto;
+}
+
+/* Confluence Mode Override: Always show all tags in footer */
+body.ftc-docked.layout-grid-1 .card-kv[data-mime="MD"] .br-group {
+    opacity: 1;
+    flex-wrap: wrap;
+    overflow: visible;
+    max-width: 95%; /* Allow full width usage in footer */
+    top: auto;
+    position: absolute !important;
+    bottom: 12px;
+}
+
+/* Confluence Mode: Key/Label stay top-left */
+body.ftc-docked.layout-grid-1 .card-kv[data-mime="MD"] .tl-group {
+    opacity: 1;
+    flex-wrap: wrap;
+    overflow: visible;
+    max-width: 95%;
+}
+
+/* ========== PILLS (TAGS) ========== */
+.pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 4px;
+    font-size: 0.7em;
+    font-weight: bold;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+    white-space: nowrap;
+    border-style: solid;
+    border-width: 1px;
+}
+.pill[title] {
+    cursor: help;
+}
+
+/* Pill-Farben über Theme-Variablen */
+.pill-key {
+    background: var(--key-glass) !important;
+    color: var(--key-text) !important;
+    border-color: var(--key-border) !important;
+    cursor: pointer;
+}
+
+.pill-label {
+    background: var(--label-glass) !important;
+    color: var(--label-text) !important;
+    border-color: var(--label-border) !important;
+}
+.pill-user {
+    background: var(--user-glass) !important;
+    color: var(--user-text) !important;
+    border-color: var(--user-border) !important;
+}
+.pill-sys {
+    background: var(--sys-glass) !important;
+    color: var(--sys-text) !important;
+    border-color: var(--sys-border) !important;
+    font-size: 0.65em;
+}
+.pill-sys-create {
+    background-color: var(--sys-create-bg) !important;
+    color: #ffffff !important;
+    border-color: rgba(255,255,255,0.3) !important;
+}
+.pill-sys-read {
+    background-color: var(--sys-read-bg) !important;
+    color: #000000 !important;
+    border-color: rgba(0,0,0,0.2) !important;
+}
+.pill-sys-update {
+    background-color: var(--sys-update-bg) !important;
+    color: #000000 !important;
+    border-color: rgba(0,0,0,0.2) !important;
+}
+.pill-sys-delete {
+    background-color: var(--sys-delete-bg) !important;
+    color: #ffffff !important;
+    border-color: rgba(255,255,255,0.3) !important;
+}
+.pill-sys-execute {
+    background-color: var(--sys-execute-bg) !important;
+    color: #ffffff !important;
+    border-color: rgba(255,255,255,0.3) !important;
+}
+.pill-sys-owner {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    border-color: #cccccc !important;
+}
+.pill-sys-size {
+    background-color: #000000 !important;
+    color: #eeeeee !important;
+    border: 1px solid #555555 !important;
+}
+.pill-mime {
+    /* Die Farben werden direkt per inline-style von detectMimetype gesetzt */
+    border: 1px solid rgba(0,0,0,0.2); /* leichter Rahmen */
+    backdrop-filter: none; /* kein Unschärfe-Effekt, falls nicht gewünscht */
+}
+
+/* Schmale, dezente Scrollbar für Karten */
+.value-layer::-webkit-scrollbar {
+    width: 4px;                /* nur 4px breit */
+}
+
+.value-layer::-webkit-scrollbar-track {
+    background: transparent;    /* unsichtbare Spur */
+}
+
+.value-layer::-webkit-scrollbar-thumb {
+    background: var(--sys-bg);  /* Farbe der System-Pill (rot) – du kannst jede Theme-Variable nehmen */
+    border-radius: 4px;
+}
+
+/* Für Firefox */
+.value-layer {
+    scrollbar-width: thin;
+    scrollbar-color: var(--sys-bg) transparent;
+}
+
+/* Highlight für die Ursprungskarte */
+.card-highlight {
+    background: rgba(64, 196, 255, 0.15) !important; /* Transparenter Hintergrund basierend auf der Textfarbe der Modal-Titelleiste */
+    border-color: #40c4ff !important; /* Textfarbe der Modal-Titelleiste (#40c4ff) */
+    box-shadow: 0 0 25px rgba(64, 196, 255, 0.4), inset 0 0 15px rgba(64, 196, 255, 0.2) !important;
+    z-index: 1000 !important;
+    transform: scale(1.02);
+    transition: all 0.3s ease;
+}

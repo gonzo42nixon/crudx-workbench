@@ -1,0 +1,91 @@
+/* ========== THEME VARIABLES (ROOT) ========== */
+:root {
+    /* Canvas */
+    --canvas-bg: #0a0a0a;
+    --canvas-text: #eeeeee;
+    --canvas-border: #333333;
+    --canvas-glass: rgba(10, 10, 10, 0.85);
+    --canvas-blur: blur(10px);
+    --app-padding: 15px;
+    --canvas-padding-top: 10px;
+    
+    /* Card */
+    --card-bg: #111111;
+    --card-text: #eeeeee;
+    --card-border: #222222;
+    --card-glass: rgba(17, 17, 17, 1);
+    --card-blur: none;
+    --card-padding: 20px;
+
+    /* Pagination Navi */
+    --navi-bg: #0f0f0f;
+    --navi-text: #cccccc;
+    --navi-border: #333333;
+    --navi-glass: rgba(15, 15, 15, 0.85);
+    --navi-blur: blur(10px);
+    --navi-bottom: 25px;
+
+    /* Themes Editor */
+    --editor-bg: #111111;
+    --editor-text: #eeeeee;
+    --editor-border: #333333;
+    --editor-glass: rgba(17,  ​17, 17, 0.95);
+    --editor-blur: blur(12px);
+    --search-padding-top: 20px;
+
+    /* UI Elements */
+    --search-bg: #111111;
+    --search-text: #eeeeee;
+    --search-border: #333333;
+    --search-glass: rgba(17, 17, 17, 0.8);
+    --search-blur: blur(10px);
+    --burger-text: #00ff00;
+
+/* Tags: Key */
+--key-bg: #000000;
+--key-text: #00ff00;
+--key-border: #333333;
+--key-glass: rgba(0, 0, 0, 0.8);
+--key-blur: none;
+
+/* Tags: Label - NEU HINZUFÜGEN */
+--label-bg: #1a1a1a;
+--label-text: #ffffff;
+--label-border: #444444;
+--label-glass: rgba(26, 26, 26, 0.9);
+--label-blur: none;
+    /* Tags: User */
+    --user-bg: #40c4ff;
+    --user-text: #000000;
+    --user-border: #333333;
+    --user-glass: rgba(64, 196, 255, 0.8);
+    --user-blur: none;
+
+    /* Tags: System */
+    --sys-bg: #9e9e9e;
+    --sys-text: #000000;
+    --sys-border: #616161;
+    --sys-glass: rgba(158, 158, 158, 0.8);
+    --sys-blur: none;
+
+    /* Tags: CRUDX System Colors */
+    --sys-create-bg: #2979ff;
+    --sys-read-bg: #00e676;
+    --sys-update-bg: #ff9100;
+    --sys-delete-bg: #ff1744;
+    --sys-execute-bg: #000000;
+
+    /* Tags: MIME Detection */
+    --mime-bg: #f7df1e;
+    /* Tags: MIME Detection */
+    --mime-bg: #f7df1e;
+    --mime-text: #000000;
+    --mime-border: #ffffff;
+    --mime-glass: rgba(247, 223, 30, 0.15);
+    --mime-blur: none;
+
+    /* Grid-spezifische Variablen (optional, können im Theme-Editor ergänzt werden) */
+    --grid-gap: 12px;
+    --header-footer-height: 140px; /* falls noch nicht dynamisch */
+    --docked-width: 380px;
+}

@@ -365,41 +365,11 @@ export function installRenderingMethods(TagCloud) {
             
             if (isMime) { const info = getMimeInfo(displayTag); item.style.backgroundColor = info.color; item.style.color = ['TXT','BASE64','JSON','JS','SVG'].includes(displayTag) ? '#000' : '#fff'; }
 
-            item.addEventListener('click', () => {
-                const searchInput = document.getElementById('main-search');
-                if (searchInput) {
-                    let currentSearchValue = searchInput.value.trim();
-                    let newSearchValue = '';
-
-                    if (isMime) {
-                        newSearchValue = (currentSearchValue === `mime:${displayTag}`) ? '' : `mime:${displayTag}`;
-                    } else {
-                        let currentTerm = '';
-                        if (currentSearchValue.startsWith('tag:')) { currentTerm = currentSearchValue.substring(4); }
-                        const termTags = currentTerm.match(/!?[\w\d\s\->:]+/g) || [];
-                        const cleanedTermTags = termTags.map(t => t.replace(/^!/, ''));
-                        const tagIndexInTerm = cleanedTermTags.indexOf(displayTag);
-
-                        if (this.expressionMode) { // Use the new expression mode
-                            const opSym = this.activeOp === 'AND' ? '&&' : '||';
-                            if (tagIndexInTerm > -1) {
-                                const regex = new RegExp(`\\s*(?:\\|\\||\\&\\&)?\\s*!?${displayTag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`, 'i');
-                                currentTerm = currentTerm.replace(regex, ' ').trim();
-                                currentTerm = currentTerm.replace(/\s*(\|\||\&\&)\s*(\|\||\&\&)\s*/gi, ' $1 ').replace(/^(\|\||\&\&)\s*|\s*(\|\||\&\&)$/gi, '');
-                                if (currentTerm.trim() === '') currentTerm = '';
-                            } else {
-                                if (currentTerm === '') { currentTerm = displayTag; }
-                                else { currentTerm += ` ${opSym} ${displayTag}`; }
-                            }
-                            newSearchValue = currentTerm ? `tag:${currentTerm}` : '';
-                        } else { // Single Tag Mode
-                            newSearchValue = (currentSearchValue === `tag:${displayTag}`) ? '' : `tag:${displayTag}`;
-                        }
-                    }
-                    searchInput.value = newSearchValue;
-                    fetchRealData(true);
-                    this._updateSelectionState();
-                }
+            item.addEventListener('click', (e) => {
+                // Rufe die neue Methode auf, die das Hinzufügen/Entfernen des Tags übernimmt
+                this._toggleTagInSearch(tag);
+                e.stopPropagation(); // Verhindert, dass der Klick auf übergeordnete Elemente durchgeht
+                this._updateSelectionState(); // Aktualisiert den visuellen Auswahlzustand der Tags
             });
             return item;
         },
@@ -491,11 +461,30 @@ export function installRenderingMethods(TagCloud) {
         _updateMiniTermEditorUI() { // Letzte Methode, kein Komma danach
             const toggleMode = document.getElementById('toggle-expression-mode');
             const toggleOp = document.getElementById('toggle-operator');
-            const opContainer = document.getElementById('operator-toggle-container');
+            const opRow = document.getElementById('operator-toggle-row');
 
-            if (toggleMode) toggleMode.checked = this.expressionMode;
-            if (opContainer) opContainer.style.display = this.expressionMode ? 'flex' : 'none';
-            if (toggleOp) toggleOp.checked = (this.activeOp === 'AND');
+            if (toggleMode) {
+                toggleMode.checked = this.expressionMode;
+                // Update text content and colors dynamically
+                const slider = toggleMode.nextElementSibling;
+                if (slider && slider.classList.contains('slider')) {
+                    slider.textContent = toggleMode.checked ? 'ON' : 'OFF';
+                    slider.style.backgroundColor = toggleMode.checked ? '#4caf50' : '#f44336';
+                }
+            }
+            
+            // Show/hide operator row (includes toggle and !, () info)
+            if (opRow) opRow.style.display = this.expressionMode ? 'table-row' : 'none';
+            
+            if (toggleOp) {
+                toggleOp.checked = (this.activeOp === 'AND');
+                // Update text content and colors dynamically
+                const slider = toggleOp.nextElementSibling;
+                if (slider && slider.classList.contains('slider')) {
+                    slider.textContent = toggleOp.checked ? '&&' : '||';
+                    slider.style.backgroundColor = toggleOp.checked ? '#2196f3' : '#ff9800';
+                }
+            }
         }
     }); // Ende von Object.assign
 } // Ende von installRenderingMethods
