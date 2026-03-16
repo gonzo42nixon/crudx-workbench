@@ -118,6 +118,24 @@
     box-shadow: 0 2px 8px rgba(0,0,0,0.5);
 }
 
+/* ========== TAG PILL SELECTION STATES ========== */
+
+/* Dimmed — not part of the current active filter */
+.pill-inactive {
+    opacity: 0.28;
+    transition: opacity 0.2s;
+}
+
+/* Excluded via ! negation — red strikethrough */
+.pill-excluded {
+    opacity: 0.75;
+    text-decoration: line-through;
+    text-decoration-color: #f44336;
+    border-color: #f44336 !important;
+    color: #f44336 !important;
+    transition: opacity 0.2s, border-color 0.2s, color 0.2s;
+}
+
 /* ========== TAG CLOUD TRANSPARENCY LEVELS ========== */
 
 /* Level 1: Cloud Transparent (No Blur), Tag 66% (No Blur) */

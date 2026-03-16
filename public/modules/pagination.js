@@ -53,13 +53,16 @@ export async function fetchRealData(resetPage = false) {
     const user = auth.currentUser;
     const filterOwnerOnly = document.getElementById('filter-owner-only')?.checked;
     const searchTerm = document.getElementById('main-search')?.value.trim();
-    const isTagSearch = searchTerm && searchTerm.startsWith('tag:');
+    // isTagSearch: true if any part of the expression involves tag: terms
+    const isTagSearch = searchTerm && (searchTerm.startsWith('tag:') || searchTerm.includes('tag:'));
     const isMimeSearch = searchTerm && searchTerm.startsWith('mime:');
-    
-    const isSystemTagSearch = isTagSearch && SYSTEM_TAG_PREFIXES.some(prefix => searchTerm.substring(4).startsWith(prefix));
-    
+
+    // Expression search: boolean operators (||, &&) or negation (!) applied to tag terms
+    const isExpressionSearch = isTagSearch && (searchTerm.includes('||') || searchTerm.includes('&&') || searchTerm.includes('!'));
+    const isSystemTagSearch = !isExpressionSearch && isTagSearch && SYSTEM_TAG_PREFIXES.some(prefix => searchTerm.substring(4).startsWith(prefix));
+
     // Client-seitige Filterung ist auch für Gäste nötig, wenn nach Tags gesucht wird (wegen der Firestore "one array-contains" Limitation)
-    const needsClientSideFiltering = (!filterOwnerOnly && isTagSearch) || isMimeSearch || isSystemTagSearch;
+    const needsClientSideFiltering = (!filterOwnerOnly && isTagSearch) || isMimeSearch || isSystemTagSearch || isExpressionSearch;
 
     if (resetPage) {
         currentPage = 1;
@@ -190,7 +193,9 @@ export async function fetchRealData(resetPage = false) {
         }
         
         if (searchTerm) {
-            if (searchTerm.startsWith('tag:')) {
+            if (isExpressionSearch) {
+                // Boolean expressions (||, &&, !) are evaluated entirely client-side — no Firestore tag constraint
+            } else if (searchTerm.startsWith('tag:')) {
                 const tag = searchTerm.substring(4);
                 // System Tags sind virtuell, daher nicht in der DB suchen
                 if (!isSystemTagSearch) {
@@ -217,6 +222,46 @@ export async function fetchRealData(resetPage = false) {
             constraints.push(limit(currentLimit));
         }
         const q = query(colRef, ...constraints);
+
+        // ---- EXPRESSION SEARCH: one-shot getDocs ----------------------------------------
+        // Re-subscribing onSnapshot to an identical query (query(colRef), no constraints)
+        // serves the Firestore local cache without re-running the client-side filter for the
+        // *new* expression.  This means "!tag:X" appears identical to "tag:X" because the
+        // same snapshot and same filter result are served from cache.
+        // Fix: use getDocs (always fetches / evaluates fresh) and return early.
+        if (isExpressionSearch) {
+            unsubscribeListener();
+            const allSnap = await getDocs(query(colRef));
+            const tokens = getAccessTokens(user ? user.email : null);
+            let exprDocs = allSnap.docs.filter(docSnap => {
+                const d = docSnap.data();
+                const ac = d.access_control || [];
+                if (!ac.some(t => tokens.includes(t))) return false;
+                return matchTagExpression(d, searchTerm);
+            });
+            const filteredTotal = exprDocs.length;
+            document.getElementById('result-count') && (document.getElementById('result-count').textContent = filteredTotal);
+            const exprTotalPages = Math.max(1, Math.ceil(filteredTotal / currentLimit));
+            document.getElementById('total-pages') && (document.getElementById('total-pages').textContent = exprTotalPages);
+            const startIdx = (currentPage - 1) * currentLimit;
+            const pageDocs = exprDocs.slice(startIdx, startIdx + currentLimit);
+            if (pageDocs.length === 0) {
+                container.innerHTML = `<div class="pill pill-sys" style="margin:20px;">No documents.</div>`;
+            } else {
+                pageCursors[currentPage - 1] = allSnap.docs[allSnap.docs.length - 1];
+                await renderDataFromDocs(pageDocs, container);
+            }
+            const isAtStart2 = currentPage <= 1;
+            document.getElementById('btn-first')?.classList.toggle('btn-disabled', isAtStart2);
+            document.getElementById('btn-prev')?.classList.toggle('btn-disabled', isAtStart2);
+            const isAtEnd2 = currentPage >= exprTotalPages || gridValue === 'list';
+            document.getElementById('btn-next')?.classList.toggle('btn-disabled', isAtEnd2);
+            document.getElementById('btn-last')?.classList.toggle('btn-disabled', isAtEnd2);
+            const btnOrderExpr = document.getElementById('btn-order');
+            if (btnOrderExpr) btnOrderExpr.title = `Current: ${sortDirection === 'asc' ? 'A-Z' : 'Z-A'}. Click to flip.`;
+            return; // Expression search complete — no persistent listener needed
+        }
+        // ---- END EXPRESSION SEARCH ------------------------------------------------------
 
         // Realtime Listener statt einmaligem Fetch
         unsubscribeListener();        currentUnsubscribe = onSnapshot(q, async (snap) => {
@@ -367,6 +412,119 @@ export async function fetchLastPageData() {
     } catch (err) {
         console.error("🔥 Error fetching last page:", err);
     }
+}
+
+// ---------- Boolean Tag Expression Evaluator ----------
+
+/**
+ * Tokenizes a tag expression string into a flat token list.
+ * Recognises: OR (||), AND (&&), NOT (!), LPAREN, RPAREN, TERM.
+ */
+function _tokenizeTagExpr(expr) {
+    const tokens = [];
+    let i = 0;
+    while (i < expr.length) {
+        if (/\s/.test(expr[i])) { i++; continue; }
+        if (expr[i] === '|' && i + 1 < expr.length && expr[i + 1] === '|') { tokens.push({ type: 'OR'     }); i += 2; continue; }
+        if (expr[i] === '&' && i + 1 < expr.length && expr[i + 1] === '&') { tokens.push({ type: 'AND'    }); i += 2; continue; }
+        if (expr[i] === '!')                                                 { tokens.push({ type: 'NOT'    }); i++;    continue; }
+        if (expr[i] === '(')                                                 { tokens.push({ type: 'LPAREN' }); i++;    continue; }
+        if (expr[i] === ')')                                                 { tokens.push({ type: 'RPAREN' }); i++;    continue; }
+        // Scan a TERM: read until whitespace, operator, or paren
+        let j = i;
+        while (
+            j < expr.length &&
+            !/\s/.test(expr[j]) &&
+            expr[j] !== '(' && expr[j] !== ')' && expr[j] !== '!' &&
+            !(expr[j] === '|' && j + 1 < expr.length && expr[j + 1] === '|') &&
+            !(expr[j] === '&' && j + 1 < expr.length && expr[j + 1] === '&')
+        ) { j++; }
+        if (j > i) tokens.push({ type: 'TERM', value: expr.slice(i, j) });
+        i = Math.max(i + 1, j);
+    }
+    return tokens;
+}
+
+/**
+ * Tests a single predicate term (tag:X, mime:X, owner:X) against a Firestore doc.
+ */
+function _matchSingleTerm(docData, term) {
+    if (term.startsWith('tag:')) {
+        const tagVal = term.substring(4);
+        if (SYSTEM_TAG_PREFIXES.some(p => tagVal.startsWith(p))) return matchSystemTag(docData, tagVal);
+        return (docData.user_tags || []).includes(tagVal);
+    }
+    if (term.startsWith('mime:')) return detectMimetype(docData.value).type === term.substring(5);
+    if (term.startsWith('owner:')) return docData.owner === term.substring(6);
+    // Fallback: treat as a plain tag name
+    return (docData.user_tags || []).includes(term);
+}
+
+/**
+ * Evaluates a full boolean tag expression against a document using a
+ * recursive-descent parser.
+ *
+ * Grammar:
+ *   or-expr  ::= and-expr ('||' and-expr)*
+ *   and-expr ::= unary   ('&&' unary)*
+ *   unary    ::= '!' unary | primary
+ *   primary  ::= '(' or-expr ')' | TERM
+ *
+ * Supports: tag:X, !tag:X, mime:X, owner:X, ||, &&, ()
+ * Example: "tag:alpha || (tag:beta && !tag:gamma)"
+ */
+function matchTagExpression(docData, expression) {
+    const toks = _tokenizeTagExpr(expression);
+    let pos = 0;
+    const peek    = ()  => toks[pos];
+    const consume = ()  => toks[pos++];
+
+    function parseOr() {
+        let left = parseAnd();
+        while (peek() && peek().type === 'OR') {
+            consume();
+            const right = parseAnd();
+            const l = left, r = right;
+            left = () => l() || r();
+        }
+        return left;
+    }
+    function parseAnd() {
+        let left = parseUnary();
+        while (peek() && peek().type === 'AND') {
+            consume();
+            const right = parseUnary();
+            const l = left, r = right;
+            left = () => l() && r();
+        }
+        return left;
+    }
+    function parseUnary() {
+        if (peek() && peek().type === 'NOT') {
+            consume();
+            const operand = parseUnary();
+            return () => !operand();
+        }
+        return parsePrimary();
+    }
+    function parsePrimary() {
+        const tok = peek();
+        if (!tok) return () => true;
+        if (tok.type === 'LPAREN') {
+            consume();
+            const inner = parseOr();
+            if (peek() && peek().type === 'RPAREN') consume();
+            return inner;
+        }
+        if (tok.type === 'TERM') {
+            consume();
+            const term = tok.value;
+            return () => _matchSingleTerm(docData, term);
+        }
+        consume(); // skip unexpected token
+        return () => true;
+    }
+    return parseOr()();
 }
 
 // ---------- Paginierungs-Listener initialisieren ----------

@@ -51,56 +51,67 @@ class TagCloud {
         this._updateMiniTermVisibility();
     }
 
+    // Helper to escape regex special characters
+    _escapeRegExp(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
+    }
     /**
-     * Toggles the presence of a given tag in the main search input.
-     * If the tag is present, it's removed. If not, it's added.
-     * This method aims to provide a simple toggle behavior for individual tags,
-     * respecting the current expression mode for how tags are joined.
-     * @param {string} tagText The text of the tag to toggle (e.g., "myTag").
+     * Toggles a tag in the main search input.
+     *
+     * Uses regex-based matching instead of string splitting so that tags whose
+     * values contain spaces (system tags like "Size: Medium", "C: Today", …)
+     * are detected and removed correctly.
+     *
+     * Detection order for removal:
+     *   1. Operator-bounded: "… (&& | ||) tag:X …" or "tag:X (&& | ||) …"
+     *   2. Space-bounded (non-expression mode):  "… tag:X" or "tag:X …"
+     *   3. Exact / only term.
      */
     _toggleTagInSearch(tagText) {
         const searchInput = document.getElementById('main-search');
         if (!searchInput) return;
 
-        let currentSearch = searchInput.value.trim();
-        const tagPrefix = 'tag:';
-        const fullTag = tagPrefix + tagText;
+        const currentSearch = searchInput.value.trim();
+        const fullTag = 'tag:' + tagText;
 
-        // Determine the effective operator for joining/splitting
-        const effectiveOperator = this.expressionMode ? (this.activeOp === 'AND' ? '&&' : '||') : ' ';
-        // Use a regex to split by the effective operator or by one or more spaces
-        const splitRegex = new RegExp(`\\s*${effectiveOperator === ' ' ? '\\s+' : effectiveOperator}\\s*`);
-
-        let terms = currentSearch.split(splitRegex).filter(t => t !== '');
-        let tagFound = false;
-        let newTerms = [];
-
-        for (const term of terms) {
-            if (term.toLowerCase() === fullTag.toLowerCase()) {
-                tagFound = true;
-                // Do not add this term to newTerms (effectively removing it)
-            } else {
-                newTerms.push(term);
-            }
+        // ---- NON-EXPRESSION MODE: single-tag behaviour ----
+        // Expression=OFF → only one tag active at a time.
+        // Clicking the active tag clears the search; clicking any other tag replaces it.
+        if (!this.expressionMode) {
+            searchInput.value = (currentSearch === fullTag) ? '' : fullTag;
+            fetchRealData(true);
+            return;
         }
 
-        if (!tagFound) {
-            // Tag was not found, so add it
-            newTerms.push(fullTag);
+        // ---- EXPRESSION MODE: toggle within a boolean expression ----
+        const e = this._escapeRegExp(fullTag); // regex-safe version of fullTag
+
+        // Presence check — fullTag as a complete token (surrounded by operator, space, or boundary)
+        const presenceRegex = new RegExp(
+            `(?:^|\\s*(?:\\|\\||&&)\\s*)${e}(?:\\s*(?:\\|\\||&&)\\s*|\\s+|$)`
+        );
+
+        if (presenceRegex.test(currentSearch)) {
+            // ---- Remove the tag ----
+            let s = currentSearch;
+            // Case A: preceded by operator  (… && tag:X  or  … || tag:X)
+            s = s.replace(new RegExp(`\\s*(?:\\|\\||&&)\\s*${e}(?=\\s*(?:\\|\\||&&)|\\s*$)`, 'g'), '');
+            // Case B: followed by operator  (tag:X &&  or  tag:X ||)
+            s = s.replace(new RegExp(`${e}\\s*(?:\\|\\||&&)\\s*`), '');
+            // Case C: preceded by space (space-joined remnant)
+            s = s.replace(new RegExp(`\\s+${e}(?=\\s|$)`, 'g'), '');
+            // Case D: followed by space (first term)
+            s = s.replace(new RegExp(`^${e}\\s+`), '');
+            // Case E: only term
+            s = s.replace(new RegExp(`^${e}$`), '');
+            searchInput.value = s.trim();
+        } else {
+            // ---- Add the tag ----
+            const sep = this.activeOp === 'AND' ? ' && ' : ' || ';
+            searchInput.value = currentSearch ? (currentSearch + sep + fullTag) : fullTag;
         }
 
-        // Reconstruct the search string
-        let newSearch = newTerms.join(` ${effectiveOperator} `).trim();
-
-        // Clean up leading/trailing operators if they appear due to removal
-        // E.g., if "tag:a && tag:b" and "tag:a" is removed, it becomes "&& tag:b". This cleans it to "tag:b".
-        if (this.expressionMode) {
-            newSearch = newSearch.replace(new RegExp(`^${effectiveOperator}\\s*`), '').replace(new RegExp(`\\s*${effectiveOperator}$`), '').trim();
-        }
-        
-        searchInput.value = newSearch;
-        // Trigger a search/refresh of the data, resetting pagination to page 1
-        fetchRealData(true); 
+        fetchRealData(true);
     }
 
     locateDocument(docId) {

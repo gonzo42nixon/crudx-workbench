@@ -48,12 +48,25 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (clearBtn && searchInput) clearBtn.style.display = searchInput.value.trim() ? 'block' : 'none';
         };
 
+        // Debounce timer shared between keydown and input handlers
+        let searchDebounceTimer = null;
+
         bind('main-search', 'keydown', (e) => {
             if (e.key === 'Enter') {
+                clearTimeout(searchDebounceTimer); // Cancel any pending debounce
                 fetchRealData(true);
+                updateTagCloudSelection();
             }
         });
-        bind('main-search', 'input', toggleClearBtn);
+        // Auto-trigger search 500 ms after the user stops typing (covers live edits like adding '!')
+        bind('main-search', 'input', () => {
+            toggleClearBtn();
+            clearTimeout(searchDebounceTimer);
+            searchDebounceTimer = setTimeout(() => {
+                fetchRealData(true);
+                updateTagCloudSelection();
+            }, 500);
+        });
 
         bind('btn-clear-search', 'click', () => {
             if (searchInput) {

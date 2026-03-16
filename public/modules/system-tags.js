@@ -23,10 +23,10 @@ export function getSizeClass(sizeStr) {
             else bytes = num;
         }
     }
-    if (bytes >= 10 * 1024 * 1024) return 'Huge'; // > 10 MB
-    else if (bytes >= 500 * 1024) return 'Large'; // > 500 KB
-    else if (bytes >= 1024) return 'Medium'; // > few Bytes
-    return 'Small';
+    if (bytes >= 10 * 1024 * 1024) return 'Huge';   // ≥ 10 MB
+    else if (bytes >= 10 * 1024)   return 'Large';   // ≥ 10 KB
+    else if (bytes >= 2 * 1024)    return 'Medium';  // ≥ 2 KB
+    return 'Small';                                   // < 2 KB
 }
 
 export function getWhitelistClass(val) {
@@ -38,14 +38,16 @@ export function getWhitelistClass(val) {
 }
 
 export function getTimeLabel(ts, prefix) {
-    if (!ts) {
+    // null / undefined / '' / '--' all mean "this event has never occurred"
+    if (!ts || ts === '--') {
         if (prefix === 'C') return 'Unknown';
-        return 'Beyond this Year'; 
+        return 'Never';
     }
     const date = new Date(ts);
     if (isNaN(date.getTime())) {
+        // Any other non-parseable string: treat the same way
         if (prefix === 'C') return 'Unknown';
-        return 'Beyond this Year';
+        return 'Never';
     }
     
     const now = new Date();

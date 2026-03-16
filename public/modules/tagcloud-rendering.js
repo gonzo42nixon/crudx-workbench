@@ -103,10 +103,10 @@ export function installRenderingMethods(TagCloud) {
                 // --- CUSTOM SORTING LOGIC ---
                 const systemTagOrder = {
                     'C: Last Hour': 10, 'C: Today': 11, 'C: Yesterday': 12, 'C: This Week': 12.5, 'C: This Month': 13, 'C: Last 3 Months': 14, 'C: This Year': 15, 'C: Beyond this Year': 16, 'C: Unknown': 17,
-                    'R: Last Hour': 20, 'R: Today': 21, 'R: Yesterday': 22, 'R: This Week': 22.5, 'R: This Month': 23, 'R: Last 3 Months': 24, 'R: This Year': 25, 'R: Beyond this Year': 26, 'R-Σ: Top 5': 27, 'R-Σ: Mean': 28, 'R-Σ: Rarely': 29, 'R-Σ: Never': 29.5,
-                    'U: Last Hour': 30, 'U: Today': 31, 'U: Yesterday': 32, 'U: This Week': 32.5, 'U: This Month': 33, 'U: Last 3 Months': 34, 'U: This Year': 35, 'U: Beyond this Year': 36, 'U-Σ: Top 5': 37, 'U-Σ: Mean': 38, 'U-Σ: Rarely': 39, 'U-Σ: Never': 39.5,
+                    'R: Last Hour': 20, 'R: Today': 21, 'R: Yesterday': 22, 'R: This Week': 22.5, 'R: This Month': 23, 'R: Last 3 Months': 24, 'R: This Year': 25, 'R: Beyond this Year': 26, 'R: Never': 26.5, 'R-Σ: Top 5': 27, 'R-Σ: Mean': 28, 'R-Σ: Rarely': 29, 'R-Σ: Never': 29.5,
+                    'U: Last Hour': 30, 'U: Today': 31, 'U: Yesterday': 32, 'U: This Week': 32.5, 'U: This Month': 33, 'U: Last 3 Months': 34, 'U: This Year': 35, 'U: Beyond this Year': 36, 'U: Never': 36.5, 'U-Σ: Top 5': 37, 'U-Σ: Mean': 38, 'U-Σ: Rarely': 39, 'U-Σ: Never': 39.5,
                     'Size: Huge': 2, 'Size: Large': 3, 'Size: Medium': 4, 'Size: Small': 5,
-                    'X: Last Hour': 50, 'X: Today': 51, 'X: Yesterday': 52, 'X: This Week': 52.5, 'X: This Month': 53, 'X: Last 3 Months': 54, 'X: This Year': 55, 'X: Beyond this Year': 56, 'X-Σ: Top 5': 57, 'X-Σ: Mean': 58, 'X-Σ: Rarely': 59, 'X-Σ: Never': 59.5,
+                    'X: Last Hour': 50, 'X: Today': 51, 'X: Yesterday': 52, 'X: This Week': 52.5, 'X: This Month': 53, 'X: Last 3 Months': 54, 'X: This Year': 55, 'X: Beyond this Year': 56, 'X: Never': 56.5, 'X-Σ: Top 5': 57, 'X-Σ: Mean': 58, 'X-Σ: Rarely': 59, 'X-Σ: Never': 59.5,
                     'WL-R: Many': 60, 'WL-R: Mean': 61, 'WL-R: Few': 62, 'WL-R: None': 62.5, 'WL-U: Many': 70, 'WL-U: Mean': 71, 'WL-U: Few': 72, 'WL-U: None': 72.5, 'WL-X: Many': 80, 'WL-X: Mean': 81, 'WL-X: Few': 82, 'WL-X: None': 82.5,
                 };
 
@@ -329,7 +329,7 @@ export function installRenderingMethods(TagCloud) {
                 item.className = 'pill pill-mime'; tooltip = 'Media/Message/Code Type';
             } else if (tag.includes(':')) {
                 let sysClass = 'pill-sys'; let opacity = 1.0;
-                const timeOpacityMap = { 'Last Hour': 0.9, 'Today': 0.8, 'Yesterday': 0.7, 'This Week': 0.65, 'This Month': 0.6, 'Last 3 Months': 0.5, 'This Year': 0.4, 'Beyond this Year': 0.3, 'Unknown': 0.3 };
+                const timeOpacityMap = { 'Last Hour': 0.9, 'Today': 0.8, 'Yesterday': 0.7, 'This Week': 0.65, 'This Month': 0.6, 'Last 3 Months': 0.5, 'This Year': 0.4, 'Beyond this Year': 0.3, 'Unknown': 0.3, 'Never': 0.3 };
                 const counterOpacityMap = { 'Top 5': 1.0, 'Mean': 0.8, 'Rarely': 0.6, 'Never': 0.4 };
                 const sizeOpacityMap = { 'Huge': 1.0, 'Large': 0.8, 'Medium': 0.6, 'Small': 0.4 };
                 const whitelistOpacityMap = { 'Many': 1.0, 'Mean': 0.8, 'Few': 0.6, 'None': 0.4 };
@@ -426,28 +426,47 @@ export function installRenderingMethods(TagCloud) {
         _updateSelectionState() {
             const searchInput = document.getElementById('main-search');
             const searchTerm = searchInput ? searchInput.value.trim() : '';
-            
-            let activeTags = [];
-            if (searchTerm.startsWith('tag:')) {
-                activeTags = searchTerm.substring(4).split(/\s*\|\|\s*|\s*\&\&\s*|[\s()!]/i).map(t => t.trim()).filter(t => t && t.length > 0);
-            } else if (searchTerm.startsWith('mime:')) {
-                activeTags = [searchTerm.substring(5)];
-            }
 
+            const activeTags  = []; // positively included tags  → highlighted
+            const excludedTags = []; // negated with ! → shown as excluded
+
+            // Split on || and && operators first (preserves ! prefix per segment),
+            // then split each segment on spaces (handles non-expression space-joined terms).
+            searchTerm.split(/\s*\|\|\s*|\s*&&\s*/).forEach(segment => {
+                segment.split(/\s+/).forEach(part => {
+                    // Strip surrounding parentheses/whitespace but NOT '!' — needed for negation detection
+                    part = part.replace(/^[\s(]+|[\s)]+$/g, '').trim();
+                    const isNegated = part.startsWith('!');
+                    const cleanPart = isNegated ? part.substring(1).trim() : part;
+                    if (cleanPart.startsWith('tag:')) {
+                        const t = cleanPart.substring(4);
+                        if (t) (isNegated ? excludedTags : activeTags).push(t);
+                    } else if (!isNegated && cleanPart.startsWith('mime:')) {
+                        if (cleanPart.length > 5) activeTags.push(cleanPart); // keep "mime:X" to match dataset.tagName
+                    }
+                });
+            });
+
+            const hasFilter = activeTags.length > 0 || excludedTags.length > 0;
             const clearBtn = document.getElementById('btn-clear-tag-filter');
             if (clearBtn) {
-                clearBtn.style.display = activeTags.length > 0 ? 'inline' : 'none';
-                clearBtn.style.color = activeTags.length > 0 ? '#ff5252' : '';
+                clearBtn.style.display = hasFilter ? 'inline' : 'none';
+                clearBtn.style.color   = hasFilter ? '#ff5252' : '';
             }
 
             const pills = this.contentContainer.querySelectorAll('.pill-user, .pill-mime');
             pills.forEach(pill => {
                 const tag = pill.dataset.tagName;
-                if (activeTags.length > 0) {
-                    if (activeTags.includes(tag)) pill.classList.remove('pill-inactive');
-                    else pill.classList.add('pill-inactive');
-                } else {
-                    pill.classList.remove('pill-inactive');
+                pill.classList.remove('pill-inactive', 'pill-excluded');
+                if (hasFilter) {
+                    if (activeTags.includes(tag)) {
+                        // Positively active — keep normal appearance
+                    } else if (excludedTags.includes(tag)) {
+                        pill.classList.add('pill-excluded');   // negated tag: red strikethrough
+                    } else if (activeTags.length > 0) {
+                        // Only dim unrelated pills when there are positive filters present
+                        pill.classList.add('pill-inactive');
+                    }
                 }
             });
         },

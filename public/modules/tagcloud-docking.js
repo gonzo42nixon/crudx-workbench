@@ -12,14 +12,18 @@ export function installDockingMethods(TagCloud) {
             const hiddenSector = this.container.querySelector('.sector-hidden');
             const cloudSector = this.container.querySelector('.sector-cloud');
 
-            if (this.dockState === 1) { // Left Docked
+            if (this.dockState === 1) {          // Left Docked  → Folder only
                 folderSector.style.display = 'flex';
                 hiddenSector.style.display = 'none';
-                cloudSector.style.display = 'none';
-            } else { // Floating, Center, Bottom-Right
+                cloudSector.style.display  = 'none';
+            } else if (this.dockState === 3) {   // Bottom-Right → Cloud only
+                folderSector.style.display = 'none';
+                hiddenSector.style.display = 'none';
+                cloudSector.style.display  = 'flex';
+            } else {                             // Center (2) or Floating (0) → all sectors
                 folderSector.style.display = 'flex';
                 hiddenSector.style.display = 'flex';
-                cloudSector.style.display = 'flex';
+                cloudSector.style.display  = 'flex';
             }
         },
 
