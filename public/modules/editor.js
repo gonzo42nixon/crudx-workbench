@@ -575,7 +575,7 @@ async function handleSaveAction() {
             setTimeout(() => locateDocumentInCloud(key), delay);
         } else {
             const delay = isEmulator ? 100 : 1500;
-            setTimeout(() => fetchRealData(), delay);
+            setTimeout(() => fetchRealData(true), delay); // Force refresh data
             setTimeout(() => refreshTagCloud(true), delay); // Cache leeren und neu laden
         }
     } catch (e) {

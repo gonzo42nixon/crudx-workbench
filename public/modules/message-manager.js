@@ -55,7 +55,7 @@ export function initMessageListeners() {
                     console.log(`✅ IFrame save for [${payload.key}] successful (Webhook).`);
                 }
                 
-                refreshTagCloud(true);
+                refreshTagCloud(true); // Force refresh
             } catch (e) {
                 console.error(`❌ IFrame save for [${payload.key}] failed:`, e);
             }

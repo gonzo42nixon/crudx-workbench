@@ -213,7 +213,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const closeBtn = document.getElementById('btn-close-tag-cloud');
                 if (closeBtn) closeBtn.click(); // Use internal close logic to reset state
             } else {
-                refreshTagCloud(db);
+                refreshTagCloud(true); // Pass true to force refresh
             }
         });
 

@@ -142,7 +142,7 @@ export async function handleSaveTags() {
                 body: JSON.stringify(payload)
             });
             if (!response.ok) throw new Error(`Webhook returned ${response.status}`);
-            setTimeout(() => fetchRealData(), 1000);
+            setTimeout(() => fetchRealData(true), 1000);
             setTimeout(() => refreshTagCloud(true), 1000);
         }
         closeTagModal();

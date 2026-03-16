@@ -1982,3 +1982,105 @@ body.ftc-docked.layout-grid-1.no-app-view .card-kv[data-mime="MD"] .tr-group {
     left: 50% !important;
     transform: translate(-50%, -50%) scale(1.2) !important;
 }
+
+/* ========== MINI TERM EDITOR ========== */
+.mini-term-editor {
+    position: fixed;
+    top: 100px; /* Initial position, will be centered below search bar */
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2100; /* Über der Search Bar, aber unter der Tag Cloud */
+    
+    background: var(--editor-glass);
+    backdrop-filter: var(--editor-blur);
+    border: 1px solid var(--editor-border);
+    border-radius: 30px; /* Oval-Form */
+    padding: 8px 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+    color: var(--editor-text);
+    font-size: 0.9em;
+    white-space: nowrap;
+    transition: opacity 0.3s ease;
+}
+
+.mini-term-editor.mini-trans-90 {
+    opacity: 0.9;
+}
+.mini-term-editor.mini-trans-50 {
+    opacity: 0.5;
+}
+
+.mini-term-handle {
+    cursor: grab;
+    color: var(--burger-text);
+    font-size: 1.2em;
+    user-select: none;
+    padding: 0 5px;
+}
+.mini-term-handle:active {
+    cursor: grabbing;
+}
+
+/* Toggle Switch Styling */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 34px;
+    height: 20px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    -webkit-transition: .4s;
+    transition: .4s;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    -webkit-transition: .4s;
+    transition: .4s;
+}
+
+input:checked + .slider {
+    background-color: var(--burger-text); /* Akzentfarbe */
+}
+
+input:focus + .slider {
+    box-shadow: 0 0 1px var(--burger-text);
+}
+
+input:checked + .slider:before {
+    -webkit-transform: translateX(14px);
+    -ms-transform: translateX(14px);
+    transform: translateX(14px);
+}
+
+/* Rounded sliders */
+.slider.round {
+    border-radius: 20px;
+}
+
+.slider.round:before {
+    border-radius: 50%;
+}

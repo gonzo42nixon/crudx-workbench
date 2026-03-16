@@ -24,7 +24,7 @@ export function initCardActions(dataContainer, openUpdateModal, openTagModal) {
             } else {
                 fetchRealData();
             }
-            refreshTagCloud(db, true);
+            refreshTagCloud(true);
         };
 
         // 1. Action Buttons (C, R, U, D, X)
