@@ -338,14 +338,25 @@ export function openUpdateModal(key, value, label, cardElement, isNew = false) {
                     delete: d.white_list_delete || [],
                     execute: d.white_list_execute || []
                 };
+                // Normalize any Firestore Timestamp → ISO string so we never
+                // accidentally write {seconds, nanoseconds} back to the database.
+                const _ts2iso = ts => {
+                    if (!ts) return null;
+                    if (typeof ts === 'string') return ts;
+                    if (typeof ts.toDate === 'function') return ts.toDate().toISOString();   // Firestore Timestamp
+                    if (ts.seconds !== undefined) return new Date(                           // plain {seconds,nanoseconds}
+                        ts.seconds * 1000 + Math.round((ts.nanoseconds || 0) / 1e6)
+                    ).toISOString();
+                    return String(ts);
+                };
                 currentSystemInfo = {
-                    created_at: d.created_at,
-                    reads: d.reads || 0,
-                    last_read_ts: d.last_read_ts,
-                    updates: d.updates || 0,
-                    last_update_ts: d.last_update_ts,
-                    executes: d.executes || 0,
-                    last_execute_ts: d.last_execute_ts
+                    created_at:      _ts2iso(d.created_at),
+                    reads:           d.reads || 0,
+                    last_read_ts:    _ts2iso(d.last_read_ts),
+                    updates:         d.updates || 0,
+                    last_update_ts:  _ts2iso(d.last_update_ts),
+                    executes:        d.executes || 0,
+                    last_execute_ts: _ts2iso(d.last_execute_ts)
                 };
 
                 if (value === null && d.value !== undefined) {

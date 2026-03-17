@@ -43,6 +43,16 @@ export function getTimeLabel(ts, prefix) {
         if (prefix === 'C') return 'Unknown';
         return 'Never';
     }
+
+    // Guard: Firestore Timestamp object { seconds, nanoseconds } must be converted
+    // before new Date(). new Date({…}) returns Invalid Date and the tag would
+    // permanently show "Unknown"/"Never" for documents that still carry the old format.
+    if (typeof ts === 'object' && ts !== null && ts.seconds !== undefined) {
+        ts = typeof ts.toDate === 'function'
+            ? ts.toDate().toISOString()
+            : new Date(ts.seconds * 1000 + Math.round((ts.nanoseconds || 0) / 1e6)).toISOString();
+    }
+
     const date = new Date(ts);
     if (isNaN(date.getTime())) {
         // Any other non-parseable string: treat the same way

@@ -2,6 +2,25 @@ import { db } from './firebase.js';
 import { collection, getDocs, writeBatch, doc, setDoc, deleteDoc, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { fetchRealData } from './pagination.js';
 
+/**
+ * Recursively converts any Firestore Timestamp value ({ seconds, nanoseconds })
+ * inside a document to an ISO 8601 string, so the backup JSON is clean and
+ * portable (no {seconds,nanoseconds} objects that would crash on restore).
+ */
+function normalizeTimestamps(obj) {
+    if (!obj || typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) return obj.map(normalizeTimestamps);
+    // Firestore Timestamp: has numeric `seconds` and `nanoseconds`
+    if (typeof obj.seconds === 'number' && typeof obj.nanoseconds === 'number') {
+        return typeof obj.toDate === 'function'
+            ? obj.toDate().toISOString()
+            : new Date(obj.seconds * 1000 + Math.round(obj.nanoseconds / 1e6)).toISOString();
+    }
+    return Object.fromEntries(
+        Object.entries(obj).map(([k, v]) => [k, normalizeTimestamps(v)])
+    );
+}
+
 export async function backupData(btnId) {
     const btn = document.getElementById(btnId);
     if (btn) {
@@ -14,7 +33,7 @@ export async function backupData(btnId) {
         console.log("📦 Starting Backup...");
         const colRef = collection(db, "kv-store");
         const snap = await getDocs(colRef);
-        const data = snap.docs.map(doc => ({ _id: doc.id, ...doc.data() }));
+        const data = snap.docs.map(d => normalizeTimestamps({ _id: d.id, ...d.data() }));
 
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
