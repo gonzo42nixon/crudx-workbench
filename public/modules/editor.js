@@ -360,6 +360,11 @@ export function openUpdateModal(key, value, label, cardElement, isNew = false) {
                     systemInfo: { ...currentSystemInfo }, 
                     value: updateEditor.value // Use the value that was set to the editor
                 });
+                // Re-render the integrated tag-editor overlay now that we have the real data.
+                // Without this call, the overlay keeps stale DOM from the previous document open.
+                const tagContainer = document.getElementById('update-modal-tag-editor');
+                if (tagContainer) renderTagsInModal(tagContainer);
+
                 // Update the display
                 updateLabelDisplay.textContent = `- ${currentLabel || key}`;
                 updateLabelDisplay.title = `Label: ${currentLabel}\nCRUDX-ID: ${key}`;

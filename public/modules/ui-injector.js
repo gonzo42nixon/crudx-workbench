@@ -101,7 +101,11 @@ export function injectGlobalUI() {
     const createFabHTML = `<div id="btn-create-card" class="fab-create" title="Create a Card">+</div>`;
     document.body.insertAdjacentHTML('beforeend', createFabHTML);
 
-    const confluenceFabHTML = `<div id="btn-toggle-confluence" class="fab-confluence" title="Toggle Confluence Mode">📚</div>`;
+    const confluenceFabHTML = `
+    <div id="btn-toggle-confluence" class="fab-confluence" title="View Mode: Read">
+      <span id="vmc-read"    class="vmc-btn vmc-read"    title="View Mode: Read">⏸</span>
+      <span id="vmc-execute" class="vmc-btn vmc-execute" title="View Mode: Execute">▶</span>
+    </div>`;
     document.body.insertAdjacentHTML('beforeend', confluenceFabHTML);
 
     initFabDragging();

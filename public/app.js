@@ -178,26 +178,81 @@ document.addEventListener("DOMContentLoaded", async () => {
         bind('btn-print', 'click', () => window.print());
 
         // --- CONFLUENCE MODE TOGGLE ---
+        // State machine:
+        //   None (no ftc-docked)                → click → Execute (ftc-docked, no ftc-read-mode)
+        //   Execute (ftc-docked, no read-mode)  → click → Read    (ftc-docked + ftc-read-mode)
+        //   Read   (ftc-docked + read-mode)     → click → Execute (ftc-docked, no ftc-read-mode)
+        // The tag cloud stays left-docked in both Read and Execute; only auto-launch is toggled.
+        const updateConfluenceTooltip = () => {
+            const btn     = document.getElementById('btn-toggle-confluence');
+            const readBtn = document.getElementById('vmc-read');
+            const execBtn = document.getElementById('vmc-execute');
+            if (!btn) return;
+            const isExecute = document.body.classList.contains('ftc-docked') &&
+                              !document.body.classList.contains('ftc-read-mode');
+            btn.title = isExecute ? 'View Mode: Execute' : 'View Mode: Read';
+            // Highlight the active player button; dim the inactive one
+            if (readBtn) readBtn.classList.toggle('vmc-active', !isExecute && document.body.classList.contains('ftc-docked'));
+            if (execBtn) execBtn.classList.toggle('vmc-active', isExecute);
+        };
+
         bind('btn-toggle-confluence', 'click', () => {
             const btn = document.getElementById('btn-toggle-confluence');
             if (btn && btn.dataset.justDragged === "true") return;
 
-            const isModeActive = document.body.classList.contains('ftc-docked');
             const tc = initTagCloud(db);
+            const isDocked   = document.body.classList.contains('ftc-docked');
+            const isReadMode = document.body.classList.contains('ftc-read-mode');
 
-            if (isModeActive) {
-                tc.dockBottomRight();
-                fetchRealData(); // Re-render to revert Secure Apps to Raw view
+            if (isDocked && !isReadMode) {
+                // Execute → Read: tag cloud stays left, just suppress auto-launch
+                document.body.classList.add('ftc-read-mode');
+                fetchRealData(); // Re-render raw content (auto-launch observer skips ftc-read-mode)
+            } else if (isDocked && isReadMode) {
+                // Read → Execute: re-enable auto-launch, re-render
+                document.body.classList.remove('ftc-read-mode');
+                fetchRealData();
             } else {
-                document.body.classList.remove('no-app-view'); // Sicherstellen, dass App-View aktiv ist
-                tc.dockLeft(); // Dies aktiviert intern Grid-1 und setzt ftc-docked
+                // None → Execute: dock left, enforce 1x1, activate Confluence
+                document.body.classList.remove('no-app-view');
+                document.body.classList.remove('ftc-read-mode');
+                tc.dockLeft();
             }
+            updateConfluenceTooltip();
         });
+        // Set initial tooltip
+        updateConfluenceTooltip();
 
         // --- CRUDX WEBHOOK BUTTONS & PILLS ---
         const dataContainer = document.getElementById('data-container');
         if (dataContainer) {
             initCardActions(dataContainer, openUpdateModal, openTagModal);
+
+            // --- CARD TAG CLICK → TAG CLOUD ---
+            // Clicking a pill-user or pill-mime tag on a card opens the Tag Cloud
+            // and activates the same filter as if the tag had been clicked inside the cloud.
+            dataContainer.addEventListener('click', (e) => {
+                const pill = e.target.closest('[data-tag-name]');
+                if (!pill) return;
+                // Only handle plain user tags and mime tags; ignore folder-summary pills
+                if (pill.classList.contains('summary-pill')) return;
+                if (!pill.classList.contains('pill-user') && !pill.classList.contains('pill-mime')) return;
+
+                const tagName = pill.dataset.tagName;
+                if (!tagName) return;
+
+                e.stopPropagation(); // Don't bubble to card-action handlers
+
+                const tc = initTagCloud(db);
+                // Open the Tag Cloud if it is not already visible
+                const cloudContainer = document.getElementById('tag-cloud-container');
+                if (cloudContainer && !cloudContainer.classList.contains('active')) {
+                    refreshTagCloud(true);
+                }
+                // Toggle the tag in the search bar (same logic as clicking inside the cloud)
+                tc._toggleTagInSearch(tagName);
+                updateTagCloudSelection();
+            });
         }
 
         // Listener to close tag dropdown on outside click
@@ -478,12 +533,33 @@ document.addEventListener("DOMContentLoaded", async () => {
         // Initialisiert die Floating Tag Cloud
         initTagCloud(db);
 
+        // --- TAG CLOUD BUTTON STATE (icon + tooltip reflect active/inactive) ---
+        // Uses a MutationObserver on the container's class list so every open/close
+        // path (header button, card tag click, docking methods, close-X) is covered.
+        (() => {
+            const cloudContainer = document.getElementById('tag-cloud-container');
+            const updateCloudBtn = () => {
+                const btn = document.getElementById('btn-show-tag-cloud');
+                if (!btn || !cloudContainer) return;
+                const isActive = cloudContainer.classList.contains('active');
+                btn.textContent = isActive ? '🏷️' : '☁️';
+                btn.title = isActive ? 'Tag Cloud: Active (click to close)' : 'Tag Cloud: Inactive (click to open)';
+            };
+            if (cloudContainer) {
+                new MutationObserver(updateCloudBtn).observe(cloudContainer, {
+                    attributes: true, attributeFilter: ['class']
+                });
+                updateCloudBtn(); // Set initial state
+            }
+        })();
+
         // --- AUTO-LAUNCHER FOR CONFLUENCE MODE (1x1) ---
         // Watches the grid and automatically upgrades Markdown cards to Secure Apps
         const gridObserver = new MutationObserver(async (mutations) => {
             const gridSelect = document.getElementById('grid-select');
-            const isConfluenceMode = document.body.classList.contains('ftc-docked');
-            // Only active in 1x1 mode AND Confluence Mode is active
+            const isConfluenceMode = document.body.classList.contains('ftc-docked') &&
+                                     !document.body.classList.contains('ftc-read-mode');
+            // Only active in 1x1 mode AND Execute mode is active (not suppressed by Read mode)
             if (gridSelect && gridSelect.value === '1' && isConfluenceMode) {
                 // Find the first Markdown card that needs an upgrade
                 const card = Array.from(document.querySelectorAll('.card-kv')).find(c => 

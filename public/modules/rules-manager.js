@@ -53,6 +53,26 @@ export function initRulesManager() {
             folder: getSectorValues('folder-rules-list'),
             hidden: getSectorValues('hidden-rules-list')
         };
+
+        // Manuelle Tag-States löschen, die den neuen Hidden-Rules widersprechen.
+        // Ohne diesen Schritt würden manuell nach "cloud" verschobene Tags dauerhaft
+        // gegen die neu gespeicherten Hide-Rules immun bleiben.
+        try {
+            const tagState = JSON.parse(localStorage.getItem('crudx_tag_state') || '{}');
+            let stateChanged = false;
+            for (const [tag, sector] of Object.entries(tagState)) {
+                if (sector !== 'hidden' && newRules.hidden.some(r => {
+                    try { return r && new RegExp(r).test(tag); } catch { return false; }
+                })) {
+                    delete tagState[tag];
+                    stateChanged = true;
+                }
+            }
+            if (stateChanged) localStorage.setItem('crudx_tag_state', JSON.stringify(tagState));
+        } catch (e) {
+            console.warn('Could not clean up tag state on rule save:', e);
+        }
+
         setTagRules(newRules);
         
         document.getElementById('tag-rules-modal').classList.remove('active');

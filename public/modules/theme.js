@@ -133,6 +133,10 @@ export function applyTheme(themeName) {
     const editThemeSelect = document.getElementById('in-edit-theme');
     if (editThemeSelect) editThemeSelect.value = themeName;
 
+    // Update theme toggle button tooltip
+    const btnTheme = document.getElementById('btn-theme');
+    if (btnTheme) btnTheme.title = `Theme: ${themeName}`;
+
     console.log(`🎨 Theme "${themeName}" applied.`);
 }
 

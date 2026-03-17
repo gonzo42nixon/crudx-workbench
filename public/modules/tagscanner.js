@@ -72,7 +72,8 @@ class TagCloud {
         if (!searchInput) return;
 
         const currentSearch = searchInput.value.trim();
-        const fullTag = 'tag:' + tagText;
+        // mime: tags use "mime:X" format directly; all others use "tag:X"
+        const fullTag = tagText.startsWith('mime:') ? tagText : 'tag:' + tagText;
 
         // ---- NON-EXPRESSION MODE: single-tag behaviour ----
         // Expression=OFF → only one tag active at a time.

@@ -158,7 +158,13 @@ export function installRenderingMethods(TagCloud) {
                                 docItem.className = 'doc-item'; docItem.textContent = doc.label || doc.id; docItem.title = doc.id;
                                 docItem.onclick = () => {
                                     const searchInput = document.getElementById('main-search');
-                                    if (searchInput) { searchInput.value = doc.id; fetchRealData(true); }
+                                    if (searchInput) {
+                                        searchInput.value = doc.id;
+                                        fetchRealData(true);
+                                        // Immediately update .doc-item active highlight without waiting for re-render
+                                        this.contentContainer.querySelectorAll('.doc-item').forEach(el => el.classList.remove('active'));
+                                        docItem.classList.add('active');
+                                    }
                                 };
                                 folderItems.push({ tag, count: 1, element: docItem, isDoc: true, docData: doc });
                             });
@@ -457,10 +463,10 @@ export function installRenderingMethods(TagCloud) {
             const pills = this.contentContainer.querySelectorAll('.pill-user, .pill-mime');
             pills.forEach(pill => {
                 const tag = pill.dataset.tagName;
-                pill.classList.remove('pill-inactive', 'pill-excluded');
+                pill.classList.remove('pill-inactive', 'pill-excluded', 'pill-active');
                 if (hasFilter) {
                     if (activeTags.includes(tag)) {
-                        // Positively active — keep normal appearance
+                        pill.classList.add('pill-active');     // selected: bright border + glow
                     } else if (excludedTags.includes(tag)) {
                         pill.classList.add('pill-excluded');   // negated tag: red strikethrough
                     } else if (activeTags.length > 0) {

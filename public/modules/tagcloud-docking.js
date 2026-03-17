@@ -68,7 +68,7 @@ export function installDockingMethods(TagCloud) {
             }, 400);
         },
 
-        dockCenter() {
+        dockCenter(preserveGrid = false) {
             this.container.classList.add('active');
             void this.container.offsetWidth;
 
@@ -91,8 +91,10 @@ export function installDockingMethods(TagCloud) {
             this.dockState = 2;
 
             this._updateMiniTermVisibility(); // Sync visibility
-            const gridSelect = document.getElementById('grid-select');
-            if (gridSelect && gridSelect.value === '1') applyLayout('3');
+            if (!preserveGrid) {
+                const gridSelect = document.getElementById('grid-select');
+                if (gridSelect && gridSelect.value === '1') applyLayout('3');
+            }
 
             this._updateHeaderTooltip();
             this.refresh();
@@ -112,9 +114,9 @@ export function installDockingMethods(TagCloud) {
             this.container.style.bottom = '20px';
             this.container.style.right = '20px';
             this.container.style.transform = '';
-            this.container.style.width = 'auto';
+            this.container.style.width = 'fit-content';
             this.container.style.height = 'auto';
-            this.container.style.minWidth = '500px';
+            this.container.style.minWidth = '0';
             this.container.style.maxWidth = '50vw';
             this.container.style.maxHeight = '50vh';
             this.container.style.resize = 'both';

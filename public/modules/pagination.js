@@ -62,7 +62,13 @@ export async function fetchRealData(resetPage = false) {
     const isSystemTagSearch = !isExpressionSearch && isTagSearch && SYSTEM_TAG_PREFIXES.some(prefix => searchTerm.substring(4).startsWith(prefix));
 
     // Client-seitige Filterung ist auch für Gäste nötig, wenn nach Tags gesucht wird (wegen der Firestore "one array-contains" Limitation)
-    const needsClientSideFiltering = (!filterOwnerOnly && isTagSearch) || isMimeSearch || isSystemTagSearch || isExpressionSearch;
+        const needsClientSideFiltering = (!filterOwnerOnly && isTagSearch) || isMimeSearch || isSystemTagSearch || isExpressionSearch;
+
+        // ---------- Sort field resolution ----------
+        // Server-side: label, created_at, owner  |  Client-side: size (value.length), mime
+        const sortField = document.getElementById('sort-by')?.value || 'label';
+        const SERVER_SORT_MAP = { label: 'label', created: 'created_at', owner: 'owner' };
+        const needsClientSideSort = !SERVER_SORT_MAP[sortField] && !isExpressionSearch;
 
     if (resetPage) {
         currentPage = 1;
@@ -210,12 +216,17 @@ export async function fetchRealData(resetPage = false) {
                 constraints.push(where("__name__", "==", searchTerm));
             }
         } else {
-            constraints.push(orderBy("label", sortDirection));
+            // Use server-side orderBy when the field is indexed; otherwise omit it
+            // (client-side sort applied later in the onSnapshot handler)
+            const serverField = SERVER_SORT_MAP[sortField];
+            if (serverField) {
+                constraints.push(orderBy(serverField, sortDirection));
+            }
         }
 
-        // FIX: Bei Tag-Suche mit Client-Filterung KEIN Datenbank-Limit setzen,
-        // damit wir erst filtern und dann paginieren können.
-        if (!needsClientSideFiltering) {
+        // FIX: No server-side limit when we need to process docs client-side
+        // (client-side filtering OR client-side sort both require the full result set)
+        if (!needsClientSideFiltering && !needsClientSideSort) {
             if (currentPage > 1 && pageCursors[currentPage - 2]) {
                 constraints.push(startAfter(pageCursors[currentPage - 2]));
             }
@@ -290,6 +301,9 @@ export async function fetchRealData(resetPage = false) {
                     return true;
                 });
 
+                // Optional client-side sort within the filtered set (e.g. mime sort)
+                if (needsClientSideSort) docs = _sortClientSide(docs, sortField, sortDirection);
+
                 // Update Result Count & Pages based on filtered set
                 const filteredTotal = docs.length;
                 const resultCountEl = document.getElementById('result-count');
@@ -303,6 +317,18 @@ export async function fetchRealData(resetPage = false) {
                 const startIndex = (currentPage - 1) * currentLimit;
                 const endIndex = startIndex + currentLimit;
                 docs = docs.slice(startIndex, endIndex);
+            } else if (needsClientSideSort) {
+                // Client-side sort without any server-side filtering (e.g. sort by Size or MIME)
+                // Full result set was fetched (no limit constraint) — sort then paginate here.
+                docs = _sortClientSide(docs, sortField, sortDirection);
+                const sortedTotal = docs.length;
+                const resultCountEl = document.getElementById('result-count');
+                if (resultCountEl) resultCountEl.textContent = sortedTotal;
+                totalPages = Math.max(1, Math.ceil(sortedTotal / currentLimit));
+                const totalPagesEl = document.getElementById('total-pages');
+                if (totalPagesEl) totalPagesEl.textContent = totalPages;
+                const startIndex = (currentPage - 1) * currentLimit;
+                docs = docs.slice(startIndex, startIndex + currentLimit);
             }
 
             if (docs.length === 0) {
@@ -387,7 +413,11 @@ export async function fetchLastPageData() {
                 allDocsConstraints.push(where("access_control", "array-contains-any", tokens));
             }
         }
-        allDocsConstraints.push(orderBy("label", sortDirection));
+        // Use the same server-side field as fetchRealData; fall back to label for client-side sorts
+        const _sortByVal = document.getElementById('sort-by')?.value || 'label';
+        const _serverSortMap = { label: 'label', created: 'created_at', owner: 'owner' };
+        const _serverField = _serverSortMap[_sortByVal] || 'label';
+        allDocsConstraints.push(orderBy(_serverField, sortDirection));
         const allDocsQuery = query(colRef, ...allDocsConstraints);
         const allSnap = await getDocs(allDocsQuery);
         const allDocs = allSnap.docs;
@@ -527,8 +557,35 @@ function matchTagExpression(docData, expression) {
     return parseOr()();
 }
 
+// ---------- Client-Side Sort Helper ----------
+/**
+ * Sorts a Firestore QueryDocumentSnapshot array by a client-side field.
+ * Used for sort fields that have no Firestore index (size, mime).
+ */
+function _sortClientSide(docs, field, dir) {
+    return [...docs].sort((a, b) => {
+        const da = a.data(), db = b.data();
+        switch (field) {
+            case 'size': {
+                const sa = (da.value || '').length;
+                const sb = (db.value || '').length;
+                return dir === 'asc' ? sa - sb : sb - sa;
+            }
+            case 'mime': {
+                const ma = detectMimetype(da.value).type;
+                const mb = detectMimetype(db.value).type;
+                return dir === 'asc' ? ma.localeCompare(mb) : mb.localeCompare(ma);
+            }
+            default: return 0;
+        }
+    });
+}
+
 // ---------- Paginierungs-Listener initialisieren ----------
 export function initPaginationControls() {
+    // Sort-By Select — triggers a fresh fetch on every change
+    document.getElementById('sort-by')?.addEventListener('change', () => fetchRealData(true));
+
     // Order-Button
     const btnOrder = document.getElementById('btn-order');
     if (btnOrder) {

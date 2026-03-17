@@ -113,7 +113,7 @@ export async function renderDataFromDocs(docs, container) {
         const foundMime = detectMimetype(d.value);
 
         const mimePill = foundMime ? 
-            `<div class="pill pill-mime" title="Mime Type" style="background-color: ${foundMime.color} !important; color: #000 !important;">
+            `<div class="pill pill-mime" title="Mime Type" data-tag-name="mime:${foundMime.type}" style="background-color: ${foundMime.color} !important; color: #000 !important; cursor:pointer;">
                 ${foundMime.type}
             </div>` : '';
 
@@ -133,7 +133,7 @@ export async function renderDataFromDocs(docs, container) {
         let userTagsHtml = '';
         cloudTags.forEach(tag => {
             const inactiveClass = (activeTag && tag !== activeTag) ? 'pill-inactive' : '';
-            userTagsHtml += `<div class="pill pill-user ${inactiveClass}">${escapeHtml(tag)}</div>`;
+            userTagsHtml += `<div class="pill pill-user ${inactiveClass}" data-tag-name="${escapeHtml(tag)}" style="cursor:pointer;">${escapeHtml(tag)}</div>`;
         });
 
         if (folderTags.length > 0) {

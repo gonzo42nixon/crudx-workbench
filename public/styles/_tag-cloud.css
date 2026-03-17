@@ -4,7 +4,7 @@
     top: auto; /* Allow bottom positioning */
     bottom: 20px;
     right: 20px;
-    width: 500px; /* Wider to prevent wrapping of C: pills */
+    width: 500px; /* Default width for floating/center mode; bottom-right overrides via inline styles */
     max-width: 100vw;
     z-index: 2500;
     display: none; /* Hidden by default */
@@ -119,6 +119,14 @@
 }
 
 /* ========== TAG PILL SELECTION STATES ========== */
+
+/* Active — pill is the current search filter */
+.pill-active {
+    border-color: var(--burger-text) !important;
+    box-shadow: 0 0 6px var(--burger-text) !important;
+    opacity: 1 !important;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
 
 /* Dimmed — not part of the current active filter */
 .pill-inactive {
@@ -266,6 +274,22 @@
     display: none !important;
 }
 .floating-modal.docked .tag-sector.sector-folder {
+    display: flex !important;
+    flex: 1;
+    border-right: none !important;
+}
+
+/* ========== BOTTOM-RIGHT DOCK: Cloud-only, content-fitted width ========== */
+/*
+ * dockBottomRight() sets inline: width=fit-content, minWidth=0, maxWidth=50vw.
+ * Sector visibility is enforced here via CSS (not inline JS) so it survives
+ * any async re-render of sector content that would reset inline styles.
+ */
+.floating-modal.docked-bottom-right .tag-sector.sector-folder,
+.floating-modal.docked-bottom-right .tag-sector.sector-hidden {
+    display: none !important;
+}
+.floating-modal.docked-bottom-right .tag-sector.sector-cloud {
     display: flex !important;
     flex: 1;
     border-right: none !important;

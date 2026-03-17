@@ -16,30 +16,33 @@ export function setTagRules(newRules) {
 }
 
 export function getTagSector(tag) {
-    // 1. Manuelle Zuweisung hat Vorrang
+    // 1. Hide-Rules haben höchste Priorität — der Nutzer hat explizit konfiguriert,
+    //    welche Tags ausgeblendet werden sollen. Eine manuelle Verschiebung in "cloud"
+    //    darf dies nicht dauerhaft unterbinden.
+    try {
+        if (tagRules.hidden && tagRules.hidden.some(r => r && new RegExp(r).test(tag))) return 'hidden';
+
+        const hiddenGroupRules = JSON.parse(localStorage.getItem('crudx_hidden_group_rules') || '[]');
+        if (hiddenGroupRules.some(r => r && new RegExp(r).test(tag))) return 'hidden';
+    } catch (e) {
+        console.warn("Invalid Regex in Hide Rules", e);
+    }
+
+    // 2. Manuelle Zuweisung (Drag & Drop) — gilt nur für Folder ↔ Cloud, nicht gegen Hide-Rules
     const savedState = JSON.parse(localStorage.getItem('crudx_tag_state') || '{}');
     if (savedState[tag]) return savedState[tag];
 
-    // 2. Regex Regeln prüfen
+    // 3. Folder-Rules und Grouping
     try {
-        // Hidden Rules
-        if (tagRules.hidden && tagRules.hidden.some(r => r && new RegExp(r).test(tag))) return 'hidden';
-        
-        // Hidden Grouping Rules (Implicit Sector Assignment)
-        const hiddenGroupRules = JSON.parse(localStorage.getItem('crudx_hidden_group_rules') || '[]');
-        if (hiddenGroupRules.some(r => r && new RegExp(r).test(tag))) return 'hidden';
-
-        // Folder Rules
         if (tagRules.folder && tagRules.folder.some(r => r && new RegExp(r).test(tag))) return 'folder';
 
-        // Folder Grouping Rules (Implicit Sector Assignment)
         const folderGroupRules = JSON.parse(localStorage.getItem('crudx_folder_group_rules') || '[]');
         if (folderGroupRules.some(r => r && new RegExp(r).test(tag))) return 'folder';
     } catch (e) {
-        console.warn("Invalid Regex in Tag Rules", e);
+        console.warn("Invalid Regex in Folder Rules", e);
     }
-    
-    // 3. Standard: Cloud
+
+    // 4. Standard: Cloud
     return 'cloud';
 }
 
