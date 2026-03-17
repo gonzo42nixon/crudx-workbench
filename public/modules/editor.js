@@ -231,6 +231,14 @@ export function initEditor() {
     setupModalDrag('iframe-modal');
     setupModalDrag('tag-rules-modal');
 
+    // Close UPDATE modal when clicking the backdrop (outside .modal-content)
+    const updateModalEl = document.getElementById('update-modal');
+    if (updateModalEl) {
+        updateModalEl.addEventListener('click', (e) => {
+            if (e.target === updateModalEl) closeUpdateModal();
+        });
+    }
+
     // Global ESC handler for these modals
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
