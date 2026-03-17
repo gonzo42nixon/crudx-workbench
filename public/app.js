@@ -533,6 +533,48 @@ document.addEventListener("DOMContentLoaded", async () => {
         // Initialisiert die Floating Tag Cloud
         initTagCloud(db);
 
+        // --- Z-INDEX MANAGER: Click-to-bring-to-front ---
+        // Floating panels (.floating-modal, #mini-term-editor) share a dynamic z-index
+        // pool between 2500–2990, well below modal overlays (3000+).
+        // Clicking any panel promotes it to the current maximum so it appears on top.
+        (() => {
+            // Panels that participate in the bring-to-front pool.
+            // Selector matches any .floating-modal or the mini search-term editor.
+            const PANEL_SELECTOR = '.floating-modal, #mini-term-editor';
+            const Z_BASE  = 2500;   // matches the CSS default of .floating-modal
+            const Z_CAP   = 2990;   // hard ceiling – never overlap modal-overlays (3000+)
+
+            let topZ = Z_BASE;
+
+            /**
+             * Returns the "root panel" element (the direct participant) for a click target,
+             * or null if the click did not land inside a managed floating panel.
+             */
+            const getPanel = (target) => target.closest(PANEL_SELECTOR);
+
+            document.addEventListener('mousedown', (e) => {
+                const panel = getPanel(e.target);
+                if (!panel) return;
+
+                // Don't re-apply if this panel is already on top
+                const current = parseInt(panel.style.zIndex, 10) || Z_BASE;
+                if (current >= topZ) return;
+
+                topZ = Math.min(topZ + 1, Z_CAP);
+                panel.style.zIndex = topZ;
+
+                // If the cap is hit, re-normalise: reset all panels to consecutive
+                // values starting at Z_BASE so topZ never drifts out of range.
+                if (topZ >= Z_CAP) {
+                    const panels = [...document.querySelectorAll(PANEL_SELECTOR)]
+                        .filter(p => p.style.zIndex)
+                        .sort((a, b) => (parseInt(a.style.zIndex) || Z_BASE) - (parseInt(b.style.zIndex) || Z_BASE));
+                    panels.forEach((p, i) => { p.style.zIndex = Z_BASE + i; });
+                    topZ = Z_BASE + panels.length - 1;
+                }
+            }, true /* capture — fires before drag handlers and internal listeners */);
+        })();
+
         // --- TAG CLOUD BUTTON STATE (icon + tooltip reflect active/inactive) ---
         // Uses a MutationObserver on the container's class list so every open/close
         // path (header button, card tag click, docking methods, close-X) is covered.
