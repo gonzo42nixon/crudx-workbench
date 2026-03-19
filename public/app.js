@@ -11,7 +11,8 @@ import { initAuth } from './modules/auth.js';
 import { encodeOCR, getEmailWarning, syntaxHighlight, buildFirestoreCreatePayload, isValidIsoDate, escapeHtml } from './modules/utils.js';
 import { 
     collection, query, limit, getDocs, getCountFromServer, orderBy, startAfter, deleteDoc, doc, 
-    writeBatch, updateDoc, setDoc, arrayUnion, getDoc, arrayRemove, where, increment, onSnapshot
+    writeBatch, updateDoc, setDoc, arrayUnion, getDoc, arrayRemove, where, increment, onSnapshot,
+    serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { generateSecureAppBlob, createExecutionWindow } from './modules/launcher.js';
 import { backupData, restoreData, deleteByTag, deleteAllDocuments } from './modules/admin.js';
@@ -242,6 +243,61 @@ document.addEventListener("DOMContentLoaded", async () => {
                 if (!tagName) return;
 
                 e.stopPropagation(); // Don't bubble to card-action handlers
+
+                // --- EDIT TAG: "edit:<appKey>" → Execute with app=appKey, data=currentDocKey ---
+                if (tagName.startsWith('edit:')) {
+                    const appKey  = tagName.substring(5); // part after "edit:"
+                    const card    = pill.closest('.card-kv');
+                    const dataKey = card ? card.querySelector('.pill-key')?.textContent.trim() : '';
+                    if (!appKey || !dataKey) return;
+
+                    const forceProd   = urlParams.get('mode') === 'live';
+                    const isEmulatorX = !forceProd && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+                    if (!isEmulatorX) {
+                        // PRODUCTION: Build webhook URL – app=appKey, data=dataKey
+                        const params = new URLSearchParams();
+                        params.append('action', 'X');
+                        params.append('key', dataKey);
+                        params.set('app', appKey);
+                        params.set('data', dataKey);
+                        const targetUrl = `https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977?${params.toString()}`;
+                        createExecutionWindow(targetUrl, null, appKey);
+                    } else {
+                        // EMULATOR: Fetch the data document, then generate a secure blob.
+                        // A synthetic doc that has user_tags=['data','x:<appKey>'] makes
+                        // generateSecureAppBlob correctly fetch the editor app and inject
+                        // the data document's content as context.
+                        (async () => {
+                            try {
+                                const dataDocSnap = await getDoc(doc(db, 'kv-store', dataKey));
+                                if (!dataDocSnap.exists()) {
+                                    alert(`⚠️ Data document "${dataKey}" not found.`);
+                                    return;
+                                }
+                                const dataDoc = dataDocSnap.data();
+                                const syntheticDoc = { ...dataDoc, user_tags: ['data', `x:${appKey}`] };
+                                const result = await generateSecureAppBlob(dataKey, syntheticDoc);
+                                if (result) {
+                                    const { blob, contextData } = result;
+                                    let blobUrl = URL.createObjectURL(blob);
+                                    if (contextData) blobUrl += `#ctx=${encodeURIComponent(JSON.stringify(contextData))}`;
+                                    createExecutionWindow(blobUrl, null, appKey);
+                                    updateDoc(doc(db, 'kv-store', appKey), {
+                                        executes: increment(1),
+                                        last_execute_ts: serverTimestamp()
+                                    }).catch(console.error);
+                                } else {
+                                    alert(`⚠️ Editor App "${appKey}" not found or could not be launched.`);
+                                }
+                            } catch (err) {
+                                console.error('Edit-tag launch error:', err);
+                                alert('Edit launch failed: ' + err.message);
+                            }
+                        })();
+                    }
+                    return; // Do NOT fall through to _toggleTagInSearch
+                }
 
                 const tc = initTagCloud(db);
                 // Open the Tag Cloud if it is not already visible

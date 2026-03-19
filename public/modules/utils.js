@@ -1,3 +1,18 @@
+/**
+ * Applies system-wide automatic tag rules to a tag array.
+ * Idempotent: if the auto-tag already exists it is not duplicated.
+ *
+ * Current rules:
+ *   • "HTML"  →  "edit:CRUDX-CORE_-_APP_-HTML_"
+ */
+export function applyAutoTags(tags = []) {
+    const result = [...tags];
+    if (result.includes('HTML') && !result.includes('edit:CRUDX-CORE_-_APP_-HTML_')) {
+        result.push('edit:CRUDX-CORE_-_APP_-HTML_');
+    }
+    return result;
+}
+
 export function escapeHtml(unsafe) {
     if (!unsafe) return '';
     return unsafe

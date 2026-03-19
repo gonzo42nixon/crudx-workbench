@@ -232,7 +232,7 @@ export function initCardActions(dataContainer, openUpdateModal, openTagModal) {
                         });
 
                         const targetUrl = `https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977?${params.toString()}`;
-                        createExecutionWindow(targetUrl, d.value, key);
+                        createExecutionWindow(targetUrl, d.value, key, d.user_tags);
                         return;
                     }
 
@@ -241,7 +241,7 @@ export function initCardActions(dataContainer, openUpdateModal, openTagModal) {
                     if (blob) {
                         let blobUrl = URL.createObjectURL(blob);
                         if (contextData) blobUrl += `#ctx=${encodeURIComponent(JSON.stringify(contextData))}`;
-                        createExecutionWindow(blobUrl, d.value, key);
+                        createExecutionWindow(blobUrl, d.value, key, d.user_tags);
                         updateDoc(doc(db, "kv-store", key), { executes: increment(1), last_execute_ts: serverTimestamp() }).catch(console.error);
                     } else {
                         alert("⚠️ Launcher Error: Could not resolve App logic. Check tags (app/data/x:...).");

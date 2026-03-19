@@ -3,7 +3,7 @@ import { doc, getDoc, updateDoc, increment } from "https://www.gstatic.com/fireb
 import { detectMimetype } from './mime.js';
 import { fetchRealData } from './pagination.js';
 import { refreshTagCloud } from './tagscanner.js';
-import { calculateAccessControl, escapeHtml, buildFirestoreCreatePayload } from './utils.js';
+import { calculateAccessControl, escapeHtml, buildFirestoreCreatePayload, applyAutoTags } from './utils.js';
 import { openWhitelistEditor } from './security-manager.js';
 
 let currentDocId = "";
@@ -105,10 +105,14 @@ export async function handleSaveTags() {
     const isEmulator = ['localhost', '127.0.0.1'].includes(window.location.hostname);
     const newAccessControl = calculateAccessControl(localState.owner, localState.whitelists);
 
+    // Apply auto-tag rules (e.g. HTML → edit:CRUDX-CORE_-_APP_-HTML_) before persisting
+    const tagsToSave = applyAutoTags(localState.tags);
+    localState.tags = tagsToSave; // keep local state consistent
+
     try {
         if (isEmulator) {
             await updateDoc(doc(db, "kv-store", currentDocId), {
-                user_tags: localState.tags,
+                user_tags: tagsToSave,
                 label: localState.label,
                 owner: localState.owner,
                 access_control: newAccessControl,
@@ -126,7 +130,7 @@ export async function handleSaveTags() {
                 value: localState.value,
                 owner: localState.owner,
                 access_control: newAccessControl,
-                user_tags: localState.tags,
+                user_tags: tagsToSave,
                 white_list_read: localState.whitelists.read,
                 white_list_update: localState.whitelists.update,
                 white_list_delete: localState.whitelists.delete,

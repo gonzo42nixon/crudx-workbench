@@ -1,6 +1,7 @@
 import { db } from './firebase.js';
 import { collection, getDocs, writeBatch, doc, setDoc, deleteDoc, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { fetchRealData } from './pagination.js';
+import { applyAutoTags } from './utils.js';
 
 /**
  * Recursively converts any Firestore Timestamp value ({ seconds, nanoseconds })
@@ -84,6 +85,8 @@ export function restoreData() {
                 for (const item of json) {
                     if (!item._id) continue;
                     const { _id, ...data } = item;
+                    // Apply auto-tag rules before restoring (e.g. HTML → edit:…)
+                    if (Array.isArray(data.user_tags)) data.user_tags = applyAutoTags(data.user_tags);
                     const docRef = doc(db, "kv-store", _id);
                     batch.set(docRef, data);
                     count++;

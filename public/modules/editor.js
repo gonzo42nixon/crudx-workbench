@@ -3,7 +3,7 @@ import { doc, getDoc, updateDoc, setDoc, arrayUnion, arrayRemove, increment } fr
 import { detectMimetype } from './mime.js';
 import { fetchRealData } from './pagination.js';
 import { locateDocumentInCloud, refreshTagCloud } from './tagscanner.js';
-import { buildFirestoreCreatePayload, getEmailWarning, encodeOCR, calculateAccessControl, setupModalDrag } from './utils.js';
+import { buildFirestoreCreatePayload, getEmailWarning, encodeOCR, calculateAccessControl, setupModalDrag, applyAutoTags } from './utils.js';
 import { getTagRules } from './tag-state.js';
 import { initSecurityManager, openWhitelistEditor, closeWhitelistModal, handleSaveWhitelistEntry } from './security-manager.js';
 import { openTagModal, closeTagModal, addNewTag, handleSaveTags, renderTagsInModal, syncTagManagerState, getTagManagerState } from './tag-manager.js';
@@ -497,7 +497,7 @@ async function handleSaveAction() {
     // --- CRITICAL SYNC: Fetch latest metadata from Tag Manager ---
     const tagState = getTagManagerState();
     currentLabel = tagState.label;
-    currentTags = tagState.tags;
+    currentTags = applyAutoTags(tagState.tags); // auto-tag rules (e.g. HTML → edit:…)
     currentOwner = tagState.owner;
     currentWhitelists = tagState.whitelists;
 

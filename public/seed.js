@@ -1,4 +1,5 @@
 import { doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { applyAutoTags } from './modules/utils.js';
 
 /**
  * Seeds general user data.
@@ -24,7 +25,10 @@ export async function seedCoreData(db) {
             
             // Fix possible HTML entities in values or tags coming from JSON
             if (payload.value) payload.value = payload.value.replace(/&gt;/g, '>').replace(/&lt;/g, '<');
-            if (payload.user_tags) payload.user_tags = payload.user_tags.map(t => t.replace(/&gt;/g, '>'));
+            if (payload.user_tags) {
+                payload.user_tags = payload.user_tags.map(t => t.replace(/&gt;/g, '>'));
+                payload.user_tags = applyAutoTags(payload.user_tags); // auto-tag rules
+            }
 
             await setDoc(doc(db, "kv-store", _id), {
                 ...payload,
