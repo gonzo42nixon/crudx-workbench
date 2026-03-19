@@ -91,14 +91,15 @@ export function detectMimetype(value) {
     }
 
     // HTML: Doctype oder typische Tags
-    // This list is expanded based on your feedback to correctly identify HTML fragments like iframes.
-    const commonHtmlTags = /<\/?(html|body|head|div|span|p|a|img|table|ul|ol|li|form|input|button|textarea|select|header|nav|main|section|article|aside|footer|h[1-6]|iframe|video|audio|canvas|script|style|link|meta|title)\b/i;
+    // Early-exit for definitive HTML: a document that STARTS with <!doctype html> or <html
+    // is unconditionally HTML regardless of how many CSS/JS blocks it contains internally.
     if (lower.startsWith('<!doctype html>') || lower.startsWith('<html')) {
-        scores.HTML += 1000; // Definitive HTML start overrides embedded CSS/JS
-    } else if (lower.includes('<!doctype html>') || /<html\s*>/i.test(trimmed)) {
+        return { type: 'HTML', icon: typeInfo.HTML.icon, color: typeInfo.HTML.color, score: 5000 };
+    }
+    const commonHtmlTags = /<\/?(html|body|head|div|span|p|a|img|table|ul|ol|li|form|input|button|textarea|select|header|nav|main|section|article|aside|footer|h[1-6]|iframe|video|audio|canvas|script|style|link|meta|title)\b/i;
+    if (lower.includes('<!doctype html>') || /<html\s*>/i.test(trimmed)) {
         scores.HTML += 90;
     } else if (commonHtmlTags.test(trimmed)) {
-        // A snippet containing common HTML tags gets a high score.
         scores.HTML += 40;
     }
 
