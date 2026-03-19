@@ -1,7 +1,8 @@
 // c:\Users\druef\Documents\crudx-workbench\public\modules\tagscanner.js
 import { applyLayout } from './layout-manager.js';
 import { fetchRealData } from './pagination.js'; // Import fetchRealData for search updates
-import { db } from './firebase.js';
+import { db, auth } from './firebase.js';
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
  
 // Import the installer functions from the separated modules
 import { installDomMethods } from './tagcloud-dom.js';
@@ -142,24 +143,35 @@ let tagCloudInstance = null;
 export function initTagCloud(db) {
     if (!tagCloudInstance) {
         tagCloudInstance = new TagCloud(db);
-        // Jetzt, da die Instanz erstellt und der Prototyp erweitert wurde,
-        // können wir die Setup-Methoden sicher auf der Instanz aufrufen.
         tagCloudInstance._createDOM();
         tagCloudInstance._getElements();
         tagCloudInstance._bindEvents();
-        tagCloudInstance._updateMiniTermEditorUI(); // Initialize toggle switches with text and colors
+        tagCloudInstance._updateMiniTermEditorUI();
         tagCloudInstance.dockBottomRight();
-        
-        // HINWEIS FÜR DIE ENTWICKLUNG:
-        // Die Event-Listener für die einzelnen Tag-Pillen (z.B. in tagcloud-dom.js oder tagcloud-rendering.js)
-        // müssen angepasst werden, um die neue Methode _toggleTagInSearch aufzurufen.
-        // Beispiel (hypothetisch, in der Datei, die die Tag-Pillen erstellt):
-        // pillElement.addEventListener('click', (e) => {
-        //     tagCloudInstance._toggleTagInSearch(e.target.dataset.tag); // Annahme: Tag-Text ist in data-tag gespeichert
-        //     e.stopPropagation(); // Verhindert, dass Klicks auf die Karte durchgehen
-        // });
         tagCloudInstance._updateSectorsForDockState();
 
+        // ── Auth-state refresh ─────────────────────────────────────────────────
+        // Firebase Auth restores the user session asynchronously.  The initial
+        // tag-cloud scan (triggered by dockBottomRight above) therefore often
+        // runs while auth.currentUser is still null, causing per-user documents
+        // (e.g. those with specific access_control entries) to be filtered out.
+        // The most visible symptom: MIME tags like "mime:JSON" never appear on
+        // first load but show up after a manual forced refresh.
+        //
+        // Fix: re-scan with force=true whenever the signed-in user actually
+        // changes (login, logout). Token-only refreshes keep the same uid and
+        // are intentionally ignored to avoid redundant Firestore reads.
+        let _prevAuthUid = undefined; // undefined → first call always triggers
+        onAuthStateChanged(auth, (user) => {
+            const uid = user ? user.uid : null;
+            if (uid !== _prevAuthUid) {
+                _prevAuthUid = uid;
+                if (tagCloudInstance) {
+                    tagCloudInstance.cachedQuerySnapshot = null; // invalidate stale cache
+                    tagCloudInstance.refresh(true);
+                }
+            }
+        });
     }
     return tagCloudInstance;
 }
