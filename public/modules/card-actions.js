@@ -6,6 +6,7 @@ import { createExecutionWindow, generateSecureAppBlob } from './launcher.js';
 import { fetchRealData, unsubscribeListener } from './pagination.js';
 import { applyLayout } from './layout-manager.js';
 import { locateDocumentInCloud, resetTagCloud, refreshTagCloud, updateTagCloudSelection } from './tagscanner.js';
+import { syncViewModeToUrl } from './url-manager.js';
 
 export function initCardActions(dataContainer, openUpdateModal, openTagModal) {
     if (!dataContainer) return;
@@ -407,24 +408,30 @@ export function initCardActions(dataContainer, openUpdateModal, openTagModal) {
             return;
         }
 
-        // 3. Label Pill Click (Switch to Confluence Mode / 1x1 View)
+        // 3. Label Pill Click → Execute mode + 1x1 grid (renders associated HTML app)
         const labelPill = e.target.closest('.pill-label');
         if (labelPill) {
             const data = getCardData(labelPill);
             if (data && data.key) {
-                document.body.classList.remove('no-app-view'); // App-View erlauben (falls MD)
-                locateDocumentInCloud(data.key);
+                document.body.classList.remove('ftc-read-mode'); // → Execute mode: app will render
+                document.body.classList.remove('no-app-view');   // ensure app-view is allowed
+                locateDocumentInCloud(data.key);                 // dock tag cloud + switch to 1x1
+                syncViewModeToUrl();                             // reflect mode in address bar
+                document.dispatchEvent(new CustomEvent('crudx:viewmode-changed')); // sync FAB
             }
             return;
         }
 
-        // 4. Key Pill Click (Switch to Confluence Mode / 1x1 Raw View)
+        // 4. Key Pill Click → Read mode + 1x1 grid (shows raw code, no app rendering)
         const keyPill = e.target.closest('.pill-key');
         if (keyPill) {
             const data = getCardData(keyPill);
             if (data && data.key) {
-                document.body.classList.add('no-app-view'); // App-View unterdrücken (Raw Mode)
-                locateDocumentInCloud(data.key);
+                document.body.classList.add('ftc-read-mode');    // → Read mode: raw code only
+                document.body.classList.remove('no-app-view');   // no-app-view no longer needed
+                locateDocumentInCloud(data.key);                 // dock tag cloud + switch to 1x1
+                syncViewModeToUrl();                             // reflect mode in address bar
+                document.dispatchEvent(new CustomEvent('crudx:viewmode-changed')); // sync FAB
             }
             return;
         }

@@ -14,6 +14,11 @@ export function updateUrlParams(currentPage, sortDirection) {
     
     const mineCheck = document.getElementById('filter-owner-only');
     if (mineCheck && mineCheck.checked) params.set('mine', 'true');
+
+    // View mode: Execute is always explicit; Read is the default and omitted from the URL.
+    const isExecute = document.body.classList.contains('ftc-docked') &&
+                      !document.body.classList.contains('ftc-read-mode');
+    if (isExecute) params.set('mode', 'execute');
     
     const newUrl = `${window.location.pathname}?${params.toString()}`;
     window.history.replaceState({}, '', newUrl);
@@ -40,5 +45,27 @@ export function getInitialStateFromUrl() {
     const v = params.get('view');
     if (v && ['1','3','5','7','9','list'].includes(v)) state.view = v;
 
+    // View mode: 'execute' or 'read' (default)
+    const mode = params.get('mode');
+    state.viewMode = (mode === 'execute') ? 'execute' : 'read';
+
     return state;
+}
+
+/**
+ * Syncs the current view mode (Read / Execute) to the URL so it can be shared.
+ * Execute is always explicit (?mode=execute); Read is the default and is omitted.
+ * This function can be imported by any module that changes the view mode.
+ */
+export function syncViewModeToUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const isExecute = document.body.classList.contains('ftc-docked') &&
+                      !document.body.classList.contains('ftc-read-mode');
+    if (isExecute) {
+        params.set('mode', 'execute');
+    } else {
+        params.delete('mode');
+    }
+    const qs = params.toString();
+    window.history.replaceState({}, '', qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
 }

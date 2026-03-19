@@ -21,6 +21,7 @@ import { initMessageListeners } from './modules/message-manager.js';
 import { injectGlobalUI } from './modules/ui-injector.js';
 import { initEditor, openUpdateModal } from './modules/editor.js';
 import { openTagModal } from './modules/tag-manager.js';
+import { syncViewModeToUrl } from './modules/url-manager.js';
 
 document.addEventListener("DOMContentLoaded", async () => {
     try {
@@ -37,6 +38,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         // --- INJECT UI ---
         injectGlobalUI();
+
+        // Default view mode: Read — ensures the app always starts in a known,
+        // defined state. The "neither Read nor Execute" third state is eliminated.
+        document.body.classList.add('ftc-read-mode');
 
         // --- INIT EDITOR ---
         initEditor();
@@ -179,11 +184,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         bind('btn-print', 'click', () => window.print());
 
         // --- CONFLUENCE MODE TOGGLE ---
-        // State machine:
-        //   None (no ftc-docked)                → click → Execute (ftc-docked, no ftc-read-mode)
-        //   Execute (ftc-docked, no read-mode)  → click → Read    (ftc-docked + ftc-read-mode)
-        //   Read   (ftc-docked + read-mode)     → click → Execute (ftc-docked, no ftc-read-mode)
+        // State machine (two well-defined states only; "neither" is impossible):
+        //   Read    (ftc-read-mode set)              → click → Execute (ftc-docked, no ftc-read-mode)
+        //   Execute (ftc-docked, no ftc-read-mode)   → click → Read    (ftc-docked + ftc-read-mode)
         // The tag cloud stays left-docked in both Read and Execute; only auto-launch is toggled.
+        // The current mode is always reflected in the URL (?mode=execute; Read is the default/omitted).
+
         const updateConfluenceTooltip = () => {
             const btn     = document.getElementById('btn-toggle-confluence');
             const readBtn = document.getElementById('vmc-read');
@@ -192,10 +198,11 @@ document.addEventListener("DOMContentLoaded", async () => {
             const isExecute = document.body.classList.contains('ftc-docked') &&
                               !document.body.classList.contains('ftc-read-mode');
             btn.title = isExecute ? 'View Mode: Execute' : 'View Mode: Read';
-            // Highlight the active player button; dim the inactive one
-            if (readBtn) readBtn.classList.toggle('vmc-active', !isExecute && document.body.classList.contains('ftc-docked'));
+            // ⏸ Read is active whenever NOT in Execute mode (covers both docked and undocked read states)
+            if (readBtn) readBtn.classList.toggle('vmc-active', !isExecute);
             if (execBtn) execBtn.classList.toggle('vmc-active', isExecute);
         };
+
 
         bind('btn-toggle-confluence', 'click', () => {
             const btn = document.getElementById('btn-toggle-confluence');
@@ -206,23 +213,26 @@ document.addEventListener("DOMContentLoaded", async () => {
             const isReadMode = document.body.classList.contains('ftc-read-mode');
 
             if (isDocked && !isReadMode) {
-                // Execute → Read: tag cloud stays left, just suppress auto-launch
+                // Execute → Read: tag cloud stays left, suppress auto-launch
                 document.body.classList.add('ftc-read-mode');
                 fetchRealData(); // Re-render raw content (auto-launch observer skips ftc-read-mode)
             } else if (isDocked && isReadMode) {
-                // Read → Execute: re-enable auto-launch, re-render
+                // Read (docked) → Execute: re-enable auto-launch, re-render
                 document.body.classList.remove('ftc-read-mode');
                 fetchRealData();
             } else {
-                // None → Execute: dock left, enforce 1x1, activate Confluence
+                // Read (undocked, initial state) → Execute: dock left, enforce 1x1, activate Confluence
                 document.body.classList.remove('no-app-view');
                 document.body.classList.remove('ftc-read-mode');
                 tc.dockLeft();
             }
             updateConfluenceTooltip();
+            syncViewModeToUrl();
         });
-        // Set initial tooltip
+        // Set initial tooltip (⏸ Read is active because we defaulted to ftc-read-mode above)
         updateConfluenceTooltip();
+        // Keep FAB tooltip in sync when pill clicks change the mode externally
+        document.addEventListener('crudx:viewmode-changed', updateConfluenceTooltip);
 
         // --- CRUDX WEBHOOK BUTTONS & PILLS ---
         const dataContainer = document.getElementById('data-container');
@@ -587,7 +597,17 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
 
         // Initialisiert die Floating Tag Cloud
-        initTagCloud(db);
+        const tcInstance = initTagCloud(db);
+
+        // Restore view mode from URL — if ?mode=execute was shared, activate Execute mode.
+        // This overrides the Read default set at startup.
+        if (urlParams.get('mode') === 'execute') {
+            document.body.classList.remove('ftc-read-mode');
+            tcInstance.dockLeft();
+            updateConfluenceTooltip();
+        }
+        // Write the authoritative initial state to the URL (removes stale/invalid mode params)
+        syncViewModeToUrl();
 
         // --- Z-INDEX MANAGER: Click-to-bring-to-front ---
         // Floating panels (.floating-modal, #mini-term-editor) share a dynamic z-index

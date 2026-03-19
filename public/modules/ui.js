@@ -99,6 +99,8 @@ export async function renderDataFromDocs(docs, container) {
     const isGrid1 = container.classList.contains('grid-1');
     const isDocked = document.body.classList.contains('ftc-docked');
     const isNoAppView = document.body.classList.contains('no-app-view');
+    // Read mode suppresses app rendering even when docked and in 1x1 — only raw code is shown.
+    const isReadMode = document.body.classList.contains('ftc-read-mode');
     const currentUserEmail = auth.currentUser?.email;
     const isEmulator = ['localhost', '127.0.0.1'].includes(window.location.hostname);
     const webhookUrl = "https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977";
@@ -146,7 +148,7 @@ export async function renderDataFromDocs(docs, container) {
         let valueStyle = "";
         let appLoadedAttr = "";
 
-        if (isGrid1 && isDocked && !isNoAppView) {
+        if (isGrid1 && isDocked && !isNoAppView && !isReadMode) {
             const isMD = foundMime && foundMime.type === 'MD';
             const appTag = tags.find(t => t.startsWith('x:'));
             const hasApp = tags.includes('app') || appTag;
