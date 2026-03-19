@@ -271,7 +271,7 @@ header {
     align-items: center;
     padding: 5px 20px 5px 5px;
     gap: 12px;
-    z-index: 1999;
+    z-index: 2995; /* Above the Z-Index Manager cap (2990) — always on top of floating panels */
     box-shadow: 0 10px 30px rgba(0,0,0,0.8);
     width: max-content;
     color: var(--navi-text) !important;

@@ -227,6 +227,22 @@
                         <div class="spacing-item"><label>Padding</label><input type="number" id="in-canvas-padding" class="small-input" min="0" max="50"></div>
                         <div class="spacing-item"><label>Padding Top</label><input type="number" id="in-canvas-padding-top" class="small-input" min="0" max="200"></div>
                     </div>
+                    <div class="spacing-row" style="margin-top:8px;">
+                        <div class="spacing-item" style="flex:1;">
+                            <label>Background Image URL <span style="opacity:0.5;font-size:0.8em;">(optional)</span></label>
+                            <input type="text" id="in-canvas-bg-image" placeholder="https://example.com/bg.jpg" style="width:100%;box-sizing:border-box;">
+                        </div>
+                    </div>
+                    <div class="spacing-row" style="margin-top:6px; gap:12px;">
+                        <div class="spacing-item" style="flex:1;">
+                            <label title="0 = fully visible, 100 = invisible">Dim <span style="opacity:0.5;font-size:0.8em;">0–100</span></label>
+                            <input type="number" id="in-canvas-bg-dim" class="small-input" min="0" max="100" value="0">
+                        </div>
+                        <div class="spacing-item" style="flex:1;">
+                            <label title="100 = full color, 0 = grayscale">Saturation <span style="opacity:0.5;font-size:0.8em;">0–100</span></label>
+                            <input type="number" id="in-canvas-bg-sat" class="small-input" min="0" max="100" value="100">
+                        </div>
+                    </div>
                 </div>
             </div>
 

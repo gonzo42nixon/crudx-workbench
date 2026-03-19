@@ -174,6 +174,16 @@
     filter: grayscale(0%);
 }
 
+/* Active filter pill — slow glow-pulse so the active selection is immediately obvious.
+   Applies to both card pills (set by ui.js) and Tag Cloud pills (_updateSelectionState). */
+@keyframes pill-pulse {
+    0%, 100% { box-shadow: 0 0 0 0px rgba(255, 255, 255, 0.55); }
+    50%       { box-shadow: 0 0 0 5px rgba(255, 255, 255, 0);   }
+}
+.pill-active {
+    animation: pill-pulse 1.8s ease-in-out infinite !important;
+}
+
 /* ========== CONFLUENCE MODE UI (AUTO-HIDE) ========== */
 /* Auto-hide only applies in EXECUTE mode (ftc-docked, no ftc-read-mode).
    In READ mode the chrome stays fully visible so users can navigate normally. */

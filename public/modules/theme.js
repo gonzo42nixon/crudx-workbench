@@ -118,6 +118,36 @@ export function applyTheme(themeName) {
     const cardPaddingTop = (t.card && typeof t.card.paddingTop === 'number') ? t.card.paddingTop : 40;
     root.style.setProperty('--card-padding-top', cardPaddingTop + 'px');
 
+    // Canvas background image layer — a dedicated fixed div (z-index: -1) so we can
+    // apply opacity and filter independently of child elements.
+    const bgImage = t.canvas?.backgroundImage;
+    let bgLayer = document.getElementById('canvas-bg-layer');
+    if (bgImage && bgImage.trim()) {
+        if (!bgLayer) {
+            bgLayer = document.createElement('div');
+            bgLayer.id = 'canvas-bg-layer';
+            bgLayer.style.cssText = [
+                'position:fixed', 'inset:0', 'z-index:-1',
+                'pointer-events:none',
+                'background-size:cover',
+                'background-position:center center',
+                'background-attachment:fixed',
+                'background-repeat:no-repeat',
+                'transition:opacity 0.4s ease, filter 0.4s ease'
+            ].join(';');
+            document.body.prepend(bgLayer);
+        }
+        bgLayer.style.backgroundImage = `url('${bgImage.trim()}')`;
+        const dim = Math.max(0, Math.min(100, t.canvas?.backgroundImageDim ?? 0));
+        const sat = Math.max(0, Math.min(100, t.canvas?.backgroundImageSat ?? 100));
+        bgLayer.style.opacity = ((100 - dim) / 100).toFixed(2);
+        bgLayer.style.filter  = `saturate(${sat}%)`;
+    } else if (bgLayer) {
+        bgLayer.style.backgroundImage = '';
+        bgLayer.style.opacity = '1';
+        bgLayer.style.filter  = '';
+    }
+
     // Burger-Button
     const burgerColor = t.burger?.text || '#00ff00';
     root.style.setProperty('--burger-text', burgerColor);
@@ -221,6 +251,15 @@ export function syncModalUI() {
     if (cardPaddingTopInput && t.card && typeof t.card.paddingTop === 'number') {
         cardPaddingTopInput.value = t.card.paddingTop;
     }
+
+    const bgImageInput = document.getElementById('in-canvas-bg-image');
+    if (bgImageInput) bgImageInput.value = t.canvas?.backgroundImage || '';
+
+    const bgDimInput = document.getElementById('in-canvas-bg-dim');
+    if (bgDimInput) bgDimInput.value = t.canvas?.backgroundImageDim ?? 0;
+
+    const bgSatInput = document.getElementById('in-canvas-bg-sat');
+    if (bgSatInput) bgSatInput.value = t.canvas?.backgroundImageSat ?? 100;
 }
 
 // ---------- Live-Editor initialisieren ----------
@@ -317,6 +356,40 @@ export function initThemeEditor() {
             }
         });
     }
+
+    const bgImageEl = document.getElementById('in-canvas-bg-image');
+    if (bgImageEl) {
+        bgImageEl.addEventListener('input', (e) => {
+            const url = e.target.value.trim();
+            if (!themeState.appConfig.themes[themeState.currentActiveTheme].canvas) {
+                themeState.appConfig.themes[themeState.currentActiveTheme].canvas = {};
+            }
+            themeState.appConfig.themes[themeState.currentActiveTheme].canvas.backgroundImage = url || '';
+            applyTheme(themeState.currentActiveTheme);
+        });
+    }
+
+    const bgDimEl = document.getElementById('in-canvas-bg-dim');
+    if (bgDimEl) {
+        bgDimEl.addEventListener('input', (e) => {
+            const val = Math.max(0, Math.min(100, parseInt(e.target.value) || 0));
+            if (!themeState.appConfig.themes[themeState.currentActiveTheme].canvas)
+                themeState.appConfig.themes[themeState.currentActiveTheme].canvas = {};
+            themeState.appConfig.themes[themeState.currentActiveTheme].canvas.backgroundImageDim = val;
+            applyTheme(themeState.currentActiveTheme);
+        });
+    }
+
+    const bgSatEl = document.getElementById('in-canvas-bg-sat');
+    if (bgSatEl) {
+        bgSatEl.addEventListener('input', (e) => {
+            const val = Math.max(0, Math.min(100, parseInt(e.target.value) ?? 100));
+            if (!themeState.appConfig.themes[themeState.currentActiveTheme].canvas)
+                themeState.appConfig.themes[themeState.currentActiveTheme].canvas = {};
+            themeState.appConfig.themes[themeState.currentActiveTheme].canvas.backgroundImageSat = val;
+            applyTheme(themeState.currentActiveTheme);
+        });
+    }
 }
 
 // ---------- Hilfsfunktion für Import-Validierung ----------
@@ -372,10 +445,38 @@ export function initThemeControls() {
             saveCloudBtn.disabled = true;
 
             try {
+                // Pre-save sync: explicitly read bg-image inputs from the DOM
+                // so their values are guaranteed to be in the theme state even if
+                // an input event was missed (e.g. paste, auto-fill, type="url" quirks).
+                const activeCanvas = themeState.appConfig.themes[themeState.currentActiveTheme]?.canvas;
+                console.group('🎨 Theme Save — Debug');
+                console.log('active theme  :', themeState.currentActiveTheme);
+                console.log('canvas before :', JSON.parse(JSON.stringify(activeCanvas ?? {})));
+                if (activeCanvas) {
+                    const bgImgEl  = document.getElementById('in-canvas-bg-image');
+                    const bgDimEl  = document.getElementById('in-canvas-bg-dim');
+                    const bgSatEl  = document.getElementById('in-canvas-bg-sat');
+                    console.log('DOM bgImgEl found:', !!bgImgEl, '  value:', bgImgEl?.value);
+                    console.log('DOM bgDimEl found:', !!bgDimEl, '  value:', bgDimEl?.value);
+                    console.log('DOM bgSatEl found:', !!bgSatEl, '  value:', bgSatEl?.value);
+                    if (bgImgEl) activeCanvas.backgroundImage    = bgImgEl.value.trim();
+                    if (bgDimEl) activeCanvas.backgroundImageDim = Math.max(0, Math.min(100, parseInt(bgDimEl.value) || 0));
+                    if (bgSatEl) activeCanvas.backgroundImageSat = Math.max(0, Math.min(100, parseInt(bgSatEl.value) ?? 100));
+                    console.log('canvas after  :', JSON.parse(JSON.stringify(activeCanvas)));
+                } else {
+                    console.warn('⚠️ activeCanvas is undefined — theme key may be wrong');
+                }
+
                 const config = {
                     startupTheme: themeState.appConfig.startupTheme,
                     themes: themeState.appConfig.themes
                 };
+                
+                const urlParamsDbg = new URLSearchParams(window.location.search);
+                const targetIdDbg  = urlParamsDbg.get('search') || "CRUDX-CORE_-DATA_-THEME";
+                console.log('target Firestore doc:', targetIdDbg);
+                console.log('config.themes[' + themeState.currentActiveTheme + '].canvas:', JSON.parse(JSON.stringify(config.themes[themeState.currentActiveTheme]?.canvas ?? {})));
+                console.groupEnd();
                 
                 const urlParams = new URLSearchParams(window.location.search);
                 const targetId = urlParams.get('search') || "CRUDX-CORE_-DATA_-THEME";

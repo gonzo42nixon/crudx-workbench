@@ -114,14 +114,26 @@ export async function renderDataFromDocs(docs, container) {
         const tags = d.user_tags || [];
         const foundMime = detectMimetype(d.value);
 
-        const mimePill = foundMime ? 
-            `<div class="pill pill-mime" title="Mime Type" data-tag-name="mime:${foundMime.type}" style="background-color: ${foundMime.color} !important; color: #000 !important; cursor:pointer;">
-                ${foundMime.type}
-            </div>` : '';
-
         const searchInput = document.getElementById('main-search');
         const searchTerm = searchInput ? searchInput.value.trim() : '';
-        const activeTag = searchTerm.startsWith('tag:') ? searchTerm.substring(4) : null;
+
+        // Parse compound filter expressions (e.g. "mime:HTML && tag:app || tag:data")
+        // into sets of positively-active tag names and mime types.
+        const activeFilterTags  = new Set();
+        const activeFilterMimes = new Set();
+        searchTerm.split(/\s*\|\|\s*|\s*&&\s*/).forEach(segment => {
+            segment.split(/\s+/).forEach(part => {
+                part = part.replace(/^[\s(!]+|[\s)]+$/g, '').trim();
+                if (part.startsWith('tag:'))  activeFilterTags.add(part.substring(4));
+                else if (part.startsWith('mime:') && part.length > 5) activeFilterMimes.add(part.substring(5));
+            });
+        });
+        const hasFilter = activeFilterTags.size > 0 || activeFilterMimes.size > 0;
+
+        const mimeActive = foundMime && activeFilterMimes.has(foundMime.type);
+        const mimePill = foundMime
+            ? `<div class="pill pill-mime ${mimeActive ? 'pill-active' : ''}" title="Mime Type" data-tag-name="mime:${foundMime.type}" style="background-color: ${foundMime.color} !important; color: #000 !important; cursor:pointer;">${foundMime.type}</div>`
+            : '';
 
         const folderTags = [];
         const cloudTags = [];
@@ -134,13 +146,17 @@ export async function renderDataFromDocs(docs, container) {
 
         let userTagsHtml = '';
         cloudTags.forEach(tag => {
-            const inactiveClass = (activeTag && tag !== activeTag) ? 'pill-inactive' : '';
-            userTagsHtml += `<div class="pill pill-user ${inactiveClass}" data-tag-name="${escapeHtml(tag)}" style="cursor:pointer;">${escapeHtml(tag)}</div>`;
+            const isActive   = activeFilterTags.has(tag);
+            const isInactive = hasFilter && activeFilterTags.size > 0 && !isActive;
+            const cls = isActive ? 'pill-active' : (isInactive ? 'pill-inactive' : '');
+            userTagsHtml += `<div class="pill pill-user ${cls}" data-tag-name="${escapeHtml(tag)}" style="cursor:pointer;">${escapeHtml(tag)}</div>`;
         });
 
         if (folderTags.length > 0) {
-            const inactiveClass = (activeTag && !folderTags.includes(activeTag)) ? 'pill-inactive' : '';
-            userTagsHtml += `<div class="pill pill-user summary-pill ${inactiveClass}" data-tags='${escapeHtml(JSON.stringify(folderTags))}'>📁 ${folderTags.length}</div>`;
+            const anyFolderActive = folderTags.some(t => activeFilterTags.has(t));
+            const isInactive = hasFilter && activeFilterTags.size > 0 && !anyFolderActive;
+            const cls = anyFolderActive ? 'pill-active' : (isInactive ? 'pill-inactive' : '');
+            userTagsHtml += `<div class="pill pill-user summary-pill ${cls}" data-tags='${escapeHtml(JSON.stringify(folderTags))}'>📁 ${folderTags.length}</div>`;
         }
 
         // ui.js always renders raw content.
