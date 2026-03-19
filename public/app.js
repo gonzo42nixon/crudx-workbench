@@ -671,76 +671,112 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
         })();
 
-        // --- AUTO-LAUNCHER FOR CONFLUENCE MODE (1x1) ---
-        // Watches the grid and automatically upgrades Markdown cards to Secure Apps
-        const gridObserver = new MutationObserver(async (mutations) => {
+        // --- AUTO-LAUNCHER FOR EXECUTE MODE (1x1) ---
+        // Priority system:
+        //   Prio 1: x:<appKey> + "data" tag → render that app with current doc as data
+        //   Prio 2: edit:<appKey>           → render editor app with current doc as data
+        //   Prio 3: Default                 → no auto-launch (raw display stays)
+        //
+        // IMPORTANT: ui.js always renders raw content. The gridObserver is the sole
+        // owner of iframe injection. A 200 ms debounce ensures that even when
+        // fetchRealData() fires many times during initialisation only ONE iframe is
+        // created — after all DOM mutations have settled.
+        let _gridObserverTimer  = null;
+        // Tracks the key that is currently displayed in the 1x1 Execute iframe.
+        // Prevents Firestore stat-update re-renders from re-launching the same key
+        // while still allowing a fresh launch whenever the user navigates to a
+        // DIFFERENT key (or comes back to this key after visiting another).
+        let _currentLaunchedKey = null;
+
+        const gridObserver = new MutationObserver(() => {
+            clearTimeout(_gridObserverTimer);
+            _gridObserverTimer = setTimeout(async () => {
             const gridSelect = document.getElementById('grid-select');
-            const isConfluenceMode = document.body.classList.contains('ftc-docked') &&
-                                     !document.body.classList.contains('ftc-read-mode');
-            // Only active in 1x1 mode AND Execute mode is active (not suppressed by Read mode)
-            if (gridSelect && gridSelect.value === '1' && isConfluenceMode) {
-                // Find the first Markdown card that needs an upgrade
-                const card = Array.from(document.querySelectorAll('.card-kv')).find(c => 
-                    c.dataset.mime === 'MD' && (c.dataset.appLoaded !== "true" || c.dataset.loadedKey !== c.querySelector('.pill-key')?.textContent.trim())
-                );
+            const isExecuteMode = document.body.classList.contains('ftc-docked') &&
+                                  !document.body.classList.contains('ftc-read-mode');
+            if (!gridSelect || gridSelect.value !== '1' || !isExecuteMode) return;
 
-                if (!card) return;
+            // Find the first card that qualifies under Prio 1 or Prio 2 and hasn't been launched yet
+            const card = Array.from(document.querySelectorAll('.card-kv')).find(c => {
+                if (!c.dataset.doc) return false;
+                const cKey = c.querySelector('.pill-key')?.textContent.trim();
+                // Skip if this key is already the current iframe — prevents stat-update loop
+                if (cKey === _currentLaunchedKey) return false;
+                const t = JSON.parse(c.dataset.doc).user_tags || [];
+                const xTag    = t.find(tag => tag.startsWith('x:'));
+                const editTag = t.find(tag => tag.startsWith('edit:'));
+                return (xTag && t.includes('data')) || !!editTag;
+            });
 
-                const currentKey = card.querySelector('.pill-key')?.textContent.trim();
-                const valueLayer = card.querySelector('.value-layer');
-                
-                if (!card.dataset.doc) return;
+            if (!card || !card.dataset.doc) return;
 
-                card.dataset.appLoaded = "true"; 
-                card.dataset.loadedKey = currentKey;
+            const currentKey = card.querySelector('.pill-key')?.textContent.trim();
+            const valueLayer = card.querySelector('.value-layer');
+            card.dataset.appLoaded = 'true';
+            card.dataset.loadedKey = currentKey;
 
-                if (currentKey) {
-                    try {
-                        const docData = JSON.parse(card.dataset.doc);
-                        const isEmulator = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+            if (!currentKey) return;
 
-                        if (!isEmulator) {
-                            // PRODUKTION: Webhook URL für Auto-Launch (X)
-                            const tags = docData.user_tags || [];
-                            const appTag = tags.find(t => t.startsWith('x:'));
-                            let appKey = appTag ? appTag.substring(2) : (tags.includes('app') ? currentKey : "CRUDX-CORE_-_APP_-MARKD");
-                            
-                            const params = new URLSearchParams();
-                            params.append("action", "X");
-                            params.append("key", currentKey);
-                            params.set("app", appKey);
-                            if (tags.includes("data") || card.dataset.mime === 'MD') params.set("data", currentKey);
+            try {
+                const docData = JSON.parse(card.dataset.doc);
+                const tags    = docData.user_tags || [];
+                const xTag    = tags.find(t => t.startsWith('x:'));
+                const editTag = tags.find(t => t.startsWith('edit:'));
+                const isEmulator = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
-                            tags.forEach(t => {
-                                if (t.startsWith("s:")) params.set("settings", t.substring(2));
-                                if (t.startsWith("d1:")) params.set("data-1", t.substring(3));
-                                if (t.startsWith("d2:")) params.set("data-2", t.substring(3));
-                                if (t.startsWith("d3:")) params.set("data-3", t.substring(3));
-                            });
-
-                            const targetUrl = `https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977?${params.toString()}`;
-                            if (valueLayer) {
-                                valueLayer.innerHTML = `<iframe src="${targetUrl}" style="width:100%; height:100%; border:none; display:block; background:var(--canvas-bg);"></iframe>`;
-                                console.log(`✅ Confluence Mode: Upgraded to ${currentKey} via Webhook`);
-                            }
-                        } else {
-                            // EMULATOR: Client-side Blob (SDK)
-                            const { blob } = await generateSecureAppBlob(currentKey, docData) || {};
-                            if (blob) {
-                                const blobUrl = URL.createObjectURL(blob);
-                                if (valueLayer) {
-                                    const newIframe = document.createElement('iframe');
-                                    newIframe.src = blobUrl;
-                                    newIframe.style.cssText = "width:100%; height:100%; border:none; display:block;";
-                                    valueLayer.innerHTML = '';
-                                    valueLayer.appendChild(newIframe);
-                                    console.log(`✅ Confluence Mode: Upgraded to ${currentKey} (Blob)`);
-                                }
-                            }
-                        }
-                    } catch(e) { console.error("Auto-Launch failed", e); }
+                let appKey = null;
+                if (xTag && tags.includes('data')) {
+                    appKey = xTag.substring(2);    // Prio 1
+                } else if (editTag) {
+                    appKey = editTag.substring(5); // Prio 2
                 }
-            }
+                if (!appKey) return; // Prio 3 → no launch
+                _currentLaunchedKey = currentKey; // Guard against Firestore-triggered re-launch
+
+                // Inject the app inline into the value-layer of the card (same visual space,
+                // no floating window). The _currentLaunchedKey guard above ensures that
+                // Firestore stat-update re-renders never re-trigger this block for the same key.
+                if (!isEmulator) {
+                    // PRODUCTION: Webhook URL
+                    const params = new URLSearchParams();
+                    params.append('action', 'X');
+                    params.append('key', currentKey);
+                    params.set('app', appKey);
+                    params.set('data', currentKey);
+                    tags.forEach(t => {
+                        if (t.startsWith('s:'))  params.set('settings', t.substring(2));
+                        if (t.startsWith('d1:')) params.set('data-1',   t.substring(3));
+                        if (t.startsWith('d2:')) params.set('data-2',   t.substring(3));
+                        if (t.startsWith('d3:')) params.set('data-3',   t.substring(3));
+                    });
+                    const targetUrl = `https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977?${params.toString()}`;
+                    if (valueLayer) {
+                        valueLayer.style.padding = '0';
+                        valueLayer.innerHTML = `<iframe src="${targetUrl}" style="width:100%;height:100%;border:none;display:block;background:var(--canvas-bg);"></iframe>`;
+                    }
+                    console.log(`✅ Execute Mode Prio ${xTag ? 1 : 2}: Launched ${appKey} for ${currentKey}`);
+                } else {
+                    // EMULATOR: Client-side Blob (SDK)
+                    const docForBlob = editTag && !xTag
+                        ? { ...docData, user_tags: ['data', `x:${appKey}`] }
+                        : docData;
+                    const result = await generateSecureAppBlob(currentKey, docForBlob) || {};
+                    if (result.blob) {
+                        let blobUrl = URL.createObjectURL(result.blob);
+                        if (result.contextData) blobUrl += `#ctx=${encodeURIComponent(JSON.stringify(result.contextData))}`;
+                        if (valueLayer) {
+                            valueLayer.style.padding = '0';
+                            const iframe = document.createElement('iframe');
+                            iframe.src = blobUrl;
+                            iframe.style.cssText = 'width:100%;height:100%;border:none;display:block;';
+                            valueLayer.innerHTML = '';
+                            valueLayer.appendChild(iframe);
+                        }
+                        console.log(`✅ Execute Mode Prio ${xTag ? 1 : 2}: Launched ${appKey} for ${currentKey} (Blob)`);
+                    }
+                }
+            } catch(e) { console.error('Auto-Launch failed', e); }
+            }, 200); // debounce — wait for DOM mutations to settle before injecting iframe
         });
         gridObserver.observe(document.getElementById('data-container'), { childList: true, subtree: true });
     } catch (e) { console.error("🔥 FATAL:", e); }

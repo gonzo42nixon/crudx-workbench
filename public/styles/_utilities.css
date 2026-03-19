@@ -191,32 +191,24 @@ body.ftc-docked.layout-grid-1:not(.no-app-view):not(.ftc-read-mode) header:hover
     opacity: 1;
 }
 
-/* Mini-Term-Editor Auto-Hide — Execute only */
+/* Mini-Term-Editor — Execute mode: completely hidden (no hover reveal) */
 body.ftc-docked.layout-grid-1:not(.no-app-view):not(.ftc-read-mode) #mini-term-editor {
-    transform: translateX(-50%) translateY(-65px);
-    opacity: 0;
-    transition: transform 0.3s ease, opacity 0.3s ease;
-    pointer-events: auto !important;
-}
-body.ftc-docked.layout-grid-1:not(.no-app-view):not(.ftc-read-mode) header:hover ~ #mini-term-editor {
-    transform: translateX(-50%) translateY(0);
-    opacity: 1;
-}
-body.ftc-docked.layout-grid-1:not(.no-app-view):not(.ftc-read-mode) #mini-term-editor:hover {
-    transform: translateX(-50%) translateY(0);
-    opacity: 1;
+    display: none !important;
 }
 
-/* Paginator Auto-Hide — Execute only */
+/* Paginator — Execute mode: completely hidden (no hover reveal) */
 body.ftc-docked.layout-grid-1:not(.no-app-view):not(.ftc-read-mode) #main-paginator {
-    transform: translate(-50%, 60px);
-    opacity: 0;
-    transition: transform 0.3s ease, opacity 0.3s ease;
-    pointer-events: auto !important;
+    display: none !important;
 }
-body.ftc-docked.layout-grid-1:not(.no-app-view):not(.ftc-read-mode) #main-paginator:hover {
-    transform: translate(-50%, 0);
-    opacity: 1;
+
+/* Card tags (br-group) — Execute mode: hidden so the app has full visual space */
+body.ftc-docked.layout-grid-1:not(.no-app-view):not(.ftc-read-mode) .card-kv .br-group {
+    display: none !important;
+}
+
+/* Key + Label pills (tl-group) — Execute mode: hidden, app fills the entire card */
+body.ftc-docked.layout-grid-1:not(.no-app-view):not(.ftc-read-mode) .card-kv .tl-group {
+    display: none !important;
 }
 
 /* ========== EXECUTE MODE: HIDE CRUD BUTTONS ========== */

@@ -143,41 +143,13 @@ export async function renderDataFromDocs(docs, container) {
             userTagsHtml += `<div class="pill pill-user summary-pill ${inactiveClass}" data-tags='${escapeHtml(JSON.stringify(folderTags))}'>📁 ${folderTags.length}</div>`;
         }
 
-        // --- CONFLUENCE MODE RENDERING (Grid-1 & Docked) ---
+        // ui.js always renders raw content.
+        // The gridObserver in app.js is responsible for injecting the iframe (debounced),
+        // which prevents multiple iframes from being created when fetchRealData() fires
+        // several times in rapid succession during initialisation.
         let valueContent = escapeHtml(d.value) || 'NULL';
-        let valueStyle = "";
-        let appLoadedAttr = "";
-
-        if (isGrid1 && isDocked && !isNoAppView && !isReadMode) {
-            const isMD = foundMime && foundMime.type === 'MD';
-            const appTag = tags.find(t => t.startsWith('x:'));
-            const hasApp = tags.includes('app') || appTag;
-
-            if (isMD || hasApp) {
-                let appKey = appTag ? appTag.substring(2) : (tags.includes('app') ? key : "CRUDX-CORE_-_APP_-MARKD");
-                
-                if (!isEmulator) {
-                    // PRODUKTION: App via Make.com Scenario laden
-                    const params = new URLSearchParams();
-                    params.append("action", "X");
-                    params.append("key", key);
-                    params.set("app", appKey);
-                    if (tags.includes("data") || isMD) params.set("data", key);
-
-                    tags.forEach(t => {
-                        if (t.startsWith("s:")) params.set("settings", t.substring(2));
-                        if (t.startsWith("d1:")) params.set("data-1", t.substring(3));
-                        if (t.startsWith("d2:")) params.set("data-2", t.substring(3));
-                        if (t.startsWith("d3:")) params.set("data-3", t.substring(3));
-                    });
-
-                    const targetUrl = `${webhookUrl}?${params.toString()}`;
-                    valueContent = `<iframe src="${targetUrl}" style="width:100%; height:100%; border:none; background:var(--canvas-bg);"></iframe>`;
-                    valueStyle = "padding: 0 !important;";
-                    appLoadedAttr = `data-app-loaded="true" data-loaded-key="${key}"`;
-                }
-            }
-        }
+        const valueStyle = "";
+        const appLoadedAttr = "";
 
         const whitelistHtml = renderWhitelistPills(d, currentUserEmail);
         const sysTagsHtml = renderSysTags(d, currentUserEmail);
