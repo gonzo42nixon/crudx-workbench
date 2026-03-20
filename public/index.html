@@ -242,6 +242,10 @@
                             <label title="100 = full color, 0 = grayscale">Saturation <span style="opacity:0.5;font-size:0.8em;">0–100</span></label>
                             <input type="number" id="in-canvas-bg-sat" class="small-input" min="0" max="100" value="100">
                         </div>
+                        <div class="spacing-item" style="flex:1;">
+                            <label title="0 = sharp, 100 = fully blurred (max 20px)">Blur <span style="opacity:0.5;font-size:0.8em;">0–100%</span></label>
+                            <input type="number" id="in-canvas-bg-blur" class="small-input" min="0" max="100" value="0">
+                        </div>
                     </div>
                 </div>
             </div>
@@ -273,6 +277,26 @@
                     <div class="spacing-grid">
                         <div class="spacing-item"><label>Padding</label><input type="number" id="in-card-padding" class="small-input" min="0" max="50"></div>
                         <div class="spacing-item"><label>Padding Top</label><input type="number" id="in-card-padding-top" class="small-input" min="0" max="100"></div>
+                    </div>
+                    <div class="spacing-row" style="margin-top:8px;">
+                        <div class="spacing-item" style="flex:1;">
+                            <label>Background Image URL <span style="opacity:0.5;font-size:0.8em;">(optional)</span></label>
+                            <input type="text" id="in-card-bg-image" placeholder="https://example.com/bg.jpg" style="width:100%;box-sizing:border-box;">
+                        </div>
+                    </div>
+                    <div class="spacing-row" style="margin-top:6px; gap:12px;">
+                        <div class="spacing-item" style="flex:1;">
+                            <label title="0 = fully visible, 100 = invisible">Dim <span style="opacity:0.5;font-size:0.8em;">0–100</span></label>
+                            <input type="number" id="in-card-bg-dim" class="small-input" min="0" max="100" value="0">
+                        </div>
+                        <div class="spacing-item" style="flex:1;">
+                            <label title="100 = full color, 0 = grayscale">Saturation <span style="opacity:0.5;font-size:0.8em;">0–100</span></label>
+                            <input type="number" id="in-card-bg-sat" class="small-input" min="0" max="100" value="100">
+                        </div>
+                        <div class="spacing-item" style="flex:1;">
+                            <label title="0 = sharp, 100 = fully blurred (max 50px)">Blur <span style="opacity:0.5;font-size:0.8em;">0–100%</span></label>
+                            <input type="number" id="in-card-bg-blur" class="small-input" min="0" max="100" value="0">
+                        </div>
                     </div>
                 </div>
                 <div class="section-card">
@@ -384,14 +408,57 @@
     </div>
 
     <div id="login-modal" class="modal">
-        <div class="modal-content card" style="max-width: 400px; text-align: center;">
+        <div class="modal-content card" style="max-width: 420px; text-align: center;">
             <h3>Authentication Required</h3>
-            <p>Please enter your email to receive a secure login link.</p>
-            <input type="email" id="login-email" placeholder="yourname@example.com" class="input-field" style="width: 100%; margin: 15px 0;">
-            <button id="btn-send-link" class="btn btn-user">Send Login Link</button>
-            <div style="margin: 10px 0; font-size: 0.8em; opacity: 0.5;">— OR —</div>
-            <button id="btn-login-google" class="btn btn-user" style="background-color: #db4437; border-color: #c53929; color: white;">Login with Google</button>
-            <div id="login-status" style="margin-top: 10px; font-size: 0.8em;"></div>
+
+            <!-- Step 1: Email input -->
+            <div id="login-step-1">
+                <p style="margin-bottom: 20px; opacity: 0.75; font-size: 0.9em;">
+                    Enter your email to receive a one-click login link.
+                </p>
+                <input type="email" id="login-email" placeholder="yourname@example.com"
+                    class="input-field" autocomplete="email">
+                <button id="btn-send-link">Send Login Link</button>
+                <div id="login-error" style="margin-top: 10px; font-size: 0.85em; color: #ff7070; min-height: 18px;"></div>
+            </div>
+
+            <!-- Step 2: Inbox check -->
+            <div id="login-step-2" style="display: none;">
+                <div style="font-size: 3rem; margin-bottom: 15px;">📧</div>
+                <p style="font-size: 1.05em; font-weight: 600; color: #80ffb0; margin-bottom: 10px;">
+                    Link sent!
+                </p>
+                <p style="opacity: 0.75; font-size: 0.9em; line-height: 1.6; margin-bottom: 15px;">
+                    Check your inbox for <strong id="sent-email-display" style="color:#80d4ff;"></strong>
+                    and click the link inside.<br>
+                    <span style="opacity: 0.6; font-size: 0.85em;">Also check your spam / junk folder.</span>
+                </p>
+
+                <!-- Direct paste fallback -->
+                <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; margin-top: 5px;">
+                    <p style="font-size: 0.8em; opacity: 0.6; margin-bottom: 8px;">
+                        🔗 Or copy the link from the email and paste it here:
+                    </p>
+                    <input type="url" id="login-paste-link"
+                        placeholder="Paste the 'Sign in to CRUDX' link here…"
+                        class="input-field"
+                        style="font-size: 0.8em;">
+                    <button id="btn-sign-in-with-link" style="margin-top: 8px;">Sign in with pasted link</button>
+                    <div id="paste-link-error" style="margin-top: 8px; font-size: 0.82em; color: #ff7070; min-height: 16px;"></div>
+                </div>
+
+                <button id="btn-send-again" style="
+                    background: transparent;
+                    border: 1px solid rgba(255,255,255,0.2);
+                    color: rgba(255,255,255,0.5);
+                    border-radius: 8px;
+                    padding: 8px 20px;
+                    cursor: pointer;
+                    font-size: 0.85em;
+                    width: 100%;
+                    margin-top: 12px;
+                ">↩ Send to a different email</button>
+            </div>
         </div>
     </div>
 

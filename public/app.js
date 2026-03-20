@@ -99,8 +99,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         themeState.currentActiveTheme = themeState.appConfig.startupTheme;
         applyTheme(themeState.currentActiveTheme);
 
-        // 2. Real-time Theme Loader (System Theme + Dynamic override)
-        (() => {
+        // 2. Real-time Theme Loader — deferred until auth because Firestore rules
+        //    require authentication for all reads.
+        window.addEventListener('crudx:authenticated', () => {
             const themeOverrideKey = urlParams.get('theme');
             const systemThemeKey = "CRUDX-CORE_-DATA_-THEME";
 
@@ -142,7 +143,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     console.warn(`Override Theme listener failed for [${themeOverrideKey}]:`, err);
                 });
             }
-        })();
+        }, { once: true });
         initThemeEditor();
         initThemeControls();
 
@@ -596,17 +597,20 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
         });
 
-        // Initialisiert die Floating Tag Cloud
-        const tcInstance = initTagCloud(db);
+        // Initialisiert die Floating Tag Cloud — deferred until auth to prevent
+        // unauthenticated Firestore reads inside _scanAndRenderTags.
+        window.addEventListener('crudx:authenticated', () => {
+            const tcInstance = initTagCloud(db);
 
-        // Restore view mode from URL — if ?mode=execute was shared, activate Execute mode.
-        // This overrides the Read default set at startup.
-        if (urlParams.get('mode') === 'execute') {
-            document.body.classList.remove('ftc-read-mode');
-            tcInstance.dockLeft();
-            updateConfluenceTooltip();
-        }
-        // Write the authoritative initial state to the URL (removes stale/invalid mode params)
+            // Restore view mode from URL — if ?mode=execute was shared, activate Execute mode.
+            if (urlParams.get('mode') === 'execute') {
+                document.body.classList.remove('ftc-read-mode');
+                tcInstance.dockLeft();
+                updateConfluenceTooltip();
+            }
+        }, { once: true });
+
+        // Write the authoritative initial state to the URL (no Firestore needed)
         syncViewModeToUrl();
 
         // --- Z-INDEX MANAGER: Click-to-bring-to-front ---

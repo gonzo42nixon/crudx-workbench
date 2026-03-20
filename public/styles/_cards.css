@@ -122,6 +122,23 @@
     box-sizing: border-box;
 }
 
+/* Hintergrundbild-Layer für Karten – unabhängig von Content-Opacity */
+.card-kv::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: 12px;
+    background-image: var(--card-bg-image, none);
+    background-size: cover;
+    background-position: center center;
+    background-repeat: no-repeat;
+    opacity: var(--card-bg-image-opacity, 1);
+    filter: var(--card-bg-image-filter, none);
+    pointer-events: none;
+    transition: opacity 0.4s ease, filter 0.4s ease;
+}
+
 /* ========== KARTEN-INHALTE ========== */
 .value-layer {
     font-family: 'JetBrains Mono', monospace;
@@ -135,6 +152,10 @@
     padding: var(--card-padding) !important;
     padding-top: var(--card-padding-top, 40px) !important;
     width: 100%;
+
+    /* Über dem ::before Hintergrundbild-Layer */
+    position: relative;
+    z-index: 1;
 }
 
 .tl-group {

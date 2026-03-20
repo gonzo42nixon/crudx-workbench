@@ -138,14 +138,32 @@ export function applyTheme(themeName) {
             document.body.prepend(bgLayer);
         }
         bgLayer.style.backgroundImage = `url('${bgImage.trim()}')`;
-        const dim = Math.max(0, Math.min(100, t.canvas?.backgroundImageDim ?? 0));
-        const sat = Math.max(0, Math.min(100, t.canvas?.backgroundImageSat ?? 100));
+        const dim    = Math.max(0, Math.min(100, t.canvas?.backgroundImageDim  ?? 0));
+        const sat    = Math.max(0, Math.min(100, t.canvas?.backgroundImageSat  ?? 100));
+        const blurPc = Math.max(0, Math.min(100, t.canvas?.backgroundImageBlur ?? 0));
+        const blurPx = (blurPc * 0.5).toFixed(1);  // 100 % → 50 px
         bgLayer.style.opacity = ((100 - dim) / 100).toFixed(2);
-        bgLayer.style.filter  = `saturate(${sat}%)`;
+        bgLayer.style.filter  = `saturate(${sat}%) blur(${blurPx}px)`;
     } else if (bgLayer) {
         bgLayer.style.backgroundImage = '';
         bgLayer.style.opacity = '1';
         bgLayer.style.filter  = '';
+    }
+
+    // Card background image — setzt CSS-Variablen für das ::before-Pseudo-Element
+    const cardBgImage = t.card?.backgroundImage;
+    if (cardBgImage && cardBgImage.trim()) {
+        const cardDim    = Math.max(0, Math.min(100, t.card?.backgroundImageDim  ?? 0));
+        const cardSat    = Math.max(0, Math.min(100, t.card?.backgroundImageSat  ?? 100));
+        const cardBlurPc = Math.max(0, Math.min(100, t.card?.backgroundImageBlur ?? 0));
+        const cardBlurPx = (cardBlurPc * 0.5).toFixed(1);  // 100 % → 50 px
+        root.style.setProperty('--card-bg-image', `url('${cardBgImage.trim()}')`);
+        root.style.setProperty('--card-bg-image-opacity', ((100 - cardDim) / 100).toFixed(2));
+        root.style.setProperty('--card-bg-image-filter',  `saturate(${cardSat}%) blur(${cardBlurPx}px)`);
+    } else {
+        root.style.setProperty('--card-bg-image', 'none');
+        root.style.setProperty('--card-bg-image-opacity', '1');
+        root.style.setProperty('--card-bg-image-filter',  'none');
     }
 
     // Burger-Button
@@ -260,6 +278,21 @@ export function syncModalUI() {
 
     const bgSatInput = document.getElementById('in-canvas-bg-sat');
     if (bgSatInput) bgSatInput.value = t.canvas?.backgroundImageSat ?? 100;
+
+    const bgBlurInput = document.getElementById('in-canvas-bg-blur');
+    if (bgBlurInput) bgBlurInput.value = t.canvas?.backgroundImageBlur ?? 0;
+
+    const cardBgImageInput = document.getElementById('in-card-bg-image');
+    if (cardBgImageInput) cardBgImageInput.value = t.card?.backgroundImage || '';
+
+    const cardBgDimInput = document.getElementById('in-card-bg-dim');
+    if (cardBgDimInput) cardBgDimInput.value = t.card?.backgroundImageDim ?? 0;
+
+    const cardBgSatInput = document.getElementById('in-card-bg-sat');
+    if (cardBgSatInput) cardBgSatInput.value = t.card?.backgroundImageSat ?? 100;
+
+    const cardBgBlurInput = document.getElementById('in-card-bg-blur');
+    if (cardBgBlurInput) cardBgBlurInput.value = t.card?.backgroundImageBlur ?? 0;
 }
 
 // ---------- Live-Editor initialisieren ----------
@@ -390,6 +423,62 @@ export function initThemeEditor() {
             applyTheme(themeState.currentActiveTheme);
         });
     }
+
+    const bgBlurEl = document.getElementById('in-canvas-bg-blur');
+    if (bgBlurEl) {
+        bgBlurEl.addEventListener('input', (e) => {
+            const val = Math.max(0, Math.min(100, parseInt(e.target.value) || 0));
+            if (!themeState.appConfig.themes[themeState.currentActiveTheme].canvas)
+                themeState.appConfig.themes[themeState.currentActiveTheme].canvas = {};
+            themeState.appConfig.themes[themeState.currentActiveTheme].canvas.backgroundImageBlur = val;
+            applyTheme(themeState.currentActiveTheme);
+        });
+    }
+
+    // ---- Card Background Image ----
+    const cardBgImageEl = document.getElementById('in-card-bg-image');
+    if (cardBgImageEl) {
+        cardBgImageEl.addEventListener('input', (e) => {
+            const url = e.target.value.trim();
+            if (!themeState.appConfig.themes[themeState.currentActiveTheme].card)
+                themeState.appConfig.themes[themeState.currentActiveTheme].card = {};
+            themeState.appConfig.themes[themeState.currentActiveTheme].card.backgroundImage = url || '';
+            applyTheme(themeState.currentActiveTheme);
+        });
+    }
+
+    const cardBgDimEl = document.getElementById('in-card-bg-dim');
+    if (cardBgDimEl) {
+        cardBgDimEl.addEventListener('input', (e) => {
+            const val = Math.max(0, Math.min(100, parseInt(e.target.value) || 0));
+            if (!themeState.appConfig.themes[themeState.currentActiveTheme].card)
+                themeState.appConfig.themes[themeState.currentActiveTheme].card = {};
+            themeState.appConfig.themes[themeState.currentActiveTheme].card.backgroundImageDim = val;
+            applyTheme(themeState.currentActiveTheme);
+        });
+    }
+
+    const cardBgSatEl = document.getElementById('in-card-bg-sat');
+    if (cardBgSatEl) {
+        cardBgSatEl.addEventListener('input', (e) => {
+            const val = Math.max(0, Math.min(100, parseInt(e.target.value) ?? 100));
+            if (!themeState.appConfig.themes[themeState.currentActiveTheme].card)
+                themeState.appConfig.themes[themeState.currentActiveTheme].card = {};
+            themeState.appConfig.themes[themeState.currentActiveTheme].card.backgroundImageSat = val;
+            applyTheme(themeState.currentActiveTheme);
+        });
+    }
+
+    const cardBgBlurEl = document.getElementById('in-card-bg-blur');
+    if (cardBgBlurEl) {
+        cardBgBlurEl.addEventListener('input', (e) => {
+            const val = Math.max(0, Math.min(100, parseInt(e.target.value) || 0));
+            if (!themeState.appConfig.themes[themeState.currentActiveTheme].card)
+                themeState.appConfig.themes[themeState.currentActiveTheme].card = {};
+            themeState.appConfig.themes[themeState.currentActiveTheme].card.backgroundImageBlur = val;
+            applyTheme(themeState.currentActiveTheme);
+        });
+    }
 }
 
 // ---------- Hilfsfunktion für Import-Validierung ----------
@@ -456,15 +545,31 @@ export function initThemeControls() {
                     const bgImgEl  = document.getElementById('in-canvas-bg-image');
                     const bgDimEl  = document.getElementById('in-canvas-bg-dim');
                     const bgSatEl  = document.getElementById('in-canvas-bg-sat');
+                    const bgBlurEl = document.getElementById('in-canvas-bg-blur');
                     console.log('DOM bgImgEl found:', !!bgImgEl, '  value:', bgImgEl?.value);
                     console.log('DOM bgDimEl found:', !!bgDimEl, '  value:', bgDimEl?.value);
                     console.log('DOM bgSatEl found:', !!bgSatEl, '  value:', bgSatEl?.value);
-                    if (bgImgEl) activeCanvas.backgroundImage    = bgImgEl.value.trim();
-                    if (bgDimEl) activeCanvas.backgroundImageDim = Math.max(0, Math.min(100, parseInt(bgDimEl.value) || 0));
-                    if (bgSatEl) activeCanvas.backgroundImageSat = Math.max(0, Math.min(100, parseInt(bgSatEl.value) ?? 100));
+                    console.log('DOM bgBlurEl found:', !!bgBlurEl, '  value:', bgBlurEl?.value);
+                    if (bgImgEl)  activeCanvas.backgroundImage    = bgImgEl.value.trim();
+                    if (bgDimEl)  activeCanvas.backgroundImageDim  = Math.max(0, Math.min(100, parseInt(bgDimEl.value) || 0));
+                    if (bgSatEl)  activeCanvas.backgroundImageSat  = Math.max(0, Math.min(100, parseInt(bgSatEl.value) ?? 100));
+                    if (bgBlurEl) activeCanvas.backgroundImageBlur = Math.max(0, Math.min(100, parseInt(bgBlurEl.value) || 0));
                     console.log('canvas after  :', JSON.parse(JSON.stringify(activeCanvas)));
                 } else {
                     console.warn('⚠️ activeCanvas is undefined — theme key may be wrong');
+                }
+
+                // Pre-save sync for card background image fields
+                const activeCard = themeState.appConfig.themes[themeState.currentActiveTheme]?.card;
+                if (activeCard) {
+                    const cardBgImgEl  = document.getElementById('in-card-bg-image');
+                    const cardBgDimEl  = document.getElementById('in-card-bg-dim');
+                    const cardBgSatEl  = document.getElementById('in-card-bg-sat');
+                    const cardBgBlurEl = document.getElementById('in-card-bg-blur');
+                    if (cardBgImgEl)  activeCard.backgroundImage    = cardBgImgEl.value.trim();
+                    if (cardBgDimEl)  activeCard.backgroundImageDim  = Math.max(0, Math.min(100, parseInt(cardBgDimEl.value) || 0));
+                    if (cardBgSatEl)  activeCard.backgroundImageSat  = Math.max(0, Math.min(100, parseInt(cardBgSatEl.value) ?? 100));
+                    if (cardBgBlurEl) activeCard.backgroundImageBlur = Math.max(0, Math.min(100, parseInt(cardBgBlurEl.value) || 0));
                 }
 
                 const config = {
@@ -473,13 +578,13 @@ export function initThemeControls() {
                 };
                 
                 const urlParamsDbg = new URLSearchParams(window.location.search);
-                const targetIdDbg  = urlParamsDbg.get('search') || "CRUDX-CORE_-DATA_-THEME";
+                const targetIdDbg  = urlParamsDbg.get('theme') || "CRUDX-CORE_-DATA_-THEME";
                 console.log('target Firestore doc:', targetIdDbg);
                 console.log('config.themes[' + themeState.currentActiveTheme + '].canvas:', JSON.parse(JSON.stringify(config.themes[themeState.currentActiveTheme]?.canvas ?? {})));
                 console.groupEnd();
                 
                 const urlParams = new URLSearchParams(window.location.search);
-                const targetId = urlParams.get('search') || "CRUDX-CORE_-DATA_-THEME";
+                const targetId = urlParams.get('theme') || "CRUDX-CORE_-DATA_-THEME";
 
                 const isEmulator = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
