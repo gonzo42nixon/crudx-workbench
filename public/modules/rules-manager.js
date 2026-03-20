@@ -74,10 +74,24 @@ export function initRulesManager() {
         }
 
         setTagRules(newRules);
-        
+
+        // Persist rules to user profile (fire-and-forget, no UI block)
+        import('./user-profile.js').then(({ saveProfileUpdates, getCurrentProfile }) => {
+            if (getCurrentProfile()) {
+                saveProfileUpdates({
+                    tagRules: {
+                        folder:      newRules.folder,
+                        hidden:      newRules.hidden,
+                        hiddenGroup: getHiddenGroupRules(),
+                        folderGroup: getFolderGroupRules()
+                    }
+                }).catch(err => console.warn('Could not save rules to user profile:', err));
+            }
+        }).catch(() => {/* module not loaded yet — no-op */});
+
         document.getElementById('tag-rules-modal').classList.remove('active');
-        fetchRealData(); 
-        refreshTagCloud(true); 
+        fetchRealData();
+        refreshTagCloud(true);
     });
 }
 

@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRUDX – User Profile</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        /* Night-mode scrollbar */
+        ::-webkit-scrollbar { width: 7px; height: 7px; }
+        ::-webkit-scrollbar-track { background: #0a0a0a; }
+        ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3a3a3a; }
+        * { scrollbar-width: thin; scrollbar-color: #2a2a2a #0a0a0a; }
+
+        html, body { height: 100%; overflow: hidden; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #0a0a0a; color: #ddd;
+            display: flex; flex-direction: column;
+        }
+
+        /* ── Top Bar ──────────────────────────────────────────────────────── */
+        .top-bar {
+            display: flex; align-items: center; gap: 12px;
+            padding: 8px 16px; background: #111;
+            border-bottom: 1px solid #222; flex-shrink: 0;
+        }
+        .top-bar a { color: #80d4ff; text-decoration: none; font-size: 0.82em; opacity:.7; }
+        .top-bar a:hover { opacity: 1; }
+        .top-bar h1 { font-size: 1em; color: #ccc; flex: 1; }
+        #user-label { font-size: 0.78em; color: #888; font-family: monospace; }
+
+        /* ── 2-Column Main ────────────────────────────────────────────────── */
+        main {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            gap: 14px;
+            padding: 14px;
+            flex: 1;
+            overflow: hidden;
+            min-height: 0;
+        }
+        .col { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; padding-right: 4px; }
+
+        /* ── Cards ────────────────────────────────────────────────────────── */
+        .card {
+            background: #111; border: 1px solid #1e1e1e;
+            border-radius: 10px; padding: 14px;
+            display: flex; flex-direction: column; gap: 10px;
+            flex-shrink: 0;
+        }
+        .card-title {
+            font-size: 0.72em; font-weight: 700; letter-spacing: .09em;
+            text-transform: uppercase; color: #666;
+            border-bottom: 1px solid #1e1e1e; padding-bottom: 7px;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .card-title .btn { margin-left: auto; }
+
+        /* ── Avatar ───────────────────────────────────────────────────────── */
+        .avatar-wrap {
+            width: 72px; height: 72px; border-radius: 50%;
+            background: #1a1a1a; border: 2px solid #2a2a2a;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 2rem; overflow: hidden; flex-shrink: 0;
+        }
+        .avatar-wrap img { width: 100%; height: 100%; object-fit: cover; }
+        .avatar-row { display: flex; align-items: center; gap: 12px; }
+        .avatar-info { flex: 1; min-width: 0; }
+        .avatar-email {
+            font-size: 0.85em; color: #ccc; word-break: break-all;
+            font-family: monospace; margin-bottom: 4px;
+        }
+        .avatar-email-label { font-size: 0.72em; color: #555; margin-bottom: 2px; }
+
+        /* ── Inputs ───────────────────────────────────────────────────────── */
+        label { font-size: 0.75em; color: #666; display: block; margin-bottom: 2px; }
+        input[type="url"], input[type="text"], textarea {
+            width: 100%; padding: 6px 9px;
+            background: #0d0d0d; border: 1px solid #2a2a2a; border-radius: 6px;
+            color: #ccc; font-size: 0.83em; outline: none; resize: vertical;
+        }
+        input:focus, textarea:focus { border-color: #444; }
+        textarea { font-family: 'Cascadia Code','JetBrains Mono', monospace; font-size: 0.78em; line-height: 1.4; }
+
+        /* ── Buttons ──────────────────────────────────────────────────────── */
+        .btn {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 5px 11px; border-radius: 7px; font-size: 0.78em;
+            font-weight: 600; cursor: pointer; border: 1px solid #333;
+            background: #161616; color: #bbb; white-space: nowrap;
+        }
+        .btn:hover { background: #1e1e1e; border-color: #444; }
+        .btn-primary { border-color: #ff9100; color: #ff9100; }
+        .btn-primary:hover { background: rgba(255,145,0,.08); }
+        .btn-ghost { border-color: #2a3a55; color: #6090cc; }
+        .btn-ghost:hover { background: rgba(80,140,255,.08); }
+        .btn-ok { border-color: #2a5a2a; color: #5ca05c; }
+        .btn:disabled { opacity: .35; cursor: default; }
+
+        /* ── Rule Lists ───────────────────────────────────────────────────── */
+        .rule-list { display: flex; flex-direction: column; gap: 5px; }
+        .rule-row { display: flex; gap: 5px; }
+        .rule-row input { flex: 1; }
+        .del {
+            flex-shrink: 0; padding: 5px 8px; border-radius: 5px;
+            border: 1px solid #3a1a1a; background: transparent;
+            color: #aa4444; font-size: 0.85em; cursor: pointer;
+        }
+        .del:hover { background: rgba(200,50,50,.1); }
+
+        /* ── Details ─────────────────────────────────────────────────────── */
+        details { display: flex; flex-direction: column; gap: 8px; }
+        details > summary {
+            cursor: pointer; font-size: 0.72em; font-weight: 700;
+            letter-spacing: .06em; text-transform: uppercase; color: #666;
+            padding: 5px 0; list-style: none;
+            display: flex; align-items: center; gap: 5px;
+            border-top: 1px solid #1a1a1a; user-select: none;
+        }
+        details > summary::before { content: '▶'; font-size: 0.65em; opacity: .5; }
+        details[open] > summary::before { content: '▼'; }
+
+        /* ── Theme Textarea ───────────────────────────────────────────────── */
+        #theme-json { height: 220px; min-height: 100px; }
+
+        /* ── Image Warning ────────────────────────────────────────────────── */
+        .img-warning {
+            font-size: 0.72em; color: #886633;
+            background: rgba(136,90,0,.12); border: 1px solid #553300;
+            border-radius: 5px; padding: 5px 8px; display: none;
+        }
+
+        /* ── Status + Actions ─────────────────────────────────────────────── */
+        .bottom-bar {
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px 14px; background: #0d0d0d;
+            border-top: 1px solid #1a1a1a; flex-shrink: 0;
+        }
+        #last-saved { font-size: 0.75em; color: #555; margin-right: auto; }
+        #status-bar { font-size: 0.78em; color: #888; }
+        .status-ok   { color: #4a9a4a; }
+        .status-err  { color: #aa3333; }
+        .status-info { color: #5a8acc; }
+
+        /* Mobile fallback */
+        @media (max-width: 640px) {
+            main { grid-template-columns: 1fr; overflow-y: auto; }
+            .col { overflow: visible; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="top-bar">
+    <a href="/">← CRUDX</a>
+    <h1>👤 User Profile</h1>
+    <span id="user-label">…</span>
+</div>
+
+<main>
+    <!-- LEFT COLUMN -->
+    <div class="col">
+        <!-- Avatar + Email inline -->
+        <div class="card">
+            <div class="card-title">🖼️ Profile</div>
+            <div class="avatar-row">
+                <div class="avatar-wrap" id="avatar-wrap">👤</div>
+                <div class="avatar-info">
+                    <div class="avatar-email-label">E-Mail / Firestore Key</div>
+                    <div class="avatar-email" id="lbl-email">—</div>
+                </div>
+            </div>
+            <div>
+                <label>Profile Picture URL</label>
+                <input type="url" id="in-avatar-url" placeholder="https://example.com/photo.jpg">
+            </div>
+            <div class="img-warning" id="img-warning">
+                ⚠️ Google Photos share links (<code>photos.google.com/share/…</code>) cannot be
+                embedded directly — they redirect to a web page, not a raw image.
+                Use a direct image URL (e.g. from Google Drive "open" link or a CDN).
+            </div>
+            <div style="display:flex;gap:6px;">
+                <button class="btn btn-ghost" id="btn-preview-avatar" style="flex:1;">👁️ Preview</button>
+                <button class="btn" id="btn-clear-avatar">✕</button>
+            </div>
+        </div>
+
+        <!-- Tag Rules -->
+        <div class="card">
+            <div class="card-title">
+                📏 Tag Rules
+                <button class="btn btn-ghost" id="btn-load-rules-local" title="Load all rules from localStorage">⬇️ from localStorage</button>
+            </div>
+
+            <details>
+                <summary>📂 Folder Rules</summary>
+                <div class="rule-list" id="folder-rules-list"></div>
+                <button class="btn" id="btn-add-folder" style="margin-top:4px;width:100%;">+ Add</button>
+            </details>
+
+            <details>
+                <summary>🕶️ Hidden Rules</summary>
+                <div class="rule-list" id="hidden-rules-list"></div>
+                <button class="btn" id="btn-add-hidden" style="margin-top:4px;width:100%;">+ Add</button>
+            </details>
+
+            <details>
+                <summary>📦 Hidden Grouping</summary>
+                <div class="rule-list" id="hidden-group-list"></div>
+                <button class="btn" id="btn-add-hidden-group" style="margin-top:4px;width:100%;">+ Add</button>
+            </details>
+
+            <details>
+                <summary>📁 Folder Grouping</summary>
+                <div class="rule-list" id="folder-group-list"></div>
+                <button class="btn" id="btn-add-folder-group" style="margin-top:4px;width:100%;">+ Add</button>
+            </details>
+        </div>
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div class="col">
+        <div class="card" style="flex:1;">
+            <div class="card-title">
+                🎨 Theme
+                <button class="btn btn-ghost" id="btn-load-theme-firestore" title="Load system theme from Firestore">⬇️ Load System Theme</button>
+            </div>
+            <p style="font-size:0.72em;opacity:.45;line-height:1.5;">
+                Paste / edit the full theme JSON.<br>
+                Set to <code style="color:#5a9acc;">null</code> to use the shared system theme.
+            </p>
+            <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+                <label>Theme JSON (or <code>null</code>)</label>
+                <textarea id="theme-json" spellcheck="false" placeholder="null" style="flex:1;height:auto;min-height:180px;"></textarea>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                <button class="btn" id="btn-theme-null" style="flex:1;">🔄 Reset</button>
+                <button class="btn" id="btn-theme-format" style="flex:1;">🪄 Format</button>
+                <button class="btn btn-ok" id="btn-theme-validate" style="flex:1;">✅ Validate</button>
+            </div>
+        </div>
+    </div>
+</main>
+
+<div class="bottom-bar">
+    <span id="last-saved"></span>
+    <span id="status-bar">…</span>
+    <button class="btn" id="btn-reload-profile">🔄 Reload</button>
+    <button class="btn btn-primary" id="btn-save-all">💾 Save Profile</button>
+</div>
+
+<script type="module">
+/**
+ * CRUDX User Profile Manager — self-contained.
+ * No relative imports — works as blob-URL, static file, or Firestore document.
+ *
+ * Email source priority:
+ *   1. #ctx.key  (when launched via CRUDX as an app, key = user email)
+ *   2. auth.currentUser.email  (fallback when opened directly)
+ *
+ * Save mechanism:
+ *   ⚡ Emulator  → setDoc directly (port 8080)
+ *   🌍 Production → POST to Make.com webhook (action:"U")
+ */
+
+import { initializeApp }    from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getFirestore, connectFirestoreEmulator, doc, getDoc, setDoc }
+    from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getAuth, connectAuthEmulator, onAuthStateChanged }
+    from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+// ── Config ───────────────────────────────────────────────────────────────────
+const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyDaEMhzeKaYJEV2INM-pRtUBNW0ZS2LHwE",
+    authDomain: "crudx-e0599.firebaseapp.com",
+    projectId: "crudx-e0599"
+};
+const WEBHOOK_URL = 'https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977';
+const COLLECTION  = 'kv-store';
+const THEME_KEY   = 'CRUDX-CORE_-DATA_-THEME';
+
+// ── Environment Detection ────────────────────────────────────────────────────
+function _getHostname() {
+    try { return window.parent.location.hostname; } catch (_) {}
+    return window.location.hostname || '';
+}
+function _getParentSearch() {
+    try { return window.parent.location.search; } catch (_) { return ''; }
+}
+const _hostname   = _getHostname();
+const _forceProd  = new URLSearchParams(window.location.search  ).get('mode') === 'live'
+                 || new URLSearchParams(_getParentSearch()       ).get('mode') === 'live';
+const _isEmulator = !_forceProd && ['localhost', '127.0.0.1'].includes(_hostname);
+
+console.log(`%c👤 Profile Manager — ${_isEmulator ? '⚡ EMULATOR' : '🌍 PRODUCTION'} (${_hostname})`,
+    `color:white;background:${_isEmulator ? '#8b0000' : '#005000'};padding:2px 8px;border-radius:3px;`);
+
+// ── Firebase Init ─────────────────────────────────────────────────────────────
+const _app  = initializeApp(FIREBASE_CONFIG, 'profile-mgr-' + Date.now());
+const _db   = getFirestore(_app);
+const _auth = getAuth(_app);
+if (_isEmulator) {
+    try { connectFirestoreEmulator(_db, '127.0.0.1', 8080); } catch (_) {}
+    try { connectAuthEmulator(_auth, 'http://127.0.0.1:9099', { disableWarnings: true }); } catch (_) {}
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let _email   = null;
+let _profile = null;
+
+// ── DOM Helpers ───────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+function setStatus(msg, cls = 'status-info') {
+    const el = $('status-bar');
+    el.textContent = msg;
+    el.className = cls;
+}
+
+// ── Context Hash ──────────────────────────────────────────────────────────────
+// Uses window.location.href (not .hash) for robust blob-URL support.
+// Also tries window.parent for CRUDX iframe embedding.
+function _readContext() {
+    const parse = (href) => {
+        try {
+            const idx = href.indexOf('#ctx=');
+            if (idx === -1) return null;
+            return JSON.parse(decodeURIComponent(href.slice(idx + 5)));
+        } catch (_) { return null; }
+    };
+    // 1. Own URL
+    const own = parse(window.location.href);
+    if (own) return own;
+    // 2. Parent URL (CRUDX iframe)
+    try {
+        const parent = parse(window.parent.location.href);
+        if (parent) return parent;
+    } catch (_) {}
+    return {};
+}
+
+// ── Email Resolution ──────────────────────────────────────────────────────────
+// Priority:
+//   1. window.parent.auth.currentUser.email  (CRUDX exposes auth globally — most reliable)
+//   2. ctx.key / ctx.owner  (from #ctx= hash — may fail if value is too large to parse)
+//   3. own auth.currentUser.email  (fallback when opened as a standalone page)
+function _resolveEmail(authUser) {
+    // 1. Parent app's auth (same-origin iframe inside CRUDX)
+    try {
+        const parentEmail = window.parent?.auth?.currentUser?.email;
+        if (parentEmail) {
+            console.log(`👤 Email from window.parent.auth → "${parentEmail}"`);
+            return parentEmail;
+        }
+    } catch (_) {}
+
+    // 2. Context hash (ctx.key or ctx.owner)
+    try {
+        const ctx = _readContext();
+        const candidates = [ctx?.key, ctx?.owner, ctx?.email].map(v => (v ?? '').trim());
+        for (const c of candidates) {
+            if (c.includes('@')) {
+                console.log(`👤 Email from ctx → "${c}"`);
+                return c;
+            }
+        }
+    } catch (_) {}
+
+    // 3. Own Firebase auth (standalone / direct access)
+    if (authUser?.email) {
+        console.log(`👤 Email from own auth → "${authUser.email}"`);
+        return authUser.email;
+    }
+    console.warn('⚠️ Could not resolve email.', { authUser });
+    return null;
+}
+
+// ── Load Profile ──────────────────────────────────────────────────────────────
+async function loadProfile(email) {
+    const snap = await getDoc(doc(_db, COLLECTION, email));
+    if (snap.exists()) {
+        try { _profile = JSON.parse(snap.data().value); }
+        catch { _profile = _mkDefault(); }
+    } else {
+        _profile = _mkDefault();
+        await _persist(email);
+    }
+    return _profile;
+}
+function _mkDefault() {
+    return { version:1, tagRules:{ folder:['>'], hidden:[':'], hiddenGroup:[], folderGroup:[] }, theme:null, profileImage:'' };
+}
+
+// ── Persist ───────────────────────────────────────────────────────────────────
+async function _persist(email) {
+    const docData = {
+        value:          JSON.stringify(_profile, null, 2),
+        label:          'User Profile',
+        owner:          email,
+        last_update_ts: new Date().toISOString()
+    };
+    if (_isEmulator) {
+        console.log(`💾 [EMULATOR] setDoc kv-store/${email}`);
+        await setDoc(doc(_db, COLLECTION, email), docData, { merge: true });
+    } else {
+        console.log(`💾 [PRODUCTION] webhook → ${email}`);
+        const resp = await fetch(WEBHOOK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'U', key: email, ...docData })
+        });
+        if (!resp.ok) throw new Error(`Webhook ${resp.status}`);
+    }
+}
+
+// ── Auth Init ─────────────────────────────────────────────────────────────────
+// Shared loader — called from early-email detection OR from onAuthStateChanged.
+async function _initWithEmail(email) {
+    if (_profile) return;              // already loaded
+    _email = email;
+    _setEmailUI(email);
+    setStatus(`⏳ Loading…  [${_isEmulator ? '⚡ EMU' : '🌍 PRD'}]`);
+    try {
+        await loadProfile(email);
+        fillUI();
+        setStatus(`✅ Loaded  [${_isEmulator ? '⚡ EMU' : '🌍 PRD'}]`, 'status-ok');
+    } catch (e) {
+        setStatus('❌ ' + e.message, 'status-err');
+    }
+}
+
+// Fast path: resolve email immediately WITHOUT waiting for own onAuthStateChanged.
+// Sources tried in order:
+//   1. window.parent.auth.currentUser.email  (CRUDX sets window.auth globally)
+//   2. #ctx hash key / owner  (may fail for very large payloads)
+(async function tryEarlyEmail() {
+    // 1. Parent auth — synchronous, most reliable inside CRUDX iframe
+    try {
+        const e = window.parent?.auth?.currentUser?.email;
+        if (e) { await _initWithEmail(e); return; }
+    } catch (_) {}
+
+    // 2. Context hash (works for small contexts)
+    try {
+        const ctx = _readContext();
+        const candidates = [ctx?.key, ctx?.owner, ctx?.email].map(v => (v ?? '').trim());
+        for (const c of candidates) {
+            if (c.includes('@')) { await _initWithEmail(c); return; }
+        }
+    } catch (_) {}
+    // No email found yet — fall through to onAuthStateChanged below
+})();
+
+// Fallback: own Firebase auth instance (slower, fires ~200ms later)
+onAuthStateChanged(_auth, async (user) => {
+    const email = _resolveEmail(user) || _email;
+    if (!email) {
+        if (!_profile) setStatus('⚠️ Not signed in.', 'status-err');
+        return;
+    }
+    await _initWithEmail(email);
+});
+
+function _setEmailUI(email) {
+    $('lbl-email').textContent   = email;
+    $('user-label').textContent  = email;
+}
+
+// ── Fill UI ───────────────────────────────────────────────────────────────────
+function fillUI() {
+    if (!_profile) return;
+    $('in-avatar-url').value = _profile.profileImage || '';
+    _renderAvatar(_profile.profileImage);
+
+    const r  = _profile.tagRules || {};
+    const fr = r.folder?.length      ? r.folder      : _lsArr('crudx_tag_rules','folder', ['>']);
+    const hr = r.hidden?.length      ? r.hidden      : _lsArr('crudx_tag_rules','hidden', [':']);
+    const hg = r.hiddenGroup?.length ? r.hiddenGroup : _lsRaw('crudx_hidden_group_rules', []);
+    const fg = r.folderGroup?.length ? r.folderGroup : _lsRaw('crudx_folder_group_rules', ['Created>','Last Read>','Last Updated>','Last Executed>']);
+
+    _renderList('folder-rules-list', fr);
+    _renderList('hidden-rules-list', hr);
+    _renderList('hidden-group-list', hg);
+    _renderList('folder-group-list', fg);
+
+    $('theme-json').value = (_profile.theme?.themes) ? JSON.stringify(_profile.theme, null, 2) : 'null';
+    $('last-saved').textContent = '';
+}
+
+// ── localStorage helpers ──────────────────────────────────────────────────────
+function _lsArr(key, field, def) {
+    try { const r = JSON.parse(localStorage.getItem(key)); return r?.[field] ?? def; } catch { return def; }
+}
+function _lsRaw(key, def) {
+    try { return JSON.parse(localStorage.getItem(key)) ?? def; } catch { return def; }
+}
+
+// ── Rule List Rendering ───────────────────────────────────────────────────────
+function _renderList(id, items) {
+    const c = $(id); if (!c) return;
+    c.innerHTML = '';
+    items.forEach((v, i) => {
+        const row = document.createElement('div');
+        row.className = 'rule-row';
+        row.innerHTML = `<input type="text" value="${_esc(v)}" placeholder="Regex…"><button class="del">✕</button>`;
+        row.querySelector('input').oninput = e => { items[i] = e.target.value; };
+        row.querySelector('.del').onclick  = () => { items.splice(i,1); _renderList(id, items); };
+        c.appendChild(row);
+    });
+}
+function _getList(id) {
+    return Array.from(document.querySelectorAll(`#${id} input`)).map(el => el.value.trim()).filter(Boolean);
+}
+function _addRule(id) {
+    const items = _getList(id); items.push('');
+    _renderList(id, items);
+    $(id).querySelector('.rule-row:last-child input')?.focus();
+}
+
+// ── Avatar Rendering ──────────────────────────────────────────────────────────
+function _renderAvatar(url) {
+    const w = $('avatar-wrap'); if (!w) return;
+    const warn = $('img-warning');
+    if (url?.trim()) {
+        const isGooglePhotos = url.includes('photos.google.com');
+        if (isGooglePhotos && warn) warn.style.display = 'block';
+        else if (warn) warn.style.display = 'none';
+        w.innerHTML = `<img src="${url.trim()}" alt="👤" onerror="this.parentElement.innerHTML='❌'">`;
+    } else {
+        if (warn) warn.style.display = 'none';
+        w.innerHTML = '👤';
+    }
+}
+
+// ── Button Handlers ───────────────────────────────────────────────────────────
+$('btn-preview-avatar').onclick = () => _renderAvatar($('in-avatar-url').value.trim());
+$('btn-clear-avatar').onclick   = () => { $('in-avatar-url').value = ''; _renderAvatar(''); };
+
+$('btn-load-rules-local').onclick = () => {
+    _renderList('folder-rules-list', _lsArr('crudx_tag_rules','folder',['>']));
+    _renderList('hidden-rules-list', _lsArr('crudx_tag_rules','hidden',[':']));
+    _renderList('hidden-group-list', _lsRaw('crudx_hidden_group_rules',[]));
+    _renderList('folder-group-list', _lsRaw('crudx_folder_group_rules',['Created>','Last Read>','Last Updated>','Last Executed>']));
+    setStatus('📦 Rules loaded from localStorage', 'status-info');
+};
+
+$('btn-load-theme-firestore').onclick = async () => {
+    setStatus('⏳ Loading system theme…');
+    try {
+        const snap = await getDoc(doc(_db, COLLECTION, THEME_KEY));
+        if (!snap.exists()) { setStatus('⚠️ System theme not found', 'status-err'); return; }
+        const d = snap.data();
+        const cfg = (d.value?.includes?.('"themes"')) ? JSON.parse(d.value) : d;
+        $('theme-json').value = JSON.stringify(cfg, null, 2);
+        setStatus('✅ System theme loaded', 'status-ok');
+    } catch (e) { setStatus('❌ ' + e.message, 'status-err'); }
+};
+
+$('btn-theme-null').onclick = () => { $('theme-json').value = 'null'; setStatus('🔄 Theme reset to null', 'status-info'); };
+$('btn-theme-format').onclick = () => {
+    try {
+        const v = $('theme-json').value.trim();
+        if (v !== 'null') $('theme-json').value = JSON.stringify(JSON.parse(v), null, 2);
+        setStatus('🪄 Formatted', 'status-ok');
+    } catch (e) { setStatus('❌ ' + e.message, 'status-err'); }
+};
+$('btn-theme-validate').onclick = () => {
+    try {
+        const v = $('theme-json').value.trim();
+        if (v === 'null') { setStatus('✅ null — uses system theme', 'status-ok'); return; }
+        const t = JSON.parse(v);
+        if (!t.startupTheme || !t.themes) throw new Error('"startupTheme" or "themes" missing');
+        setStatus(`✅ Valid: startupTheme="${t.startupTheme}", ${Object.keys(t.themes).length} themes`, 'status-ok');
+    } catch (e) { setStatus('❌ ' + e.message, 'status-err'); }
+};
+
+$('btn-add-folder').onclick       = () => _addRule('folder-rules-list');
+$('btn-add-hidden').onclick       = () => _addRule('hidden-rules-list');
+$('btn-add-hidden-group').onclick  = () => _addRule('hidden-group-list');
+$('btn-add-folder-group').onclick  = () => _addRule('folder-group-list');
+
+$('btn-reload-profile').onclick = async () => {
+    if (!_email) { setStatus('⚠️ No email', 'status-err'); return; }
+    setStatus('⏳ Reloading…');
+    try { _profile = null; await loadProfile(_email); fillUI(); setStatus(`✅ Reloaded  [${_isEmulator?'⚡ EMU':'🌍 PRD'}]`, 'status-ok'); }
+    catch (e) { setStatus('❌ ' + e.message, 'status-err'); }
+};
+
+$('btn-save-all').onclick = async () => {
+    if (!_email) { setStatus('⚠️ No email — not signed in', 'status-err'); return; }
+    $('btn-save-all').disabled = true; $('btn-save-all').textContent = '⏳';
+    try {
+        let theme = null;
+        const raw = $('theme-json').value.trim();
+        if (raw && raw !== 'null') {
+            theme = JSON.parse(raw);
+            if (!theme.startupTheme || !theme.themes) throw new Error('"startupTheme"/"themes" missing');
+        }
+        _profile = { ...(_profile || _mkDefault()),
+            profileImage: $('in-avatar-url').value.trim(),
+            tagRules: {
+                folder:      _getList('folder-rules-list'),
+                hidden:      _getList('hidden-rules-list'),
+                hiddenGroup: _getList('hidden-group-list'),
+                folderGroup: _getList('folder-group-list')
+            },
+            theme
+        };
+        await _persist(_email);
+        const t = new Date().toLocaleTimeString();
+        $('last-saved').textContent = `Saved ${t}  [${_isEmulator?'⚡ EMU':'🌍 PRD'}]`;
+        setStatus(`✅ Saved  [${_isEmulator?'⚡ EMU':'🌍 PRD'}]`, 'status-ok');
+    } catch (e) {
+        setStatus('❌ ' + e.message, 'status-err'); console.error(e);
+    }
+    $('btn-save-all').disabled = false; $('btn-save-all').textContent = '💾 Save Profile';
+};
+
+// ── Utils ─────────────────────────────────────────────────────────────────────
+function _esc(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+</script>
+</body>
+</html>

@@ -612,6 +612,14 @@ export function initThemeControls() {
                     if (!response.ok) throw new Error(`Webhook Error: ${response.statusText}`);
                 }
 
+                // Also persist the theme to the user's own profile
+                import('./user-profile.js').then(({ saveProfileUpdates, getCurrentProfile }) => {
+                    if (getCurrentProfile()) {
+                        saveProfileUpdates({ theme: config })
+                            .catch(err => console.warn('Could not save theme to user profile:', err));
+                    }
+                }).catch(() => {});
+
                 saveCloudBtn.textContent = "✅ Saved!";
                 setTimeout(() => {
                     saveCloudBtn.textContent = originalText;

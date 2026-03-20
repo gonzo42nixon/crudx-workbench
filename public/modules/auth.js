@@ -3,6 +3,7 @@ import { auth, db } from './firebase.js';
 import { fetchRealData, loadStateFromUrl } from './pagination.js';
 import { applyLayout } from './layout-manager.js';
 import { doc, getDoc, setDoc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { loadAndApplyProfile, saveProfileUpdates, applyProfilePicture, getCurrentProfile } from './user-profile.js';
 
 // Hilfsfunktion für Event-Listener (wie in app.js)
 const bind = (id, event, fn) => {
@@ -168,6 +169,30 @@ export function initAuth() {
                     };
                 }
 
+                // ── Edit Profile Button ──────────────────────────────────────
+                // Öffnet profile.html im CRUDX IFrame-Modal (gleicher Origin → window.parent.auth funktioniert)
+                const btnOpenProfileEditor = document.getElementById('btn-open-profile-editor');
+                if (btnOpenProfileEditor) {
+                    btnOpenProfileEditor.onclick = (e) => {
+                        e.stopPropagation();
+                        // User-Popup schließen
+                        if (userModal) userModal.classList.remove('active');
+
+                        const iframeModal = document.getElementById('iframe-modal');
+                        const iframe      = document.getElementById('doc-frame');
+                        const iframeUrl   = document.getElementById('iframe-url');
+
+                        if (!iframeModal || !iframe) return;
+
+                        // profile.html wird als statische Seite geladen (kein Blob nötig).
+                        // window.parent.auth.currentUser ist daher sofort verfügbar.
+                        const profileUrl = '/profile.html';
+                        iframe.src = profileUrl;
+                        if (iframeUrl) iframeUrl.value = profileUrl;
+                        iframeModal.classList.add('active');
+                    };
+                }
+
                 // Schließen-Button im Popup
                 const btnCloseUser = document.getElementById('btn-close-user');
                 if (btnCloseUser) {
@@ -183,6 +208,45 @@ export function initAuth() {
 
                 // 2. Layout anwenden (initialLoad = true verhindert Page-Reset)
                 applyLayout(layout, true);
+
+                // 3. User Profile laden (Firestore) — applies tag rules + profile picture.
+                //    Dispatches "crudx:profile-loaded" so app.js can apply the user theme
+                //    without circular imports.
+                await loadAndApplyProfile(user.email);
+
+                // 4. Greeting in user popup dynamisch setzen
+                const greeting = document.getElementById('modal-user-greeting');
+                if (greeting) {
+                    const name = user.displayName || user.email.split('@')[0];
+                    greeting.textContent = `Hi, ${name}!`;
+                }
+
+                // 5. Profilbild-URL-Input sync + Save-Handler
+                const btnSaveProfileImage = document.getElementById('btn-save-profile-image');
+                if (btnSaveProfileImage) {
+                    btnSaveProfileImage.onclick = async () => {
+                        const input = document.getElementById('in-profile-image-url');
+                        const url   = input?.value?.trim() ?? '';
+                        btnSaveProfileImage.textContent = '⏳';
+                        await saveProfileUpdates({ profileImage: url });
+                        applyProfilePicture(url);
+                        btnSaveProfileImage.textContent = '✅';
+                        setTimeout(() => { btnSaveProfileImage.textContent = '💾'; }, 2000);
+                    };
+                }
+
+                // Sync profile image URL into input whenever the popup opens
+                userProfile.onclick = (e) => {
+                    e.stopPropagation();
+                    if (modalEmail) modalEmail.textContent = user.email;
+                    const rect = userProfile.getBoundingClientRect();
+                    userModal.style.top  = `${rect.bottom + 10}px`;
+                    userModal.style.left = `${rect.right - 280}px`;
+                    // Sync current profile image URL into the input
+                    const imgInput = document.getElementById('in-profile-image-url');
+                    if (imgInput) imgInput.value = getCurrentProfile()?.profileImage ?? '';
+                    userModal.classList.toggle('active');
+                };
 
                 // Signal to app.js that the user is authenticated so Firestore
                 // listeners (theme, tag cloud) can start safely.

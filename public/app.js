@@ -22,6 +22,7 @@ import { injectGlobalUI } from './modules/ui-injector.js';
 import { initEditor, openUpdateModal } from './modules/editor.js';
 import { openTagModal } from './modules/tag-manager.js';
 import { syncViewModeToUrl } from './modules/url-manager.js';
+import { hasUserTheme } from './modules/user-profile.js';
 
 document.addEventListener("DOMContentLoaded", async () => {
     try {
@@ -99,13 +100,33 @@ document.addEventListener("DOMContentLoaded", async () => {
         themeState.currentActiveTheme = themeState.appConfig.startupTheme;
         applyTheme(themeState.currentActiveTheme);
 
-        // 2. Real-time Theme Loader — deferred until auth because Firestore rules
-        //    require authentication for all reads.
+        // 2a. User Profile Theme — fires when user-profile.js has loaded the profile.
+        //     Applied BEFORE the global system theme starts so it is the "last write wins".
+        //     Also suppresses future system-theme snapshots when a user theme is active.
+        window.addEventListener('crudx:profile-loaded', (e) => {
+            const profile = e.detail;
+            if (profile?.theme?.themes && profile?.theme?.startupTheme) {
+                themeState.appConfig = profile.theme;
+                themeState.currentActiveTheme = profile.theme.startupTheme;
+                applyTheme(themeState.currentActiveTheme);
+                syncModalUI();
+                console.log('🎨 User profile theme applied (overrides system theme)');
+            }
+        });
+
+        // 2b. Real-time Theme Loader — deferred until auth because Firestore rules
+        //     require authentication for all reads.
+        //     Skipped entirely when the user has a custom theme in their profile.
         window.addEventListener('crudx:authenticated', () => {
             const themeOverrideKey = urlParams.get('theme');
             const systemThemeKey = "CRUDX-CORE_-DATA_-THEME";
 
             const processThemeSnapshot = (snap, label, key) => {
+                // User's own profile theme takes priority — skip global snapshots
+                if (hasUserTheme()) {
+                    console.log(`🎨 Skipping ${label} [${key}]: user has a custom profile theme`);
+                    return;
+                }
                 if (snap.exists()) {
                     const data = snap.data();
                     try {
