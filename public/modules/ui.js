@@ -5,6 +5,41 @@ import { getAccessTokens, escapeHtml } from './utils.js';
 import { getTagSector } from './tag-state.js';
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
+/**
+ * Parst ein card-background-Tag und gibt die CSS-Variablenwerte zurück.
+ *
+ * Tag-Format:
+ *   card-background:image-link-<URL>_dim-<0-100>_saturation-<0-100>_blur-<0-100>
+ *
+ * Alle Parameter außer der URL sind optional (Defaults: dim=0, saturation=100, blur=0).
+ * Die URL kann selbst Unterstriche enthalten – die Parameter werden von hinten abgestreift.
+ */
+function parseCardBgTag(tag) {
+    const payload = tag.substring('card-background:'.length);            // "image-link-<URL>_dim-N…"
+    let url = payload.replace(/^image-link-/, '');                       // "<URL>_dim-N…"
+
+    // Extraktion der numerischen Parameter (egal wo im String)
+    const dimMatch  = url.match(/_dim-(\d+)/);
+    const satMatch  = url.match(/_saturation-(\d+)/);
+    const blurMatch = url.match(/_blur-(\d+)/);
+
+    // Parameter von HINTEN abstreifen, damit die URL erhalten bleibt
+    const paramRe = /_(?:dim|saturation|blur)-\d+$/;
+    for (let i = 0; i < 3; i++) url = url.replace(paramRe, '');
+    url = url.trim();
+
+    const dim    = dimMatch  ? Math.max(0, Math.min(100, parseInt(dimMatch[1])))  : 0;
+    const sat    = satMatch  ? Math.max(0, Math.min(100, parseInt(satMatch[1])))  : 100;
+    const blurPc = blurMatch ? Math.max(0, Math.min(100, parseInt(blurMatch[1]))) : 0;
+    const blurPx = (blurPc * 0.5).toFixed(1);   // 100 % → 50 px
+
+    return {
+        image:   url,
+        opacity: ((100 - dim) / 100).toFixed(2),
+        filter:  `saturate(${sat}%) blur(${blurPx}px)`
+    };
+}
+
 function renderSysTags(d, currentUserEmail) {
     const toIso = (val) => {
         if (!val) return null;
@@ -137,11 +172,27 @@ export async function renderDataFromDocs(docs, container) {
 
         const folderTags = [];
         const cloudTags = [];
+        let cardBgTag = null;
         if (Array.isArray(d.user_tags)) {
             d.user_tags.forEach(tag => {
-                if (getTagSector(tag) === 'folder') folderTags.push(tag);
-                else cloudTags.push(tag);
+                if (tag.startsWith('card-background:')) {
+                    cardBgTag = tag;   // Funktions-Tag: nicht als Pill rendern
+                } else if (getTagSector(tag) === 'folder') {
+                    folderTags.push(tag);
+                } else {
+                    cloudTags.push(tag);
+                }
             });
+        }
+
+        // Karten-lokales Hintergrundbild: überschreibt die globalen CSS-Variablen
+        // via Inline-Style (CSS Custom Properties kaskadieren zu ::before weiter)
+        let cardBgInlineStyle = '';
+        if (cardBgTag) {
+            const bg = parseCardBgTag(cardBgTag);
+            if (bg.image) {
+                cardBgInlineStyle = `--card-bg-image: url('${bg.image}'); --card-bg-image-opacity: ${bg.opacity}; --card-bg-image-filter: ${bg.filter};`;
+            }
         }
 
         let userTagsHtml = '';
@@ -172,7 +223,7 @@ export async function renderDataFromDocs(docs, container) {
         const actionButtonsHtml = getActionButtons(d, currentUserEmail, tokens);
 
         htmlBuffer += `
-            <div class="card-kv" ${appLoadedAttr} data-mime="${foundMime ? foundMime.type : ''}" data-doc="${escapeHtml(JSON.stringify(d))}">
+            <div class="card-kv" ${appLoadedAttr} data-mime="${foundMime ? foundMime.type : ''}" data-doc="${escapeHtml(JSON.stringify(d))}"${cardBgInlineStyle ? ` style="${cardBgInlineStyle}"` : ''}>
                 ${actionButtonsHtml}
                 <div class="tl-group">
                     <div class="pill pill-key" title="KEY">${doc.id}</div>
