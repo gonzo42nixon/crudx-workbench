@@ -241,33 +241,44 @@
 }
 
 /* ========== USER POPUP ========== */
+/*
+ * Hintergrund ist immer dunkel (rgba 15,18,28) → alle Texte explizit hell.
+ * KEINE Abhängigkeit von CSS-Variablen, die in hellen Themes dunkel sein können.
+ */
 .user-popup {
     display: none;
     position: fixed;
     width: 280px;
-    /* Nutzt jetzt deine Theme-Einstellungen für Glas und Farbe */
-    background: var(--editor-glass) !important;
-    backdrop-filter: var(--editor-blur) !important;
-    border: 1px solid var(--editor-border) !important;
+    /* Festes, weitgehend deckend – weniger Transparenz als editor-glass */
+    background: rgba(15, 18, 28, 0.92) !important;
+    backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.14) !important;
     border-radius: 20px;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.8);
     z-index: 9999;
     padding: 15px;
-    color: var(--editor-text) !important;
+    /* Explizit hell – nicht vom Theme abhängig */
+    color: #dde4f0 !important;
     font-family: sans-serif;
 }
+/* Transparenz-Stufen via Toggle */
+.user-popup-trans-1 { background: rgba(15, 18, 28, 0.60) !important; }
+.user-popup-trans-2 { background: rgba(15, 18, 28, 0.22) !important; }
 .user-popup.active {
     display: block;
 }
 .user-popup-header {
     display: flex;
     justify-content: flex-end;
+    align-items: center;
 }
+/* ✕ und 👁️ erben #dde4f0 vom .user-popup – dadurch immer gut lesbar */
 .close-x {
     cursor: pointer;
     font-size: 20px;
-    opacity: 0.5;
+    opacity: 0.55;
     padding: 5px;
+    color: inherit;
 }
 .close-x:hover {
     opacity: 1;
@@ -279,15 +290,21 @@
     font-size: 50px;
     margin-bottom: 10px;
 }
+/* E-Mail: deutlich hell, leicht gedimmt */
 .user-email-text {
     font-size: 13px;
-    opacity: 0.7;
+    color: #a8c2e8;   /* helles Blau – gut lesbar auf dunklem BG */
     margin-bottom: 20px;
+}
+/* Begrüßungs-Überschrift explizit hell */
+.user-popup-body h3 {
+    color: #eef1f8;
+    margin-bottom: 8px;
 }
 .btn-logout-action {
     background: transparent;
-    border: 1px solid #555;
-    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    color: #dde4f0;   /* immer helles Weiß-Grau */
     padding: 8px 16px;
     border-radius: 20px;
     cursor: pointer;
@@ -295,12 +312,21 @@
 }
 .btn-logout-action:hover {
     background: rgba(255,255,255,0.1);
+    border-color: rgba(255,255,255,0.5);
 }
+/* Footer-Links: heller Basistext mit Transparenz */
 .user-popup-footer {
     margin-top: 15px;
     font-size: 11px;
-    opacity: 0.4;
+    color: rgba(200, 218, 240, 0.45);  /* explizit hell, aber dezent */
     text-align: center;
+}
+.user-popup-footer a {
+    color: rgba(160, 195, 235, 0.55);
+    text-decoration: none;
+}
+.user-popup-footer a:hover {
+    color: rgba(160, 195, 235, 0.9);
 }
 
 /* ========== WHITELIST EDITOR ========== */

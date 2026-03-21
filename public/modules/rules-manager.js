@@ -75,18 +75,16 @@ export function initRulesManager() {
 
         setTagRules(newRules);
 
-        // Persist rules to user profile (fire-and-forget, no UI block)
-        import('./user-profile.js').then(({ saveProfileUpdates, getCurrentProfile }) => {
-            if (getCurrentProfile()) {
-                saveProfileUpdates({
-                    tagRules: {
-                        folder:      newRules.folder,
-                        hidden:      newRules.hidden,
-                        hiddenGroup: getHiddenGroupRules(),
-                        folderGroup: getFolderGroupRules()
-                    }
-                }).catch(err => console.warn('Could not save rules to user profile:', err));
-            }
+        // Persist rules ONLY to CRUDX-CORE_-DATA_-RULES (fire-and-forget, no UI block).
+        // NEVER call saveProfileUpdates() here — that would overwrite drueffler@gmail.com
+        // and destroy its user_tags / ACL fields!
+        import('./user-profile.js').then(({ saveRulesToRulesDoc }) => {
+            saveRulesToRulesDoc({
+                folder:      newRules.folder,
+                hidden:      newRules.hidden,
+                hiddenGroup: getHiddenGroupRules(),
+                folderGroup: getFolderGroupRules()
+            }).catch(err => console.warn('Could not save rules to CRUDX-CORE_-DATA_-RULES:', err));
         }).catch(() => {/* module not loaded yet — no-op */});
 
         document.getElementById('tag-rules-modal').classList.remove('active');

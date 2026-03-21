@@ -327,8 +327,3 @@ body.ftc-docked.layout-grid-1 .card-kv[data-mime="MD"] iframe {
 
 /* Special styling for Markdown docs when docked: 100% Transparent */
 body.ftc-docked .card-kv[data-mime="MD"] {
-    background: transparent !important;
-    border-color: transparent !important;
-    box-shadow: none !important;
-    backdrop-filter: none !important;
-}

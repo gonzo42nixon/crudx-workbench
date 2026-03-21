@@ -170,23 +170,44 @@ export function initAuth() {
                 }
 
                 // ── Edit Profile Button ──────────────────────────────────────
-                // Öffnet profile.html im CRUDX IFrame-Modal (gleicher Origin → window.parent.auth funktioniert)
+                // Öffnet den Profil-Editor aus Firestore (CRUDX-CORE_PRFLE-EDITR) via Make.com Webhook.
+                // NICHT /profile.html (static) — der Firestore-Eintrag ist die einzige authoritative Version!
                 const btnOpenProfileEditor = document.getElementById('btn-open-profile-editor');
                 if (btnOpenProfileEditor) {
                     btnOpenProfileEditor.onclick = (e) => {
                         e.stopPropagation();
-                        // User-Popup schließen
                         if (userModal) userModal.classList.remove('active');
 
                         const iframeModal = document.getElementById('iframe-modal');
                         const iframe      = document.getElementById('doc-frame');
                         const iframeUrl   = document.getElementById('iframe-url');
-
                         if (!iframeModal || !iframe) return;
 
-                        // profile.html wird als statische Seite geladen (kein Blob nötig).
-                        // window.parent.auth.currentUser ist daher sofort verfügbar.
-                        const profileUrl = '/profile.html';
+                        // Profil-Editor aus Firestore via Make.com Webhook ausführen.
+                        // ?action=X  → Execute (Webhook gibt die App-HTML zurück)
+                        // ?key=email → Daten-Dokument (das User-Profil, key = email)
+                        // ?app=...   → App-Dokument  (der Editor, key = CRUDX-CORE_PRFLE-EDITR)
+                        // ?data=email→ Alias für key (macht den Datensatz im CRUDX_CONTEXT verfügbar)
+                        // Open the CRUDX Profile Manager via Make.com webhook (action=X).
+                        // key + data = user e-mail (URL-encoded), app = profile editor document key.
+                        const emailEnc  = encodeURIComponent(user.email);
+                        const profileUrl = `https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977?action=X&key=${emailEnc}&data=${emailEnc}&app=CRUDX-CORE_-_APP_-PROFI`;
+
+                        // ── Standard-Dimensionen & Position des Profil-Pop-Outs ──────────
+                        // Nullpunkt: Viewport oben links  (transform:none = kein Auto-Zentrierung)
+                        // Diese Werte greifen sofort — bevor init:-Tag aus profile.html ankommt.
+                        // Sobald profile.html geladen ist, sendet es per postMessage ggf. andere
+                        // Werte aus dem init:-Tag in _docMeta.user_tags.
+                        const mc = iframeModal.querySelector('.modal-content');
+                        if (mc) {
+                            mc.style.width     = '33%';    // 33 % Viewport-Breite
+                            mc.style.height    = '66%';    // 66 % Viewport-Höhe
+                            mc.style.left      = '33%';    // X-Achse: 33 % vom linken Rand
+                            mc.style.top       = '17%';    // Y-Achse: 17 % vom oberen Rand
+                            mc.style.transform = 'none';   // Auto-Zentrierung deaktivieren
+                            mc.style.opacity   = '0.85';   // 85 % Deckkraft (15 % Transparenz)
+                        }
+
                         iframe.src = profileUrl;
                         if (iframeUrl) iframeUrl.value = profileUrl;
                         iframeModal.classList.add('active');
@@ -199,6 +220,22 @@ export function initAuth() {
                     btnCloseUser.onclick = (e) => {
                         e.stopPropagation();
                         userModal.classList.remove('active');
+                    };
+                }
+
+                // Transparenz-Toggle im User-Popup (👁️)
+                // Stufen: 0 = opak (Standard) → 1 = mittel → 2 = transparent → zurück zu 0
+                const btnUserTransparency = document.getElementById('btn-user-popup-transparency');
+                if (btnUserTransparency) {
+                    let _transState = 0;
+                    btnUserTransparency.onclick = (e) => {
+                        e.stopPropagation();
+                        _transState = (_transState + 1) % 3;
+                        userModal.classList.remove('user-popup-trans-1', 'user-popup-trans-2');
+                        if (_transState === 1) userModal.classList.add('user-popup-trans-1');
+                        if (_transState === 2) userModal.classList.add('user-popup-trans-2');
+                        // Icon-Helligkeit als visuelles Feedback: dunkel = opak, hell = transparent
+                        btnUserTransparency.style.opacity = _transState === 0 ? '0.5' : _transState === 1 ? '0.75' : '1';
                     };
                 }
 
@@ -460,6 +497,29 @@ export function initAuth() {
     window.addEventListener('click', () => {
         const userModal = document.getElementById('user-modal');
         if (userModal) userModal.classList.remove('active');
+    });
+
+    // ── postMessage: init:-Tag → iFrame-Modal Resize ─────────────────────────
+    // profile.html sendet dieses Event wenn es cross-origin im iFrame läuft
+    // (z. B. hook.eu1.make.com) und der direkte DOM-Zugriff blockiert ist.
+    // Format: { type:'crudx:resize-modal', w, h, t, l }  (CSS-Werte oder null)
+    window.addEventListener('message', (e) => {
+        if (e.data?.type !== 'crudx:resize-modal') return;
+        const mc = document.querySelector('#iframe-modal .modal-content');
+        if (!mc) return;
+
+        const { w, h, t, l } = e.data;
+        if (w) mc.style.width  = w;
+        if (h) mc.style.height = h;
+
+        // Positionierung: Transform-Zentrierung aufheben wenn explizite Koordinaten gesetzt
+        if (t !== null && t !== undefined || l !== null && l !== undefined) {
+            mc.style.transform = 'none';
+            if (t) mc.style.top  = t;
+            if (l) mc.style.left = l;
+        }
+
+        console.log(`📐 [auth.js] crudx:resize-modal applied:`, { w, h, t, l });
     });
 }
 

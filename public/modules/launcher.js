@@ -60,8 +60,11 @@ export async function generateSecureAppBlob(key, d) {
     let contextData = null;
     
     // 1. Build Params
+    // Default action=X. Upgraded to action=X+ if the APP document has the "X+" tag —
+    // Make.com then injects the FULL Firestore document (incl. user_tags, white_list_*)
+    // into #data-1, allowing apps like profile.html to preserve metadata on save.
     const params = new URLSearchParams();
-    params.append("action", "X");
+    params.append("action", "X");   // may be upgraded to "X+" after fetching app doc below
     params.append("key", key);
 
     if (tags.includes("app")) {
@@ -84,15 +87,27 @@ export async function generateSecureAppBlob(key, d) {
     if (!params.has("app")) return null; // Not an app execution
 
     // 2. Fetch App Content
+    // Also check the APP document's user_tags for "X+" — if present, upgrade the action
+    // so Make.com injects the FULL data document (incl. user_tags, white_list_*) into #data-1.
     const appKey = params.get("app");
     let appContent = "";
 
     if (appKey === key) {
         appContent = d.value;
+        // Self-referential: same doc is both app and data — check its own tags for "X+"
+        if (tags.includes("X+")) params.set("action", "X+");
     } else {
         const appDocSnap = await getDoc(doc(db, "kv-store", appKey));
         if (appDocSnap.exists()) {
             appContent = appDocSnap.data().value;
+            // Upgrade to action=X+ if the APP document opts in via the "X+" tag.
+            // Make.com will then inject the FULL Firestore data document into #data-1,
+            // allowing the app to read user_tags, white_list_* etc. without SDK auth.
+            const appTags = appDocSnap.data().user_tags || [];
+            if (appTags.includes("X+")) {
+                params.set("action", "X+");
+                console.log(`🔑 action upgraded to X+ (app "${appKey}" has "X+" tag)`);
+            }
         } else {
             return null; // App not found
         }

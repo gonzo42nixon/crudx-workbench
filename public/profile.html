@@ -17,9 +17,21 @@
         html, body { height: 100%; overflow: hidden; }
         body {
             font-family: 'Segoe UI', system-ui, sans-serif;
-            background: #0a0a0a; color: #ddd;
+            /* Initial: leicht transparent – Hintergrund der CRUDX-App schimmert durch */
+            background: rgba(10, 10, 10, 0.80);
+            color: #ddd;
             display: flex; flex-direction: column;
         }
+        /* Transparenz-Stufen (via JS-Toggle) */
+        body.trans-opaque       { background: #0a0a0a !important; }
+        body.trans-transparent  { background: rgba(10, 10, 10, 0.30) !important; }
+        /* Cards, Top- & Bottom-Bar folgen dem Transparenz-Zustand */
+        body:not(.trans-opaque) .card        { background: rgba(17, 17, 17, 0.82); }
+        body.trans-transparent  .card        { background: rgba(17, 17, 17, 0.48) !important; }
+        body:not(.trans-opaque) .top-bar     { background: rgba(17, 17, 17, 0.88); }
+        body.trans-transparent  .top-bar     { background: rgba(17, 17, 17, 0.50) !important; }
+        body:not(.trans-opaque) .bottom-bar  { background: rgba(13, 13, 13, 0.88); }
+        body.trans-transparent  .bottom-bar  { background: rgba(13, 13, 13, 0.50) !important; }
 
         /* ── Top Bar ──────────────────────────────────────────────────────── */
         .top-bar {
@@ -124,7 +136,7 @@
         details[open] > summary::before { content: '▼'; }
 
         /* ── Theme Textarea ───────────────────────────────────────────────── */
-        #theme-json { height: 220px; min-height: 100px; }
+        #theme-json { height: 120px; min-height: 60px; }
 
         /* ── Image Warning ────────────────────────────────────────────────── */
         .img-warning {
@@ -155,7 +167,7 @@
 <body>
 
 <div class="top-bar">
-    <a href="/">← CRUDX</a>
+    <a href="https://crudx-e0599.web.app/?" target="_parent">← CRUDX</a>
     <h1>👤 User Profile</h1>
     <span id="user-label">…</span>
 </div>
@@ -192,7 +204,7 @@
         <div class="card">
             <div class="card-title">
                 📏 Tag Rules
-                <button class="btn btn-ghost" id="btn-load-rules-local" title="Load all rules from localStorage">⬇️ from localStorage</button>
+                <button class="btn btn-ghost" id="btn-load-rules-firestore" title="Load system rules from Firestore (CRUDX-CORE_-DATA_-RULES)">⬇️ Load System Rule</button>
             </div>
 
             <details>
@@ -234,7 +246,7 @@
             </p>
             <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
                 <label>Theme JSON (or <code>null</code>)</label>
-                <textarea id="theme-json" spellcheck="false" placeholder="null" style="flex:1;height:auto;min-height:180px;"></textarea>
+                <textarea id="theme-json" spellcheck="false" placeholder="null" style="flex:1;height:auto;"></textarea>
             </div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
                 <button class="btn" id="btn-theme-null" style="flex:1;">🔄 Reset</button>
@@ -244,6 +256,25 @@
         </div>
     </div>
 </main>
+
+<!--
+  data-1: Make.com injiziert hier den Profil-Wert (value-Feld des Firestore-Dokuments).
+  Ohne dieses Element kann Make.com keine Daten übergeben → Fallback auf Webhook-Read.
+  Das Element ist unsichtbar und wird vom JS beim ersten Lesen geleert (consume-once).
+-->
+<textarea id="data-1" style="display:none;position:absolute;left:-9999px;" aria-hidden="true"></textarea>
+
+<!-- ── Tags-Leiste (immer sichtbar, analog UPDATE-Modal) ──────────────── -->
+<!-- Wird nach loadProfile() automatisch mit user_tags des Profil-Dokuments befüllt. -->
+<div id="doc-tags-bar" style="
+    display: flex; flex-wrap: wrap; gap: 5px; align-items: center;
+    padding: 5px 14px; background: rgba(12, 14, 22, 0.95);
+    border-top: 1px solid #1a1e2e; flex-shrink: 0; min-height: 28px;
+">
+    <span style="font-size:0.68em;color:#445;font-weight:700;letter-spacing:.06em;
+                 text-transform:uppercase;margin-right:4px;flex-shrink:0;">🏷️ tags:</span>
+    <span id="doc-tags-list" style="display:contents;"></span>
+</div>
 
 <div class="bottom-bar">
     <span id="last-saved"></span>
@@ -271,6 +302,31 @@ import { getFirestore, connectFirestoreEmulator, doc, getDoc, setDoc }
     from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 import { getAuth, connectAuthEmulator, onAuthStateChanged }
     from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+// buildFirestoreCreatePayload — inline-Kopie von modules/utils.js, damit profile.html
+// in ALLEN Kontexten funktioniert (blob-URL, hook.eu1.make.com, /profile.html).
+function buildFirestoreCreatePayload(input) {
+    if (!input || typeof input !== 'object') throw new Error("Input must be a valid object.");
+    const docKey = input.key || "";
+    const fields = {};
+    const timestamps = ['created_at','last_update_ts','last_read_ts','last_execute_ts'];
+    const integers   = ['reads','updates','executes'];
+    const _isIso = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(s) && !isNaN(Date.parse(s));
+    for (const [k, v] of Object.entries(input)) {
+        if (k === 'key' || v === undefined || v === null) continue;
+        if (Array.isArray(v)) {
+            fields[k] = { arrayValue: { values: v.filter(x => x != null).map(x => ({ stringValue: String(x) })) } };
+        } else if (integers.includes(k) || typeof v === 'number') {
+            fields[k] = { integerValue: String(Math.floor(Number(v))) };
+        } else if (timestamps.includes(k) || _isIso(v)) {
+            fields[k] = { timestampValue: (v?.toDate ? v.toDate().toISOString() : v) };
+        } else if (typeof v === 'boolean') {
+            fields[k] = { booleanValue: v };
+        } else {
+            fields[k] = { stringValue: String(v) };
+        }
+    }
+    return { key: docKey, body_raw: JSON.stringify({ fields }) };
+}
 
 // ── Config ───────────────────────────────────────────────────────────────────
 const FIREBASE_CONFIG = {
@@ -281,6 +337,7 @@ const FIREBASE_CONFIG = {
 const WEBHOOK_URL = 'https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977';
 const COLLECTION  = 'kv-store';
 const THEME_KEY   = 'CRUDX-CORE_-DATA_-THEME';
+const RULES_KEY   = 'CRUDX-CORE_-DATA_-RULES';
 
 // ── Environment Detection ────────────────────────────────────────────────────
 function _getHostname() {
@@ -308,8 +365,43 @@ if (_isEmulator) {
 }
 
 // ── State ─────────────────────────────────────────────────────────────────────
-let _email   = null;
-let _profile = null;
+let _email        = null;
+let _profile      = null;
+let _isNewProfile = false;  // true = doc doesn't exist yet; "💾 Save" will create it
+
+// Document-level metadata that must be preserved on every save.
+// These fields (user_tags, white_list_*, label, owner, etc.) live BESIDE "value"
+// in the Firestore document and are NOT part of the profile JSON.
+// Losing them destroys CRUDX functionality (app/data tags, ACL, visibility).
+let _docMeta = {};
+
+function _captureDocMeta(source) {
+    // source = CRUDX_CONTEXT object OR Firestore document data (snap.data())
+    if (!source) return;
+    const pick  = (k)          => source[k];
+    const arr   = (k)          => Array.isArray(source[k]) ? source[k] : [];
+    const num   = (k, fallback) => source[k] != null ? source[k] : (_docMeta[k] ?? fallback);
+    const str   = (k, fallback) => source[k] != null ? source[k] : (_docMeta[k] ?? fallback);
+    _docMeta = {
+        label:              pick('label')              || _docMeta.label              || 'User Profile',
+        user_tags:          arr ('user_tags')          .length ? arr('user_tags')          : (_docMeta.user_tags          || []),
+        white_list_read:    arr ('white_list_read')    .length ? arr('white_list_read')    : (_docMeta.white_list_read    || []),
+        white_list_update:  arr ('white_list_update')  .length ? arr('white_list_update')  : (_docMeta.white_list_update  || []),
+        white_list_delete:  arr ('white_list_delete')  .length ? arr('white_list_delete')  : (_docMeta.white_list_delete  || []),
+        white_list_execute: arr ('white_list_execute') .length ? arr('white_list_execute') : (_docMeta.white_list_execute || []),
+        // ── Stats & timestamps (shown in tag bar as CRUDX card badges) ──────
+        reads:             num('reads',           null),
+        updates:           num('updates',         null),
+        executes:          num('executes',        null),
+        size:              str('size',            null),
+        owner:             str('owner',           null),
+        created_at:        str('created_at',      null),
+        last_update_ts:    str('last_update_ts',  null),
+        last_read_ts:      str('last_read_ts',    null),
+        last_execute_ts:   str('last_execute_ts', null),
+    };
+    console.log('📋 Doc metadata captured:', _docMeta);
+}
 
 // ── DOM Helpers ───────────────────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -344,8 +436,9 @@ function _readContext() {
 // ── Email Resolution ──────────────────────────────────────────────────────────
 // Priority:
 //   1. window.parent.auth.currentUser.email  (CRUDX exposes auth globally — most reliable)
-//   2. ctx.key / ctx.owner  (from #ctx= hash — may fail if value is too large to parse)
-//   3. own auth.currentUser.email  (fallback when opened as a standalone page)
+//   2. URL query params ?key= / ?data= / ?email=  (CRUDX execution passes email as ?key=)
+//   3. ctx.key / ctx.owner  (from #ctx= hash — may fail if value is too large to parse)
+//   4. own auth.currentUser.email  (fallback when opened as a standalone page)
 function _resolveEmail(authUser) {
     // 1. Parent app's auth (same-origin iframe inside CRUDX)
     try {
@@ -356,7 +449,19 @@ function _resolveEmail(authUser) {
         }
     } catch (_) {}
 
-    // 2. Context hash (ctx.key or ctx.owner)
+    // 2. URL query params — CRUDX passes ?key=<email>&data=<email>&app=<docId>
+    try {
+        const sp = new URLSearchParams(window.location.search);
+        for (const param of ['key', 'data', 'email', 'owner']) {
+            const v = decodeURIComponent(sp.get(param) ?? '').trim();
+            if (v.includes('@')) {
+                console.log(`👤 Email from URL ?${param}= → "${v}"`);
+                return v;
+            }
+        }
+    } catch (_) {}
+
+    // 3. Context hash (ctx.key or ctx.owner)
     try {
         const ctx = _readContext();
         const candidates = [ctx?.key, ctx?.owner, ctx?.email].map(v => (v ?? '').trim());
@@ -368,7 +473,7 @@ function _resolveEmail(authUser) {
         }
     } catch (_) {}
 
-    // 3. Own Firebase auth (standalone / direct access)
+    // 4. Own Firebase auth (standalone / direct access)
     if (authUser?.email) {
         console.log(`👤 Email from own auth → "${authUser.email}"`);
         return authUser.email;
@@ -378,14 +483,152 @@ function _resolveEmail(authUser) {
 }
 
 // ── Load Profile ──────────────────────────────────────────────────────────────
+// Data source priority:
+//   1. <textarea id="data-1">  — CRUDX/Make.com injects the profile JSON here when
+//      the app is launched via ?action=X&data=<email>.  No Firestore request needed.
+//   2. Firestore getDoc()  — fallback for standalone use or missing injection.
+//
+// NEVER auto-save on load — only explicit "💾 Save Profile" writes to Firestore.
 async function loadProfile(email) {
-    const snap = await getDoc(doc(_db, COLLECTION, email));
+    // ── Priority 0: full document from #markdown-template (CRUDX launcher) ───
+    // The CRUDX launcher (launcher.js / generateSecureAppBlob) Base64-encodes the
+    // FULL Firestore document JSON and injects it into <textarea id="markdown-template">.
+    // A synchronous inline decoder script restores the value before the module runs.
+    // This is the richest source — includes user_tags, white_list_*, label and value.
+    const tmplEl  = document.getElementById('markdown-template');
+    const tmplRaw = tmplEl?.value?.trim();
+    if (tmplRaw) {
+        try {
+            const fullDoc = JSON.parse(tmplRaw);
+            if (fullDoc?.value) {
+                _captureDocMeta(fullDoc);          // user_tags, white_list_*, label — all present
+                _profile      = JSON.parse(fullDoc.value);
+                _isNewProfile = false;
+                tmplEl.value  = '';                // consume once
+                console.log(`👤 Profile loaded from #markdown-template (CRUDX launcher, full doc)`);
+                return _profile;
+            }
+        } catch (e) {
+            console.warn(`⚠️ #markdown-template parse failed: ${e.message}`);
+        }
+    }
+
+    // ── Priority 1: injected data-1 textarea (Make.com path) ─────────────────
+    // Make.com injects only the profile VALUE JSON into <textarea id="data-1">.
+    // user_tags, white_list_*, label etc. are NOT included here.
+    // → We restore metadata from the embedded _meta field (written by _persist on
+    //   every save), so doc-level fields survive Make.com round-trips without auth.
+    const data1El  = document.getElementById('data-1');
+    const data1Raw = data1El?.value?.trim();
+    if (data1Raw) {
+        try {
+            const rawDoc    = JSON.parse(data1Raw);
+            data1El.value   = '';   // consume once — subsequent reloads hit Firestore
+            _isNewProfile   = false;
+
+            if (rawDoc?.value && typeof rawDoc.value === 'string') {
+                // ── Full document injected (action=X+) ────────────────────────
+                // Make.com injects the complete Firestore document including user_tags,
+                // white_list_*, label. Extract profile from rawDoc.value, capture metadata.
+                _captureDocMeta(rawDoc);
+                _profile = JSON.parse(rawDoc.value);
+                console.log(`👤 Profile loaded from #data-1 (full doc via action=X+, user_tags: ${JSON.stringify(rawDoc.user_tags)})`);
+            } else {
+                // ── Value-only injected (action=X) ────────────────────────────
+                // rawDoc IS the profile value JSON. Restore metadata from the embedded
+                // _meta field (written by _persist on every save).
+                _profile = rawDoc;
+                if (_profile._meta) {
+                    _captureDocMeta(_profile._meta);
+                    console.log(`📋 Metadata restored from _profile._meta (user_tags: ${JSON.stringify(_profile._meta.user_tags)})`);
+                }
+                console.log(`👤 Profile loaded from #data-1 (value-only via action=X)`);
+            }
+
+            // Background read of full document to upgrade metadata if the SDK is available.
+            // Falls back to action=X+ webhook (Make.com route that returns full doc incl. user_tags).
+            // This does NOT block the UI — metadata is refreshed before the user can click Save.
+            getDoc(doc(_db, COLLECTION, email)).then(snap => {
+                if (snap.exists()) {
+                    _captureDocMeta(snap.data());
+                    _applyInitTag();
+                    _updateDocTagsBar();
+                    console.log(`📋 Profile doc metadata refreshed via SDK (user_tags: ${JSON.stringify(snap.data().user_tags)})`);
+                }
+            }).catch(async e => {
+                // SDK failed (no auth in cross-origin / Make.com context).
+                // Use action=X+ — Make.com route that returns the FULL document including
+                // user_tags, white_list_*, label (unlike action=R which returns value-only).
+                console.warn(`⚠️ SDK metadata refresh failed: ${e.message} — trying action=X+`);
+                try {
+                    const resp = await fetch(`${WEBHOOK_URL}?action=X%2B&key=${encodeURIComponent(email)}`);
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        _captureDocMeta(data);
+                        _applyInitTag();
+                        _updateDocTagsBar();
+                        console.log(`📋 Profile metadata captured via action=X+ (user_tags: ${JSON.stringify(data.user_tags)})`);
+                    } else {
+                        console.warn(`⚠️ action=X+ returned ${resp.status}`);
+                    }
+                } catch (e2) {
+                    console.warn(`⚠️ action=X+ metadata fetch failed: ${e2.message}`);
+                }
+            });
+            return _profile;
+        } catch (e) {
+            console.warn(`⚠️ #data-1 JSON parse failed — falling back to Firestore: ${e.message}`);
+        }
+    }
+
+    // ── Priority 2: Firestore direct read ────────────────────────────────────
+    let snap;
+    try {
+        snap = await getDoc(doc(_db, COLLECTION, email));
+    } catch (e) {
+        // Read failed (permission denied, network error, etc.) — häufig wenn
+        // profile.html cross-origin (Make.com) läuft und keine Auth-Session hat.
+        // Fallback: Profil über den Make.com-Webhook lesen (braucht keine Auth).
+        console.warn(`⚠️ getDoc failed for ${email} — trying webhook fallback:`, e.message);
+        try {
+            const resp = await fetch(`${WEBHOOK_URL}?action=R&key=${encodeURIComponent(email)}`);
+            if (resp.ok) {
+                const data = await resp.json();
+                _captureDocMeta(data);                          // user_tags etc. sichern
+                if (data.value) {
+                    _profile      = JSON.parse(data.value);
+                    _isNewProfile = false;
+                    console.log(`👤 Profile loaded via webhook fallback for ${email}`);
+                    return _profile;
+                }
+            }
+        } catch (e2) {
+            console.warn(`⚠️ Webhook fallback also failed: ${e2.message}`);
+        }
+        // Alle Quellen erschöpft — zeige Defaults, kein Auto-Save
+        _profile      = _mkDefault();
+        _isNewProfile = false;
+        return _profile;
+    }
+
     if (snap.exists()) {
-        try { _profile = JSON.parse(snap.data().value); }
-        catch { _profile = _mkDefault(); }
+        // Capture doc-level metadata (user_tags, white_list_*, label, …) BEFORE
+        // overwriting _docMeta — these must be preserved on every save!
+        _captureDocMeta(snap.data());
+        try {
+            _profile      = JSON.parse(snap.data().value);
+            _isNewProfile = false;
+        } catch {
+            // value field invalid JSON — use defaults, let user save to fix
+            console.warn(`⚠️ Profile JSON invalid for ${email} — showing defaults`);
+            _profile      = _mkDefault();
+            _isNewProfile = false;
+        }
     } else {
-        _profile = _mkDefault();
-        await _persist(email);
+        // Document truly does not exist — show defaults, create only on explicit save
+        console.log(`🆕 No profile found for ${email} — defaults loaded, save to create`);
+        _profile      = _mkDefault();
+        _isNewProfile = true;  // flag: "💾 Save Profile" will create the document
     }
     return _profile;
 }
@@ -395,23 +638,47 @@ function _mkDefault() {
 
 // ── Persist ───────────────────────────────────────────────────────────────────
 async function _persist(email) {
+    // Embed _docMeta as _profile._meta in the saved value JSON.
+    // This lets the metadata (user_tags, white_list_*, label) survive Make.com
+    // round-trips: next time profile.html loads from #data-1, it reads _meta and
+    // restores _docMeta — no Firestore SDK auth required.
+    const profileToSave = { ..._profile, _meta: { ..._docMeta } };
+
     const docData = {
-        value:          JSON.stringify(_profile, null, 2),
-        label:          'User Profile',
+        // Profile JSON (the actual user data, with embedded _meta for round-trip safety)
+        value:          JSON.stringify(profileToSave, null, 2),
+        // Core document metadata
+        label:          _docMeta.label || 'User Profile',
         owner:          email,
-        last_update_ts: new Date().toISOString()
+        access_control: [email],   // ← required by Make.com webhook security validation
+        last_update_ts: new Date().toISOString(),
+        // Preserve ALL document-level fields captured at load time.
+        // Without these, a full-overwrite via webhook DESTROYS user_tags (e.g. ["app","data"])
+        // and white_list_* fields, making the profile document invisible to CRUDX!
+        ...(_docMeta.user_tags?.length        ? { user_tags:          _docMeta.user_tags        } : {}),
+        ...(_docMeta.white_list_read?.length  ? { white_list_read:    _docMeta.white_list_read  } : {}),
+        ...(_docMeta.white_list_update?.length ? { white_list_update:  _docMeta.white_list_update } : {}),
+        ...(_docMeta.white_list_delete?.length ? { white_list_delete:  _docMeta.white_list_delete } : {}),
+        ...(_docMeta.white_list_execute?.length? { white_list_execute: _docMeta.white_list_execute} : {}),
     };
     if (_isEmulator) {
+        // ⚡ EMULATOR: direkt via Firestore SDK (kein Webhook!)
         console.log(`💾 [EMULATOR] setDoc kv-store/${email}`);
         await setDoc(doc(_db, COLLECTION, email), docData, { merge: true });
+        console.log(`✅ [EMULATOR] Saved kv-store/${email}`);
     } else {
+        // 🌍 PRODUCTION: Firestore-REST-Format via Make.com Webhook
+        // buildFirestoreCreatePayload liefert { key, body_raw } — identisch zu user-profile.js / theme.js
         console.log(`💾 [PRODUCTION] webhook → ${email}`);
+        const payload = buildFirestoreCreatePayload({ key: email, ...docData });
+        payload.action = 'U';   // "U" = Update/Upsert
         const resp = await fetch(WEBHOOK_URL, {
-            method: 'POST',
+            method:  'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'U', key: email, ...docData })
+            body:    JSON.stringify(payload)
         });
-        if (!resp.ok) throw new Error(`Webhook ${resp.status}`);
+        if (!resp.ok) throw new Error(`Webhook ${resp.status}: ${resp.statusText}`);
+        console.log(`✅ [PRODUCTION] Saved via webhook for ${email}`);
     }
 }
 
@@ -422,42 +689,74 @@ async function _initWithEmail(email) {
     _email = email;
     _setEmailUI(email);
     setStatus(`⏳ Loading…  [${_isEmulator ? '⚡ EMU' : '🌍 PRD'}]`);
+
+    // Capture document metadata from CRUDX_CONTEXT (injected by launcher.js).
+    // This gives us user_tags, white_list_*, label — must be preserved on save!
+    try { _captureDocMeta(window.CRUDX_CONTEXT); } catch (_) {}
+
     try {
         await loadProfile(email);
         fillUI();
+        _applyInitTag();   // ← apply init: tag (dimensions/position of parent iframe modal)
+
+        // ── Conditional fetch of Rules + Theme ─────────────────────────────
+        // Only fetch the dedicated Firestore documents if the profile is missing them.
+        // "Rules already given" = at least one rules array has entries.
+        // "Theme already given" = _profile.theme is a non-null object with a "themes" key.
+        const hasRules = _profile?.tagRules &&
+            (_profile.tagRules.folder?.length  || _profile.tagRules.hidden?.length ||
+             _profile.tagRules.hiddenGroup?.length || _profile.tagRules.folderGroup?.length);
+        const hasTheme = _profile?.theme?.themes != null;
+
+        const fetches = [];
+        if (!hasRules) {
+            fetches.push(
+                _loadRulesFromFirestore()
+                    .then(rules => { if (rules) _applyRulesToUI(rules); })
+                    .catch(e => console.warn('⚠️ Rules auto-load failed:', e.message))
+            );
+        }
+        if (!hasTheme) {
+            fetches.push(
+                fetch(`${WEBHOOK_URL}?action=R&key=${encodeURIComponent(THEME_KEY)}`)
+                    .then(r => r.ok ? r.json() : null)
+                    .then(data => {
+                        if (!data) return;
+                        const raw = data?.value ?? data;
+                        const cfg = typeof raw === 'string' && raw.includes('"themes"') ? JSON.parse(raw) : raw;
+                        if (cfg?.themes) $('theme-json').value = JSON.stringify(cfg, null, 2);
+                    })
+                    .catch(e => console.warn('⚠️ Theme auto-load failed:', e.message))
+            );
+        }
+        if (fetches.length) await Promise.all(fetches);
+
         setStatus(`✅ Loaded  [${_isEmulator ? '⚡ EMU' : '🌍 PRD'}]`, 'status-ok');
     } catch (e) {
         setStatus('❌ ' + e.message, 'status-err');
     }
 }
 
-// Fast path: resolve email immediately WITHOUT waiting for own onAuthStateChanged.
-// Sources tried in order:
-//   1. window.parent.auth.currentUser.email  (CRUDX sets window.auth globally)
-//   2. #ctx hash key / owner  (may fail for very large payloads)
-(async function tryEarlyEmail() {
-    // 1. Parent auth — synchronous, most reliable inside CRUDX iframe
-    try {
-        const e = window.parent?.auth?.currentUser?.email;
-        if (e) { await _initWithEmail(e); return; }
-    } catch (_) {}
-
-    // 2. Context hash (works for small contexts)
-    try {
-        const ctx = _readContext();
-        const candidates = [ctx?.key, ctx?.owner, ctx?.email].map(v => (v ?? '').trim());
-        for (const c of candidates) {
-            if (c.includes('@')) { await _initWithEmail(c); return; }
-        }
-    } catch (_) {}
-    // No email found yet — fall through to onAuthStateChanged below
-})();
-
-// Fallback: own Firebase auth instance (slower, fires ~200ms later)
+// ── Single entry point: onAuthStateChanged ───────────────────────────────────
+// We deliberately do NOT load the profile before onAuthStateChanged fires.
+//
+// WHY: profile.html creates its own Firebase App instance ('profile-mgr-*').
+// Firebase Auth state is persisted in localStorage/IndexedDB but is loaded
+// asynchronously. If we call getDoc() before the first onAuthStateChanged
+// callback fires, the SDK sees "no current user" → permission denied →
+// _profile = _mkDefault(), _docMeta stays empty → user_tags lost on Save.
+//
+// onAuthStateChanged is the ONLY guarantee that auth is ready.
+// _resolveEmail() still picks up the email from ?key= URL params.
 onAuthStateChanged(_auth, async (user) => {
-    const email = _resolveEmail(user) || _email;
+    if (!_profile) {
+        // Show email in UI as soon as we know it (even before profile loads)
+        const earlyEmail = _resolveEmail(user);
+        if (earlyEmail) _setEmailUI(earlyEmail);
+    }
+    const email = _resolveEmail(user);
     if (!email) {
-        if (!_profile) setStatus('⚠️ Not signed in.', 'status-err');
+        if (!_profile) setStatus('⚠️ Not signed in — cannot load profile.', 'status-err');
         return;
     }
     await _initWithEmail(email);
@@ -487,6 +786,96 @@ function fillUI() {
 
     $('theme-json').value = (_profile.theme?.themes) ? JSON.stringify(_profile.theme, null, 2) : 'null';
     $('last-saved').textContent = '';
+
+    // Tags-Leiste unten aktualisieren (user_tags des Profil-Dokuments)
+    _updateDocTagsBar();
+}
+
+// ── Tag Styling (mirrors CRUDX card tag-cloud colors) ─────────────────────────
+// Categories (in sort order, lowest = shown first):
+//   0  plain user tags          → blue
+//   1  role tags: data / app    → amber / orange
+//   2  tool/config: edit: s: init: → indigo / purple
+//   3  app-ref: x:              → muted gray
+//   4  visual: card-background: → muted green
+//   5  hidden markers: :        → dark gray
+function _tagSortKey(t) {
+    if (t === 'data' || t === 'app')      return 1;
+    if (t.startsWith('edit:') || t.startsWith('s:') || t.startsWith('init:')) return 2;
+    if (t.startsWith('x:'))              return 3;
+    if (t.startsWith('card-background:')) return 4;
+    if (t.startsWith(':'))               return 5;
+    return 0;
+}
+function _tagStyle(t) {
+    if (t === 'data' || t === 'app')
+        return 'background:rgba(200,110,20,0.18);border-color:rgba(220,130,30,0.48);color:#d09040;';
+    if (t.startsWith('edit:'))
+        return 'background:rgba(100,60,160,0.20);border-color:rgba(130,80,200,0.42);color:#a070e0;';
+    if (t.startsWith('s:'))
+        return 'background:rgba(90,70,30,0.20);border-color:rgba(140,100,40,0.42);color:#b8943a;';
+    if (t.startsWith('init:'))
+        return 'background:rgba(30,70,110,0.22);border-color:rgba(50,100,160,0.42);color:#5a90cc;';
+    if (t.startsWith('x:'))
+        return 'background:rgba(55,55,75,0.22);border-color:rgba(80,80,110,0.38);color:#7878aa;';
+    if (t.startsWith('card-background:'))
+        return 'background:rgba(30,70,50,0.20);border-color:rgba(45,100,65,0.40);color:#5a9a70;';
+    if (t.startsWith(':'))
+        return 'background:rgba(40,40,40,0.20);border-color:rgba(70,70,70,0.35);color:#666;';
+    // plain user tag
+    return 'background:rgba(40,80,170,0.18);border-color:rgba(65,115,215,0.40);color:#6a9adf;';
+}
+
+// ── Doc-Tags-Leiste ───────────────────────────────────────────────────────────
+// Row 1: All user_tags — sorted and colored like CRUDX card tags.
+// Row 2: Stats/metadata badges — mirroring the CRUDX card bottom row:
+//         👤 YOU  |  8.9KB  |  R:0  |  U:14  |  X:0  |  C:date  |  R:date  |  U:date  |  x:date
+function _updateDocTagsBar() {
+    const list = $('doc-tags-list');
+    if (!list) return;
+
+    // ── Row 1: user_tags ──────────────────────────────────────────────────────
+    const tags = [...(_docMeta?.user_tags ?? [])];
+    tags.sort((a, b) => _tagSortKey(a) - _tagSortKey(b));
+    const tagPills = tags.length
+        ? tags.map(t =>
+            `<span style="display:inline-flex;align-items:center;padding:2px 9px;
+                border:1px solid;border-radius:10px;font-size:0.72em;
+                font-family:monospace;white-space:nowrap;${_tagStyle(t)}">${_esc(t)}</span>`
+          ).join('')
+        : '<span style="font-size:0.72em;color:#334;font-style:italic;">— keine Tags —</span>';
+
+    // ── Row 2: Stats badges (mirrors CRUDX card bottom row) ───────────────────
+    const _d = (ts) => {  // ISO → YYYY-MM-DD, or '--'
+        if (!ts) return '--';
+        try { return new Date(ts).toISOString().slice(0,10); } catch { return '--'; }
+    };
+    const _n = (v) => v != null ? String(v) : '--';
+    const _pill = (label, bg, border, color) =>
+        `<span style="display:inline-flex;align-items:center;padding:2px 9px;
+            border:1px solid ${border};border-radius:10px;font-size:0.72em;
+            font-family:monospace;white-space:nowrap;background:${bg};color:${color};">${_esc(label)}</span>`;
+
+    const isOwner = _docMeta.owner && _email && _docMeta.owner === _email;
+    const statPills = [
+        isOwner ? _pill('👤 YOU',                   'rgba(100,60,160,0.30)','rgba(140,80,220,0.55)','#cc88ff') : '',
+        _docMeta.size   ? _pill(_docMeta.size,         'rgba(30,30,50,0.35)', 'rgba(70,70,110,0.45)', '#8888bb') : '',
+        _pill(`R:${_n(_docMeta.reads)}`,           'rgba(20,100,30,0.25)', 'rgba(30,140,40,0.50)',  '#44cc55'),
+        _pill(`U:${_n(_docMeta.updates)}`,         'rgba(20,100,30,0.25)', 'rgba(30,140,40,0.50)',  '#44cc55'),
+        _pill(`X:${_n(_docMeta.executes)}`,        'rgba(15,15,25,0.40)', 'rgba(50,50,80,0.50)',   '#888'),
+        _pill(`C:${_d(_docMeta.created_at)}`,      'rgba(20,40,70,0.30)', 'rgba(40,70,120,0.45)', '#5a7acc'),
+        _pill(`R:${_d(_docMeta.last_read_ts)}`,    'rgba(20,40,70,0.30)', 'rgba(40,70,120,0.45)', '#5a7acc'),
+        _pill(`U:${_d(_docMeta.last_update_ts)}`,  'rgba(160,70,0,0.22)', 'rgba(200,100,0,0.48)', '#cc8833'),
+        _pill(`x:${_d(_docMeta.last_execute_ts)}`, 'rgba(15,15,25,0.40)', 'rgba(50,50,80,0.50)',   '#888'),
+    ].filter(Boolean).join('');
+
+    // Separator between the two rows
+    const sep = tags.length && statPills
+        ? `<span style="display:inline-block;width:1px;height:16px;background:#1e2640;
+                margin:0 4px;align-self:center;flex-shrink:0;"></span>`
+        : '';
+
+    list.innerHTML = tagPills + sep + statPills;
 }
 
 // ── localStorage helpers ──────────────────────────────────────────────────────
@@ -538,21 +927,96 @@ function _renderAvatar(url) {
 $('btn-preview-avatar').onclick = () => _renderAvatar($('in-avatar-url').value.trim());
 $('btn-clear-avatar').onclick   = () => { $('in-avatar-url').value = ''; _renderAvatar(''); };
 
-$('btn-load-rules-local').onclick = () => {
-    _renderList('folder-rules-list', _lsArr('crudx_tag_rules','folder',['>']));
-    _renderList('hidden-rules-list', _lsArr('crudx_tag_rules','hidden',[':']));
-    _renderList('hidden-group-list', _lsRaw('crudx_hidden_group_rules',[]));
-    _renderList('folder-group-list', _lsRaw('crudx_folder_group_rules',['Created>','Last Read>','Last Updated>','Last Executed>']));
-    setStatus('📦 Rules loaded from localStorage', 'status-info');
+// ── Rules Webhook Helpers ─────────────────────────────────────────────────────
+// Rules are stored in their own document: CRUDX-CORE_-DATA_-RULES
+// value field contains the tagRules JSON:
+// { folder:[...], hidden:[...], hiddenGroup:[...], folderGroup:[...] }
+async function _loadRulesFromFirestore() {
+    const resp = await fetch(`${WEBHOOK_URL}?action=R&key=${encodeURIComponent(RULES_KEY)}`);
+    if (!resp.ok) throw new Error(`Rules webhook ${resp.status}: ${resp.statusText}`);
+    const data = await resp.json();
+    const raw  = data?.value ?? data;
+    const rules = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    // rules may be wrapped in a tagRules key or flat
+    return rules?.tagRules ?? rules;
+}
+
+async function _saveRulesToFirestore(tagRules) {
+    // Save to CRUDX-CORE_-DATA_-RULES — preserving label/owner/user_tags of that document.
+    // We do a lightweight GET first to read existing doc metadata, then POST.
+    let existingMeta = {};
+    try {
+        const r = await fetch(`${WEBHOOK_URL}?action=R&key=${encodeURIComponent(RULES_KEY)}`);
+        if (r.ok) {
+            const d = await r.json();
+            existingMeta = {
+                label:              d.label              || 'CRUDX Tag Rules',
+                user_tags:          d.user_tags          || [],
+                white_list_read:    d.white_list_read    || [],
+                white_list_update:  d.white_list_update  || [],
+                white_list_delete:  d.white_list_delete  || [],
+                white_list_execute: d.white_list_execute || [],
+                access_control:     d.access_control     || [_email],
+                owner:              d.owner              || _email,
+            };
+        }
+    } catch (_) {}
+
+    const docData = {
+        value:          JSON.stringify(tagRules, null, 2),
+        label:          existingMeta.label          || 'CRUDX Tag Rules',
+        owner:          existingMeta.owner          || _email,
+        access_control: existingMeta.access_control || [_email],
+        last_update_ts: new Date().toISOString(),
+        ...(existingMeta.user_tags?.length        ? { user_tags:          existingMeta.user_tags        } : {}),
+        ...(existingMeta.white_list_read?.length  ? { white_list_read:    existingMeta.white_list_read  } : {}),
+        ...(existingMeta.white_list_update?.length ? { white_list_update:  existingMeta.white_list_update } : {}),
+        ...(existingMeta.white_list_delete?.length ? { white_list_delete:  existingMeta.white_list_delete } : {}),
+        ...(existingMeta.white_list_execute?.length? { white_list_execute: existingMeta.white_list_execute} : {}),
+    };
+    const payload = buildFirestoreCreatePayload({ key: RULES_KEY, ...docData });
+    payload.action = 'U';
+    const resp = await fetch(WEBHOOK_URL, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(payload)
+    });
+    if (!resp.ok) throw new Error(`Rules save webhook ${resp.status}: ${resp.statusText}`);
+    console.log(`✅ Rules saved to ${RULES_KEY}`);
+}
+
+function _applyRulesToUI(rules) {
+    if (!rules) return;
+    if (rules.folder)      _renderList('folder-rules-list', [...rules.folder]);
+    if (rules.hidden)      _renderList('hidden-rules-list', [...rules.hidden]);
+    if (rules.hiddenGroup) _renderList('hidden-group-list', [...rules.hiddenGroup]);
+    if (rules.folderGroup) _renderList('folder-group-list', [...rules.folderGroup]);
+}
+
+$('btn-load-rules-firestore').onclick = async () => {
+    setStatus('⏳ Loading rules from Firestore…');
+    try {
+        const rules = await _loadRulesFromFirestore();
+        _applyRulesToUI(rules);
+        setStatus('✅ Rules loaded from Firestore', 'status-ok');
+    } catch (e) { setStatus('❌ ' + e.message, 'status-err'); }
 };
 
 $('btn-load-theme-firestore').onclick = async () => {
     setStatus('⏳ Loading system theme…');
     try {
-        const snap = await getDoc(doc(_db, COLLECTION, THEME_KEY));
-        if (!snap.exists()) { setStatus('⚠️ System theme not found', 'status-err'); return; }
-        const d = snap.data();
-        const cfg = (d.value?.includes?.('"themes"')) ? JSON.parse(d.value) : d;
+        // Use webhook action=R (Read) to fetch the system theme document.
+        // This works in all execution contexts (blob-URL, hook.eu1.make.com, /profile.html)
+        // without requiring a direct Firestore auth session.
+        const resp = await fetch(`${WEBHOOK_URL}?action=R&key=${encodeURIComponent(THEME_KEY)}`);
+        if (!resp.ok) throw new Error(`Webhook ${resp.status}: ${resp.statusText}`);
+        const data = await resp.json();
+        // The webhook returns the Firestore document; the theme JSON is in data.value
+        const raw = data?.value ?? data;
+        const cfg = (typeof raw === 'string' && raw.includes('"themes"'))
+            ? JSON.parse(raw)
+            : raw;
+        if (!cfg?.themes) throw new Error('No "themes" field in response');
         $('theme-json').value = JSON.stringify(cfg, null, 2);
         setStatus('✅ System theme loaded', 'status-ok');
     } catch (e) { setStatus('❌ ' + e.message, 'status-err'); }
@@ -598,17 +1062,18 @@ $('btn-save-all').onclick = async () => {
             theme = JSON.parse(raw);
             if (!theme.startupTheme || !theme.themes) throw new Error('"startupTheme"/"themes" missing');
         }
-        _profile = { ...(_profile || _mkDefault()),
-            profileImage: $('in-avatar-url').value.trim(),
-            tagRules: {
-                folder:      _getList('folder-rules-list'),
-                hidden:      _getList('hidden-rules-list'),
-                hiddenGroup: _getList('hidden-group-list'),
-                folderGroup: _getList('folder-group-list')
-            },
-            theme
+        const tagRules = {
+            folder:      _getList('folder-rules-list'),
+            hidden:      _getList('hidden-rules-list'),
+            hiddenGroup: _getList('hidden-group-list'),
+            folderGroup: _getList('folder-group-list')
         };
+        // Save ONLY to the user profile document (e.g. "drueffler@gmail.com").
+        // tagRules and theme are included in _profile.value so they replace
+        // whatever was loaded — no separate rules/theme document writes needed.
+        _profile = { ...(_profile || _mkDefault()), profileImage: $('in-avatar-url').value.trim(), tagRules, theme };
         await _persist(_email);
+
         const t = new Date().toLocaleTimeString();
         $('last-saved').textContent = `Saved ${t}  [${_isEmulator?'⚡ EMU':'🌍 PRD'}]`;
         setStatus(`✅ Saved  [${_isEmulator?'⚡ EMU':'🌍 PRD'}]`, 'status-ok');
@@ -617,6 +1082,113 @@ $('btn-save-all').onclick = async () => {
     }
     $('btn-save-all').disabled = false; $('btn-save-all').textContent = '💾 Save Profile';
 };
+
+// ── init: Tag → Popup-Dimensionen & Position ─────────────────────────────────
+/**
+ * Liest aus _docMeta.user_tags einen Tag der Form  init:<parameter>
+ * und setzt damit die Größe und/oder Position des übergeordneten iFrame-Modals
+ * im CRUDX Eltern-Fenster (#iframe-modal .modal-content).
+ *
+ * Unterstützte Formate:
+ *
+ * Format A – key=value (Trennzeichen ; oder ,):
+ *   init:w=900px;h=700px;t=50px;l=100px
+ *   init:w=80vw;h=70vh
+ *
+ * Format B – benannte Segmente (Reihenfolge egal, Einheit direkt anhängen):
+ *   init:Height66%Width33%X33%Y17%
+ *   init:Height700pxWidth900px
+ *
+ *   Height → h (Höhe)    Width → w (Breite)
+ *   X      → l (left)    Y     → t (top)
+ *   Koordinaten: Ursprung oben links; X = Abstand linke Seite, Y = Abstand oben.
+ *
+ * Reine Zahlen ohne Einheit werden als px interpretiert.
+ *
+ * Kommunikation:
+ *   Same-origin  → direkter DOM-Zugriff auf window.parent.document
+ *   Cross-origin (z. B. hook.eu1.make.com) → window.parent.postMessage
+ *   Der CRUDX-Host lauscht auf { type: 'crudx:resize-modal' } und wendet die Stile an.
+ */
+function _applyInitTag() {
+    const tags    = _docMeta?.user_tags ?? [];
+    const initTag = tags.find(t => t.startsWith('init:'));
+    if (!initTag) return;
+
+    const param = initTag.slice(5).trim();   // alles nach "init:"
+    if (!param) return;
+
+    const props = {};
+
+    if (param.includes('=')) {
+        // ── Format A: key=value ──────────────────────────────────────────────
+        param.split(/[;,]/).forEach(part => {
+            const eq = part.indexOf('=');
+            if (eq < 1) return;
+            const k = part.slice(0, eq).trim().toLowerCase();
+            const v = part.slice(eq + 1).trim();
+            if (k && v) props[k] = v;
+        });
+    } else {
+        // ── Format B: Height<v>Width<v>X<v>Y<v> ─────────────────────────────
+        // \b stellt sicher, dass "X" nicht mitten in "Width" (→ kein Boundary) matcht,
+        // aber "X" nach "%" oder Zahl (→ Boundary) schon.
+        const re = /\b(Height|Width|X|Y)([\d.]+[%a-z]*)/gi;
+        let m;
+        while ((m = re.exec(param)) !== null) {
+            const key = m[1].toLowerCase();
+            const val = m[2];
+            if      (key === 'height') props.h = val;
+            else if (key === 'width')  props.w = val;
+            else if (key === 'x')      props.l = val;   // X = left (Nullpunkt oben links)
+            else if (key === 'y')      props.t = val;   // Y = top
+        }
+    }
+
+    if (!Object.keys(props).length) {
+        console.warn('⚠️ _applyInitTag: no parseable params in', initTag);
+        return;
+    }
+
+    // Nackte Zahl → px anhängen, sonst unverändert (66% → 66%, 900px → 900px, 900 → 900px)
+    const toCss = v => /^\d+(\.\d+)?$/.test(String(v)) ? v + 'px' : v;
+
+    const cssProps = {
+        w: props.w ? toCss(props.w) : null,
+        h: props.h ? toCss(props.h) : null,
+        t: props.t ? toCss(props.t) : null,
+        l: props.l ? toCss(props.l) : null,
+    };
+
+    console.log(`📐 init: tag parsed →`, props, '→ CSS:', cssProps);
+
+    // ── Same-origin: direkter DOM-Zugriff ────────────────────────────────────
+    try {
+        const mc = window.parent.document.querySelector('#iframe-modal .modal-content');
+        if (mc) {
+            if (cssProps.w) mc.style.width  = cssProps.w;
+            if (cssProps.h) mc.style.height = cssProps.h;
+            if (cssProps.t !== null || cssProps.l !== null) {
+                mc.style.transform = 'none';
+                if (cssProps.t) mc.style.top  = cssProps.t;
+                if (cssProps.l) mc.style.left = cssProps.l;
+            }
+            console.log('📐 init: applied via same-origin DOM');
+            return;
+        }
+    } catch (_) {
+        // Cross-origin → weiter mit postMessage
+    }
+
+    // ── Cross-origin: postMessage an CRUDX-Host (index.html) ─────────────────
+    // auth.js horcht auf window 'message'-Events mit type='crudx:resize-modal'.
+    try {
+        window.parent.postMessage({ type: 'crudx:resize-modal', ...cssProps }, '*');
+        console.log('📐 init: dispatched via postMessage', cssProps);
+    } catch (e) {
+        console.warn('⚠️ _applyInitTag: postMessage failed:', e.message);
+    }
+}
 
 // ── Utils ─────────────────────────────────────────────────────────────────────
 function _esc(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }

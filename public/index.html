@@ -526,30 +526,21 @@
 
 <div id="user-modal" class="user-popup">
     <div class="user-popup-header">
+        <span id="btn-user-popup-transparency" title="Transparenz umschalten"
+              style="cursor:pointer;font-size:1.1rem;opacity:0.5;padding:5px;margin-right:auto;line-height:1;">👁️</span>
         <span id="btn-close-user" class="close-x" title="Close">✕</span>
     </div>
     <div class="user-popup-body">
+        <p id="modal-user-email" class="user-email-text" style="margin-bottom:10px;"></p>
         <div class="user-avatar-large">👤</div>
         <h3 id="modal-user-greeting">Hi, Dieter!</h3>
-        <p id="modal-user-email" class="user-email-text"></p>
-        <div style="margin-top:12px;border-top:1px solid rgba(255,255,255,0.12);padding-top:12px;width:100%;">
-            <label style="font-size:0.75em;opacity:0.6;display:block;margin-bottom:4px;text-align:left;">🖼️ Profile Picture URL</label>
-            <div style="display:flex;gap:6px;align-items:center;">
-                <input type="url" id="in-profile-image-url" placeholder="https://example.com/photo.jpg"
-                    style="flex:1;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.2);
-                           border-radius:8px;color:#ccc;padding:6px 10px;font-size:0.8em;outline:none;min-width:0;">
-                <button id="btn-save-profile-image" title="Save Profile Picture"
-                    style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);
-                           border-radius:8px;color:#fff;padding:6px 10px;cursor:pointer;font-size:0.85em;flex-shrink:0;">💾</button>
-            </div>
-        </div>
         <button id="btn-open-profile-editor"
-            style="width:100%;padding:9px 12px;margin-bottom:8px;
-                   background:rgba(80,140,255,0.08);border:1px solid rgba(80,140,255,0.3);
-                   border-radius:8px;color:#80b4ff;font-size:0.82em;font-weight:600;
-                   cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;"
-            title="User Profile Manager öffnen">
-            ✏️ Edit Profile
+            style="width:100%;padding:10px 12px;margin-top:4px;margin-bottom:8px;
+                   background:rgba(80,140,255,0.12);border:1px solid rgba(80,140,255,0.35);
+                   border-radius:8px;color:#80b4ff;font-size:0.85em;font-weight:600;
+                   cursor:pointer;text-align:center;"
+            title="CRUDX Account verwalten">
+            Manage your CRUDX Account
         </button>
         <button id="btn-logout-confirm" class="btn-logout-action">Sign out from all accounts</button>
     </div>

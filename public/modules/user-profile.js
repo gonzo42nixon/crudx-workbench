@@ -22,6 +22,7 @@ import { buildFirestoreCreatePayload } from './utils.js';
 
 const COLLECTION   = 'kv-store';
 const WEBHOOK_URL  = 'https://hook.eu1.make.com/b3hs8e2k03wr68gh6yv88n1ybem87977';
+const RULES_KEY    = 'CRUDX-CORE_-DATA_-RULES';
 
 /** true when running against the local Firebase Emulator */
 function _isEmulator() {
@@ -31,6 +32,21 @@ function _isEmulator() {
 
 let _email   = null;   // currently signed-in user
 let _profile = null;   // in-memory profile copy
+let _docMeta = {};     // document-level fields to preserve on every save (user_tags, white_list_*, etc.)
+
+function _captureDocMeta(data) {
+    if (!data) return;
+    const _arr = (k) => Array.isArray(data[k]) ? data[k] : [];
+    _docMeta = {
+        label:              data.label              || _docMeta.label              || 'User Profile',
+        user_tags:          _arr('user_tags')          .length ? _arr('user_tags')          : (_docMeta.user_tags          || []),
+        white_list_read:    _arr('white_list_read')    .length ? _arr('white_list_read')    : (_docMeta.white_list_read    || []),
+        white_list_update:  _arr('white_list_update')  .length ? _arr('white_list_update')  : (_docMeta.white_list_update  || []),
+        white_list_delete:  _arr('white_list_delete')  .length ? _arr('white_list_delete')  : (_docMeta.white_list_delete  || []),
+        white_list_execute: _arr('white_list_execute') .length ? _arr('white_list_execute') : (_docMeta.white_list_execute || []),
+    };
+    console.log(`📋 Profile doc meta captured: user_tags=${JSON.stringify(_docMeta.user_tags)}`);
+}
 
 // ---------- Defaults (bootstraps from existing localStorage values) ----------
 function _defaultProfile() {
@@ -82,6 +98,8 @@ export async function loadAndApplyProfile(email) {
         const snap   = await getDoc(docRef);
 
         if (snap.exists()) {
+            // Capture doc-level metadata BEFORE anything else — must be preserved on every save
+            _captureDocMeta(snap.data());
             try {
                 _profile = JSON.parse(snap.data().value);
                 console.log(`👤 User profile loaded for ${email}`);
@@ -143,14 +161,96 @@ export function applyProfilePicture(url) {
     }
 }
 
+/**
+ * Saves tag rules to the dedicated rules document (CRUDX-CORE_-DATA_-RULES).
+ * This function MUST be used by rules-manager.js — NEVER saveProfileUpdates() —
+ * so the user profile document (drueffler@gmail.com) is never touched by the
+ * Tag Rules modal, preserving its user_tags and ACL fields.
+ *
+ * @param {{ folder, hidden, hiddenGroup, folderGroup }} tagRules
+ */
+export async function saveRulesToRulesDoc(tagRules) {
+    // IMPORTANT: action=R webhook returns only the PARSED VALUE content, not full doc metadata!
+    // (e.g. for CRUDX-CORE_-DATA_-RULES it returns { version:1, tagRules:{...} })
+    // user_tags, white_list_*, label etc. are NOT included in action=R response.
+    // → Must use Firestore SDK getDoc() to read the full document with all fields.
+
+    const _arr = (v) => Array.isArray(v) ? v : [];
+
+    // Step 1: read full document via Firestore SDK to preserve all metadata fields.
+    let meta = {
+        label:              'CRUDX Tag Rules',
+        owner:              _email || 'system',
+        access_control:     [_email || 'system'],
+        user_tags:          [],
+        white_list_read:    [],
+        white_list_update:  [],
+        white_list_delete:  [],
+        white_list_execute: [],
+    };
+    try {
+        const snap = await getDoc(doc(db, COLLECTION, RULES_KEY));
+        if (snap.exists()) {
+            const d = snap.data();
+            meta = {
+                label:              d.label              || 'CRUDX Tag Rules',
+                owner:              d.owner              || _email || 'system',
+                access_control:     _arr(d.access_control).length ? _arr(d.access_control) : [_email || 'system'],
+                user_tags:          _arr(d.user_tags),
+                white_list_read:    _arr(d.white_list_read),
+                white_list_update:  _arr(d.white_list_update),
+                white_list_delete:  _arr(d.white_list_delete),
+                white_list_execute: _arr(d.white_list_execute),
+            };
+            console.log(`📋 Rules doc meta (SDK): user_tags=${JSON.stringify(meta.user_tags)}`);
+        }
+    } catch (e) {
+        console.warn('⚠️ Could not read rules doc via SDK — metadata may be lost:', e.message);
+    }
+
+    // Step 2: build the new document payload.
+    // Include all metadata so the webhook full-replace doesn't destroy user_tags etc.
+    const docData = {
+        value:          JSON.stringify(tagRules, null, 2),
+        label:          meta.label,
+        owner:          meta.owner,
+        access_control: meta.access_control,
+        last_update_ts: new Date().toISOString(),
+        ...(meta.user_tags.length          ? { user_tags:          meta.user_tags          } : {}),
+        ...(meta.white_list_read.length    ? { white_list_read:    meta.white_list_read    } : {}),
+        ...(meta.white_list_update.length  ? { white_list_update:  meta.white_list_update  } : {}),
+        ...(meta.white_list_delete.length  ? { white_list_delete:  meta.white_list_delete  } : {}),
+        ...(meta.white_list_execute.length ? { white_list_execute: meta.white_list_execute } : {}),
+    };
+
+    // Step 3: persist via webhook.
+    const payload = buildFirestoreCreatePayload({ key: RULES_KEY, ...docData });
+    payload.action = 'U';
+    const resp = await fetch(WEBHOOK_URL, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(payload)
+    });
+    if (!resp.ok) throw new Error(`Rules webhook ${resp.status}: ${resp.statusText}`);
+    console.log(`💾 Rules saved to ${RULES_KEY} (user_tags: ${JSON.stringify(meta.user_tags)})`);
+}
+
 // ---------- Internal helpers ----------
 
 async function _persist() {
+    // Build payload — always include doc-level metadata captured at load time.
+    // Without _docMeta, a full-overwrite via webhook DESTROYS user_tags/white_list_*!
     const payload = {
         value:          JSON.stringify(_profile, null, 2),
-        label:          'User Profile',
+        label:          _docMeta.label || 'User Profile',
         owner:          _email,
-        last_update_ts: new Date().toISOString()
+        access_control: [_email],  // ← required by Make.com webhook security validation
+        last_update_ts: new Date().toISOString(),
+        ...(_docMeta.user_tags?.length          ? { user_tags:          _docMeta.user_tags          } : {}),
+        ...(_docMeta.white_list_read?.length    ? { white_list_read:    _docMeta.white_list_read    } : {}),
+        ...(_docMeta.white_list_update?.length  ? { white_list_update:  _docMeta.white_list_update  } : {}),
+        ...(_docMeta.white_list_delete?.length  ? { white_list_delete:  _docMeta.white_list_delete  } : {}),
+        ...(_docMeta.white_list_execute?.length ? { white_list_execute: _docMeta.white_list_execute } : {}),
     };
 
     if (_isEmulator()) {
